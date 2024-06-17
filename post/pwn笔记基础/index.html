@@ -1,0 +1,241 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PWN BASIC | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="PWN BASIC | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="一些指令
+objdump -d -M intel  (文件名)                  #查看汇编源码（加intel是想看ASM版本的，默认是AT&amp;T）
+readelf -a (文件名)                  ..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              PWN BASIC
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-10-18
+              </span>
+              <span>
+                4 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="一些指令">一些指令</h1>
+<p>objdump -d -M intel  (文件名)                  #查看汇编源码（加intel是想看ASM版本的，默认是AT&amp;T）</p>
+<p>readelf -a (文件名)                                     #查看elf文件头信息等</p>
+<p>ldd (文件名)												#看binary链接到了哪些函数库</p>
+<p>nano /root/.gdbinit                                   #同时安装了pwndbg和peda，在这里面注释切换</p>
+<p>ps -a															#查看所有进程，找到目标进程，在gdb里用attach + 进程id调试</p>
+<p>​																	#与之配合的，可以在exp相应位置加个空的input()暂停</p>
+<p>context.arch = 'amd64'							#exp里指明是x64的架构，x86的话写'i386'</p>
+<p>​																	#context(os='linux', arch='amd64', log_level='debug')</p>
+<p>readelf -a libc-2.27.so | grep &quot;puts&quot;	  #可以找到当前版本puts的偏移</p>
+<p>strings libc-2.27.so -tx | grep '/bin/sh'  #x是代表16进制，找到目标字符串的偏移</p>
+<p>libc = cdll.LoadLibrary('libc.so.6')		   #加载指定版本的libc文件（py语句，需要from ctypes 																	 import *）然后就可以使用比如libc.srand(0), libc.rand()</p>
+<p>p = process(['./pwn'],env={&quot;LD_PRELOAD&quot;:&quot;./libc-2.23.so&quot;})</p>
+<p>​																	#改变环境参数，使用给定libc来运行</p>
+<hr>
+<h1 id="一些笔记">一些笔记</h1>
+<h2 id="基础">基础</h2>
+<p>·x64调用栈参数入栈顺序：</p>
+<p>​	一般调用：rdi, rsi, rdx, rcx, r8, r9, stack</p>
+<p>​	系统调用：rdi, rsi, rdx, r10, r8, r9, stack（系统调用号存在rax寄存器）</p>
+<p>·Stack Frame</p>
+<p>​	function prologue</p>
+<p>​		例子：比如说</p>
+<p>​					4004e7:	push rbp</p>
+<p>​					4004e8:	mov rbp, rsp</p>
+<p>​					4004eb:	sub rsp, 0x10		（这里让rsp减掉0x10空出来的区域可以放local variable）</p>
+<p>​					400522:	call 4004e7</p>
+<p>​					400527:	...</p>
+<p>​		在0x400522调用0x4004e7时，push进去的其实是0x400527(也就是0x400522的下一句)</p>
+<p>​		保存return地址是call来完成的</p>
+<p>​		所以其实流程是：先是传参，然后call（push return address &amp; 更新rip），最后进入函数进行上面那三步</p>
+<p>​		main函数在被加载之前，其实还有一个return address（比如说__libc_start_main+231）</p>
+<p>​	function epilogue</p>
+<p>​		例子：</p>
+<p>​					400513:	leave</p>
+<p>​					400514:	ret</p>
+<p>​					leave差不多就是：</p>
+<p>​					mov rsp, rbp</p>
+<p>​					pop rbp				（因为pop指令，rsp又会自增0x8，刚好就回到了之前的存进来的rbp</p>
+<p>​													然后ret就把当前rsp指向的return address pop到rip里面去，rsp就回													到了原栈顶）</p>
+<hr>
+<h2 id="关于lazy-binding机制">关于lazy binding机制</h2>
+<p>got表一开始存的并不是真正的libc函数的地址，就拿puts来说，在调用puts的时候其实是去call puts函数plt表上的地址，而puts的plt表（也就是图上0x400550那里），就是一系列去访问真正的puts的指令。其中第一条jmp QWORD PTR [0x601018]其实就是跳转到puts的got表。</p>
+<figure data-type="image" tabindex="1"><img src="http://img.le1a.com/2021/11/25/b3dba3e74b16c.png" alt="1637821373564.png" loading="lazy"></figure>
+<p>puts的got表一开始存的是0x400550那里调过来的那条指令的下一条的地址（puts@plt+6）。然后push 0x0是一个它的index号（之后会用到）。</p>
+<figure data-type="image" tabindex="2"><img src="http://img.le1a.com/2021/11/25/533c888f8a296.png" alt="1637821433924.png" loading="lazy"></figure>
+<p>接着就会jmp到一个plt都会jmp到的地方，调用&lt;_dl_runtime_resolve_xsave&gt;函数来进行绑定。</p>
+<p>然后puts@got就被更新成了libc上真正调用puts的地址。之后再次调用puts@plt时，jmp到puts@got就会是真实地址了，不需要再做之后繁琐的步骤了。</p>
+<figure data-type="image" tabindex="3"><img src="http://img.le1a.com/2021/11/25/0454d9312b9b6.png" alt="1637821473142.png" loading="lazy"></figure>
+<p>在lazybiding的过程中可以看出来，got表其实是可写的，如果能改写被调用的libc函数的got表内容，（比如把上面那个例子0x601018那里的内容改成system），就达到了GOT Hijacking的效果。</p>
+<hr>
+<h2 id="use-plt-as-gadget">Use PLT as Gadget</h2>
+<p>在利用plt调用函数时（例如system@plt），有时需要多塞一个ret，保证地址最低位是0x10，而不是0x08。在调用system@plt的时候，会用到一个128bit的寄存器，如果地址没有以0x10结尾，就会crash掉。（栈对齐）</p>
+<hr>
+<h2 id="ret2libc">ret2libc</h2>
+<p>泄露libc的地方有很多，比如stack上（像main函数之前会有一个return address 是__libc_start_main+231这种），heap上的arena信息，got表。</p>
+<hr>
+<p>（更多利用方式参考后面的文章）</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E4%B8%80%E4%BA%9B%E6%8C%87%E4%BB%A4">一些指令</a></li>
+<li><a href="#%E4%B8%80%E4%BA%9B%E7%AC%94%E8%AE%B0">一些笔记</a>
+<ul>
+<li><a href="#%E5%9F%BA%E7%A1%80">基础</a></li>
+<li><a href="#%E5%85%B3%E4%BA%8Elazy-binding%E6%9C%BA%E5%88%B6">关于lazy binding机制</a></li>
+<li><a href="#use-plt-as-gadget">Use PLT as Gadget</a></li>
+<li><a href="#ret2libc">ret2libc</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

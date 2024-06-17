@@ -1,0 +1,389 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Frida Hook初探 | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Frida Hook初探 | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="前置
+安装环境
+想要快乐地进行frida hook，就需要先准备好一部安卓机（最好是真机）和adb环境，这一部分就不细说了。
+安装frida的话，先在https://github.com/frida/frida/releases找好一个版本..." />
+    <meta name="keywords" content="Android" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Frida Hook初探
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-10-18
+              </span>
+              <span>
+                5 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/yTLoRK9wr/" class="post-tag">
+                  # Android
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="前置">前置</h1>
+<h2 id="安装环境">安装环境</h2>
+<p>想要快乐地进行frida hook，就需要先准备好一部安卓机（最好是真机）和adb环境，这一部分就不细说了。</p>
+<p>安装frida的话，先在<code>https://github.com/frida/frida/releases</code>找好一个版本，然后下载手机对应架构的<code>frida-server</code></p>
+<p>比如我这里是</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/e49e882049d3e.png" alt="1666094521765.png" loading="lazy"></figure>
+<p>所以选择下载了<code>frida-server-16.0.1-android-arm64</code></p>
+<p>然后使用<code>adb push ./frida-server-16.0.1-android-arm64 /data/local/tmp/</code>将这个binary传到手机里</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/06f5ae90af279.png" alt="1666094632332.png" loading="lazy"></figure>
+<p>这样就是上传成功了，要用的时候只需要在adb起的shell中cd过去然后运行一下就行了（记得给运行权限）</p>
+<p>在PC端用pip装一下frida这个库（frida版本要和安卓上的一样）</p>
+<pre><code class="language-shell">pip install frida-16.0.1.dev7-cp34-abi3-win_amd64.whl
+pip install frida-tools
+</code></pre>
+<p>装好之后可以<code>frida-ps -U</code>测试一下</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/2a9714cb5168e.png" alt="1666094885743.png" loading="lazy"></figure>
+<p>这样就是正常工作了</p>
+<h2 id="测试环境">测试环境</h2>
+<p>简单测试一下脚本的使用</p>
+<ul>
+<li>test.py</li>
+</ul>
+<pre><code class="language-python">import frida
+# print(frida.__version__)
+device = frida.get_usb_device()
+session = device.attach(22576)
+
+print(device)
+print(session)
+
+with open(&quot;./hook.js&quot;) as f:
+    script = session.create_script(f.read())
+script.load()
+
+input()
+</code></pre>
+<ul>
+<li>hook.js</li>
+</ul>
+<pre><code class="language-javascript">console.log(&quot;hook success!&quot;)
+Java.perform(
+    function x(){
+        console.log(&quot;Inside java perform function&quot;)
+    }
+)
+</code></pre>
+<ul>
+<li>运行结果</li>
+</ul>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/4f0cd2355d411.png" alt="1666095085571.png" loading="lazy"></figure>
+<h1 id="利用">利用</h1>
+<h2 id="对原有方法进行覆盖">对原有方法进行覆盖</h2>
+<h3 id="例题001">例题001</h3>
+<p>NewstarCTF上的一题，先把apk装到安卓机上</p>
+<pre><code class="language-shell">adb install ./apk.apk
+</code></pre>
+<p>浅浅运行一下</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/3871f7c87d542.png" alt="1666097355808.png" loading="lazy"></figure>
+<p>发现貌似逻辑不在<code>MainActivity</code>里，jadx打开果然发现了<code>FlagActivity</code></p>
+<p>所以需要指定加载到这里面来运行，在adb起的shell中执行</p>
+<pre><code>am start -n com.droidlearn.activity_travel/com.droidlearn.activity_travel.FlagActivity
+</code></pre>
+<p>然后就能看到进入了这个地方，但是需要点击10000次才能拿到flag，有点小离谱（）</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/2c8e8a405282b.png" alt="1666097661740.png" loading="lazy"></figure>
+<p>这里就可以用到frida来hook一下这个方法了</p>
+<p><code>FlagActivity</code>的源码在jadx中可以看到是这样的（图片不清楚的话可以放大看）</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/c77f0ef108e60.png" alt="1666101531148.png" loading="lazy"></figure>
+<p>其中比较重要的片段是</p>
+<pre><code class="language-java">...
+private int cnt = 0;
+static int access$004(FlagActivity flagActivity) {
+	int i = flagActivity.cnt + 1;
+    flagActivity.cnt = i;
+    return i;
+}
+...
+public void onCreate(Bundle bundle) {
+...
+	public void onClick(View view) {
+		textView.setText(Integer.toString(FlagActivity.access$004(FlagActivity.this)));
+    	if (FlagActivity.this.cnt &gt;= 10000) {
+        	Toast.makeText(FlagActivity.this, editText.getText().toString(), 0).show();
+    	}
+	}
+...
+}
+</code></pre>
+<p>每次监听到点击事件过后，就会使用<code>access$004</code>方法对<code>cnt</code>变量进行递增，并打印在屏幕上</p>
+<p>那么我们可以hook到java层，重新实现<code>access$004</code>这个方法，让返回值直接大于10000</p>
+<ul>
+<li>hook.js</li>
+</ul>
+<pre><code class="language-javascript">Java.perform(
+    function () {
+        console.log(&quot;Inside java perform function&quot;);
+        console.log(&quot;process pid = &quot; + Process.id);
+        var my_class = Java.use(&quot;com.droidlearn.activity_travel.FlagActivity&quot;);
+        //console.log(my_class.access$004)
+        my_class.access$004.implementation= function (x){
+            console.log(&quot;cnt=&quot; + x.cnt.value);
+            x.cnt.value = 10001;
+            console.log(&quot;cnt=&quot; + x.cnt.value);
+            return 10001;
+        }
+    }
+);
+</code></pre>
+<ul>
+<li>exp.py</li>
+</ul>
+<pre><code class="language-python">import frida
+
+device = frida.get_usb_device()
+session = device.attach(4180)
+
+print(device)
+print(session)
+
+with open(&quot;./hook.js&quot;) as f:
+    script = session.create_script(f.read())
+script.load()
+
+input()
+</code></pre>
+<p>成功修改cnt为10001，拿到flag</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/680c21344fbb2.png" alt="1666101428084.png" loading="lazy"></figure>
+<h2 id="通过类名获取实例">通过类名获取实例</h2>
+<h3 id="例题001-resolve">例题001-REsolve</h3>
+<p>这里使用<code>Java.choose(完整类名)</code>的方法来解<code>例题001</code></p>
+<ul>
+<li>hook.js</li>
+</ul>
+<pre><code class="language-javascript">// Java.perform方法：当 js 附加到目标的进程中时被执行，运行其中定义的函数
+// Java.choose方法：通过完整类名，获取它的实例，从而对实例中的数据进行修改
+// onMatch 对应的函数在命中一个实例的时候被调用，传入函数中的参数 instance 就是被命中的实例
+// onComplete 函数会在所有实例遍历完毕之后被调用，可以做一些后续处理操作
+Java.perform(
+    function () {
+        console.log(&quot;Inside java perform function&quot;);
+        console.log(&quot;process pid = &quot; + Process.id);
+        var my_class = Java.use(&quot;com.droidlearn.activity_travel.FlagActivity&quot;);
+        //console.log(my_class.access$004)
+        // my_class.access$004.implementation= function (x){
+        //     console.log(&quot;cnt=&quot; + x.cnt.value);
+        //     x.cnt.value = 10001;
+        //     console.log(&quot;cnt=&quot; + x.cnt.value);
+        //     return 10001;
+        // }
+
+        Java.choose(&quot;com.droidlearn.activity_travel.FlagActivity&quot;,{
+            onMatch:function(instance){
+                console.log(&quot;cnt = &quot; + instance.cnt.value);
+                instance.cnt.value = 114514;
+                console.log(&quot;cnt = &quot; + instance.cnt.value);
+            },
+            onComplete:function(){
+                console.log(&quot;finish&quot;)
+            }
+        });
+    }
+);
+</code></pre>
+<ul>
+<li>exp.py</li>
+</ul>
+<pre><code class="language-python">import frida
+
+device = frida.get_usb_device()
+session = device.attach(4180)
+
+print(device)
+print(session)
+
+with open(&quot;./hook.js&quot;) as f:
+    script = session.create_script(f.read())
+script.load()
+
+input()
+</code></pre>
+<p>依然可以成功</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/18/449bfeec59b85.png" alt="1666102717859.png" loading="lazy"></figure>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E5%89%8D%E7%BD%AE">前置</a>
+<ul>
+<li><a href="#%E5%AE%89%E8%A3%85%E7%8E%AF%E5%A2%83">安装环境</a></li>
+<li><a href="#%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83">测试环境</a></li>
+</ul>
+</li>
+<li><a href="#%E5%88%A9%E7%94%A8">利用</a>
+<ul>
+<li><a href="#%E5%AF%B9%E5%8E%9F%E6%9C%89%E6%96%B9%E6%B3%95%E8%BF%9B%E8%A1%8C%E8%A6%86%E7%9B%96">对原有方法进行覆盖</a>
+<ul>
+<li><a href="#%E4%BE%8B%E9%A2%98001">例题001</a></li>
+</ul>
+</li>
+<li><a href="#%E9%80%9A%E8%BF%87%E7%B1%BB%E5%90%8D%E8%8E%B7%E5%8F%96%E5%AE%9E%E4%BE%8B">通过类名获取实例</a>
+<ul>
+<li><a href="#%E4%BE%8B%E9%A2%98001-resolve">例题001-REsolve</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/java security/">
+              <h3 class="post-title">
+                Java Security(I) Reflection
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

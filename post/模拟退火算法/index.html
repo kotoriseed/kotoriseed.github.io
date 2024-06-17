@@ -1,0 +1,278 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>模拟退火算法 | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="模拟退火算法 | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="简介
+由于很多题的正解可能会有一点困难，而整个题的大致内容又可以抽象为找出某一个函数的最大/最小值时，就可以试着用模拟退火来解决。
+假设有如下一段函数：
+
+从O点出发，贪心的去查找函数的最低点，最终会陷入q点这个局部最优解而无法跳出去。而真..." />
+    <meta name="keywords" content="ACM" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              模拟退火算法
+            </h2>
+            <div class="post-info">
+              <span>
+                2021-12-19
+              </span>
+              <span>
+                6 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/MCKjN5DgF/" class="post-tag">
+                  # ACM
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="简介">简介</h1>
+<p>由于很多题的正解可能会有一点困难，而整个题的大致内容又可以抽象为找出某一个函数的最大/最小值时，就可以试着用模拟退火来解决。</p>
+<p>假设有如下一段函数：</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2021/12/09/351d775ef836f.png" alt="1639011844219.png" loading="lazy"></figure>
+<p>从O点出发，贪心的去查找函数的最低点，最终会陷入q点这个局部最优解而无法跳出去。而真正的最优解实际上是m点。</p>
+<p>联系到物理上退火降温的过程，一个处于很高温度的物体，现在要给它降温，使物体内能降到最低。常规的思维就是让温度直接迅速降低，但实际上，过快地降温会使得物体来不及有序地收缩，难以形成内能最低的结晶态。正确的做法是徐徐降温，才能使得物体的每一个粒子都有足够的时间找到自己的最佳位置并紧密有序地排列。开始温度高的时候，粒子活跃地运动并逐渐找到一个合适的状态。在这过程中温度也会越降越低，温度低下来了，那么粒子也渐渐稳定下来，相较于以前不那么活跃了。这时候就可以慢慢形成最终稳定的结晶态了。（这一段话参考自大佬FlashHu的博客）</p>
+<p>针对于上面那个函数图，在陷入q这个局部最优解时，我们让它以一定的概率去接受并不优于它的解，这样才能跳出局部的限制。而这个概率就是e^(△f/T)。T是当前温度，△f是当前点的函数值f(x)与目标点函数值f(x+△x)的变化量。而关于x怎么跳，我们可以初始选定一个点x，然后让△x在一个大小与T成正比的值域内随机取值来模拟变动的大小随温度的降低而降低。当反复执行这个过程，使得T从一个很高的值降到给定的EPS（足够趋近于0）时，可以认为此时的最优解就是全局最优解。</p>
+<p>（模拟退火的调参过程可能比较漫长，比如温度变化量△T一般取0.95-0.99，一开始可以尽可能的把计算量拉满，先跑出来答案，再去优化参数。并且可以让程序进行多次模拟退火，以确保答案的准确性。）</p>
+<p>下面是一些例题：</p>
+<h1 id="jsoi2004平衡点">[JSOI2004]平衡点</h1>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2021/12/09/01bd77d7f7b31.png" alt="1639013213640.png" loading="lazy"></figure>
+<p>分析题目得知，绳结平衡下来时，各物体的能量之和达到了最低状态，对于这道题也就是让重力势能之和最低。物体的势能之和要最低，其实就是让每个物体桌面上那一段绳子的长度尽可能短。因而，每一个物体的势能都和它在桌子上那一段绳子的长度以及它的重量成正比。所以我们可以用模拟退火来找出这个最低状态的坐标点，将绳结的位置作为自变量，物体势能之和作为因变量，找出函数最低点。</p>
+<pre><code class="language-c++">//#define LOCAL
+//#pragma gcc optimize(2)
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+#include &lt;cstring&gt;
+#include &lt;cmath&gt;
+#include &lt;cstdlib&gt;
+#include &lt;cstdio&gt;
+#include &lt;ctime&gt;
+#include &lt;vector&gt;
+#include &lt;queue&gt;
+#include &lt;algorithm&gt;
+#include &lt;map&gt;
+#define IOS ios::sync_with_stdio(false),cin.tie(0),cout.tie(0)
+#define sp(a) fixed&lt;&lt;setprecision(a)
+#define INF 0x3f3f3f3f
+#define PI acos(-1)
+#define per(i, a, b) for (int i = a; i &lt;= b; ++i)
+#define rep(i, a, b) for (int i = a; i &gt;= b; --i)
+#define ps(a) printf(&quot;%s&quot;, a)
+#define pi(a) printf(&quot;%d\n&quot;, a)
+#define pl(a) printf(&quot;%lld\n&quot;, a)
+#define pu(a) printf(&quot;%llu\n&quot;, a)
+#define sc(a) scanf(&quot;%d&quot;, &amp;a)
+#define scl(a) scanf(&quot;%lld&quot;, &amp;a)
+#define lowbit(a) (a &amp; -a)
+#define debug(a) pi(a)
+#define CC getchar(), getchar()
+#define br ps(&quot;\n&quot;)
+#define endl &quot;\n&quot;
+using namespace std;
+typedef long long ll;
+typedef unsigned long long ull;
+const int N = 1e3 + 5;
+const double DK = 0.99, EPS = 1e-14;  //温度变化率和EPS
+double w[N], x[N], y[N];
+int n, T = 10;
+double calc(double x0, double y0){
+    long double ret = 0;
+    per(i,1,n){
+        double dx = x[i]-x0, dy = y[i]-y0;
+        ret += sqrt(dx*dx+dy*dy)*w[i];
+    }
+    return ret;
+}
+int main(){
+    srand((unsigned)time(NULL));
+    double sum_x = 0, sum_y = 0, ans_x, ans_y, best, glo_best, base_x, base_y, cur;
+    cin&gt;&gt;n;
+    per(i,1,n){
+        cin&gt;&gt;x[i]&gt;&gt;y[i]&gt;&gt;w[i];
+        sum_x += x[i], sum_y += y[i];
+    }
+    ans_x = sum_x/n, ans_y = sum_y/n;  //选取的初始绳结坐标
+    glo_best = calc(ans_x, ans_y);
+    while(T--){  //这里也可以写成(clock()&lt;CLOCKS_PER_SECOND*0.9)来卡时间
+        best = glo_best, base_x = ans_x, base_y = ans_y;
+        for(double k = 50000;k&gt;EPS;k*=DK){
+            //[-k*RAND_MAX, k*RAND_MAX)
+            double cur_x = base_x + k*(rand()*2-RAND_MAX);
+            double cur_y = base_y + k*(rand()*2-RAND_MAX);
+            cur = calc(cur_x, cur_y);
+            if(cur&lt;glo_best){  //这种情况直接接受
+                glo_best = cur, ans_x = cur_x, ans_y = cur_y;
+            }
+            //一定概率来接受
+            if(cur&lt;best || exp((best-cur)/k)&gt;(double)rand()/RAND_MAX){
+                best = cur, base_x = cur_x, base_y = cur_y;
+            }
+        }
+    }
+    cout&lt;&lt;sp(3)&lt;&lt;ans_x&lt;&lt;&quot; &quot;&lt;&lt;ans_y&lt;&lt;endl;
+    return 0;
+}
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E7%AE%80%E4%BB%8B">简介</a></li>
+<li><a href="#jsoi2004%E5%B9%B3%E8%A1%A1%E7%82%B9">[JSOI2004]平衡点</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/heap-basic/">
+              <h3 class="post-title">
+                Heap-Basic
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

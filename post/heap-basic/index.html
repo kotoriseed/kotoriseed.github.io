@@ -1,0 +1,560 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Heap-Basic | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Heap-Basic | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="Basic
+管理heap的数据结构被称为Arena。
+Linux早期版本采用dlmalloc作为默认的内存分配器，但是遇到多线程环境时，多个线程将共用同一个堆，因此临界区的竞争将会降低内存分配的效率。
+而现在使用的ptmalloc(per ..." />
+    <meta name="keywords" content="tricks" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Heap-Basic
+            </h2>
+            <div class="post-info">
+              <span>
+                2021-12-03
+              </span>
+              <span>
+                17 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/lEdq9BfNl/" class="post-tag">
+                  # tricks
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="basic">Basic</h1>
+<p>管理heap的数据结构被称为Arena。</p>
+<p>Linux早期版本采用dlmalloc作为默认的内存分配器，但是遇到多线程环境时，多个线程将共用同一个堆，因此临界区的竞争将会降低内存分配的效率。</p>
+<p>而现在使用的ptmalloc(per thread malloc)对多线程的支持就很好（线程数&lt;=CPU内核数时），每个线程都有一个自己的Arena。</p>
+<p>主线程的arena叫做main_arena，他是一个静态全局变量，该arena的malloc_state存放在glibc的代码中。</p>
+<p>main_arena对应的堆通过brk申请，子arena对应的堆则通过mmap申请。因此主Arena只有一个堆，而子Arena可以对应多个堆，当原来的堆不够用时，就会申请新的堆，然后和原来的堆链为一个链表。</p>
+<h1 id="malloc">malloc</h1>
+<h2 id="概述">概述</h2>
+<p>函数用法：</p>
+<pre><code class="language-c">void *ptr = malloc(size)
+</code></pre>
+<p>第一次申请内存需要通过syscall（glibc, OS, kernel三方沟通）来实现，此后都交由glibc实作的内存管理机制来管理。</p>
+<p>第一次malloc的时候，如果要申请的内存小于128KB，就会用sys_brk来直接申请128KB的空间，当做程序的heap段（通常都是这种状况）；如果要申请的内存大于128KB，就会用mmap。</p>
+<p>要注意的是heap是从低地址往高地址成长的（这点与stack相反，但mmap映射的heap同stack，由高位向低位增长）</p>
+<p>与calloc的区别：</p>
+<p>calloc申请到的chunk会将内容全部初始化为0</p>
+<p>(要注意的是, malloc函数返回的指针是指向user data处的，并不是chunk的开头部分)</p>
+<p>(puts函数内部会调用malloc分配堆内存，要注意)</p>
+<h2 id="分析">分析</h2>
+<p>其实在glibc的代码中并没有malloc函数，该函数真正调用的是__libc_malloc。</p>
+<p>而且<code>__libc_malloc</code>只是用来简单封装<code>_int_malloc</code>函数。而<code>_int_malloc</code>函数才是申请内存块的核心。</p>
+<p><code>__libc_malloc</code>在被调用时会首先检查是否有<code>malloc_hook</code>，如果有的话，就会去调用。</p>
+<p>(更详细的调用链可以自行调试分析，加深一下理解)</p>
+<h1 id="heap-chunk">Heap chunk</h1>
+<p>每一个chunk的结构都是一个malloc_chunk，定义如下：</p>
+<pre><code class="language-c">/*
+  This struct declaration is misleading (but accurate and necessary).
+  It declares a &quot;view&quot; into memory allowing access to necessary
+  fields at known offsets from a given base. See explanation below.
+*/
+struct malloc_chunk {
+
+  INTERNAL_SIZE_T      prev_size;  /* Size of previous chunk (if free).  */
+  INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
+
+  struct malloc_chunk* fd;         /* double links -- used only if free. */
+  struct malloc_chunk* bk;
+
+  /* Only used for large blocks: pointer to next larger size.  */
+  struct malloc_chunk* fd_nextsize; /* double links -- used only if free. */
+  struct malloc_chunk* bk_nextsize;
+};
+</code></pre>
+<p>·chunk header</p>
+<p>​	大小是0x10, heap和stack一样，都只会开0x10的倍数大小，不会因为开一个char之类的就让后面	开始偏移了（事实上，chunk的大小必须是2*SIZE_SZ的整数倍，SIZE_SZ这个常量的值和操作系统有关，在x86系统中是4，x64系统中是8）</p>
+<p>·prev_size &amp; size (8, 8 bytes in x64)</p>
+<p>​	prev_size用来存上一块chunk的大小（只有PREV_INUSE位为0时才启用，不然是可以被物理相邻的前一个chunk利用的，这就是chunk中的空间复用）size用来存这一块的大小，由于heap chunk的大小肯定是0x10的倍数，所以低3位用来表示0~7的bit是用不上的，于是拿来当标记位了。</p>
+<p>·3 flag bits in size bits 0~2:</p>
+<p>​	<code>PREV_INUSE</code>: 连续内存上一块chunk是否处于被free掉的状态（第一个chunk和small bin, tcache bin的P位默认标记为1, 防止被合并）</p>
+<p>​	<code>IS_MMAPPED</code>: 是否通过mmap分配</p>
+<p>​	<code>NON_MAIN_ARENA</code>:是否不属于main_arena</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2021/12/03/b1dbe0ae06372.png" alt="heapchunk1.png" loading="lazy"></figure>
+<p>比如说你要malloc申请0x6c个字节的数据，实际上可能会给0x80（0x70的data，0x10的header）</p>
+<p>然后返回的指针是data处的。</p>
+<h1 id="freed-chunkbins">freed chunk&amp;bins</h1>
+<p>·free掉chunk</p>
+<p>​	在free回收之后，其实只是还给了glibc来管理，总的来说还是在被程序占用着。下次再申请满足要求的chunk时，可以直接从bins里面拿，防止了频繁的系统调用。</p>
+<p>·依据size区分bins并回收</p>
+<p>管理这些的结构为malloc_state，定义如下：</p>
+<pre><code class="language-c">struct malloc_state {
+    /* Serialize access.  */
+    __libc_lock_define(, mutex);
+
+    /* Flags (formerly in max_fast).  */
+    int flags;
+
+    /* Fastbins */
+    mfastbinptr fastbinsY[ NFASTBINS ];
+
+    /* Base of the topmost chunk -- not otherwise kept in a bin */
+    mchunkptr top;
+
+    /* The remainder from the most recent split of a small request */
+    mchunkptr last_remainder;
+
+    /* Normal bins packed as described above */
+    mchunkptr bins[ NBINS * 2 - 2 ];
+
+    /* Bitmap of bins, help to speed up the process of determinating if a given bin is definitely empty.*/
+    unsigned int binmap[ BINMAPSIZE ];
+
+    /* Linked list, points to the next arena */
+    struct malloc_state *next;
+
+    /* Linked list for free arenas.  Access to this field is serialized
+       by free_list_lock in arena.c.  */
+    struct malloc_state *next_free;
+
+    /* Number of threads attached to this arena.  0 if the arena is on
+       the free list.  Access to this field is serialized by
+       free_list_lock in arena.c.  */
+    INTERNAL_SIZE_T attached_threads;
+
+    /* Memory allocated from the system in this arena.  */
+    INTERNAL_SIZE_T system_mem;
+    INTERNAL_SIZE_T max_system_mem;
+};
+</code></pre>
+<h2 id="fastbin">·fastbin</h2>
+<p>​	fastbin的大小一般是0x20, 0x30 ...... 0x80，具体的话貌似在glibc的一个global_max_fast（大概是叫这个吧）上会写。回收fastbin的话，在arena上会有很多个单链表（在fastbinsY数组中，每个size最多存10个）护各个size的fastbin的使用情况，如果之后要再开空间，找到有合适大小的fastbin就可以直接拿来用。</p>
+<p>​	fastbins通常不会被合并，但是当释放的chunk与该chunk相邻的空闲chunk合并后的大小大于FASTBIN_CONSOLIDATION_THRESHOLD时，内存碎片可能就比较多了，我们就需要把fast bins中的chunk都进行合并，以减小内存碎片对系统的影响。</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2021/12/07/b55e9fa1665dc.png" alt="1638862443980.png" loading="lazy"></figure>
+<p>fastbin只会用到fd，smallbin只会用到fd和bk，largebin被free掉之后的结构如图。</p>
+<h2 id="small-bin">·small bin</h2>
+<p>​	small bins中每个chunk的大小与其所在的bin的index的关系为：chunk_size = 2 * SIZE_SZ * index</p>
+<p>​	一共有62个循环双向链表，每个链表都有链表头节点。此外，small bins中每个bin对应的链表采用FIFO的规则（这点不同于fastbins）。</p>
+<h2 id="large-bin">·large bin</h2>
+<p>​	large bins中一共包括63个bin，每个bin中的chunk的大小不一致，而是处于一定区间范围内，此外，这63个bin被分成了6组，每组bin中的chunk大小之间的公差一致</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/01/20/f5ed3e5839867.png" alt="1642663746570.png" loading="lazy"></figure>
+<h2 id="unsorted-bin">·unsorted bin</h2>
+<p>​		unsorted bin可以视为空闲的chunk回归其所属bin之前的缓冲区。其中的空闲chunk处于乱序状态，主要有两个来源：</p>
+<p>​		·当一个较大的chunk被分割成两半后，如果剩下的部分大于MINSIZE，就会被放到unsorted bin中。</p>
+<p>​		·释放一个不属于fastbin的chunk，并且该chunk不和top chunk物理相邻时，该chunk会被首先放到unsorted bin中。</p>
+<p>​		·当进行 malloc_consolidate 时，可能会把合并后的 chunk 放到 unsorted bin 中，如果不是和 top chunk 近邻的话。</p>
+<p>​	unsorted bin在使用的过程中，采用的顺序也是FIFO（同small bin）</p>
+<p>·对于small bins, large bins, unsorted bins来说，ptmalloc将他们维护在同一个数组中。这些bin对应的数据结构在malloc_state中有如下定义：</p>
+<pre><code class="language-c">#define NBINS 128
+/* Normal bins packed as described above */
+mchunkptr bins[ NBINS * 2 - 2 ];
+</code></pre>
+<p>数组中的bin依次如下：</p>
+<p>​		1.第一个为unsorted bin</p>
+<p>​		2.索引从2到63的bin被称为small bin，同一个small bin链表中的chunk的大小相同，两个相邻索	引的small bin链表中的chunk大小相差2个机器字长（机器字长：x86:4bytes, x64:8bytes）</p>
+<p>​		3.small bins后面的bin被称作large bins。large bins中的每一个bin都包含一定范围内的chunk，其中的chunk按fd指针的顺序从大到小排列。相同大小的chunk同样按照最近使用的顺序排列。</p>
+<h2 id="tcache-bin">·tcache bin</h2>
+<p>​	libc2.26版本新增的机制，和fastbin类似（但是tcache存的是userdata的地址），每个size的chunk默认最多存7个，如果存满了就会存到fastbin或者unsortedbin里去。PREV_INUSE标记也始终为1。</p>
+<p>tcache bin新增了两个结构体：</p>
+<pre><code class="language-c">/* We overlay this structure on the user-data portion of a chunk when the chunk is stored in the per-thread cache.  */
+typedef struct tcache_entry
+{
+  struct tcache_entry *next;
+} tcache_entry;
+
+/* There is one of these for each thread, which contains the per-thread cache (hence &quot;tcache_perthread_struct&quot;).  Keeping overall size low is mildly important.  Note that COUNTS and ENTRIES are redundant (we could have just counted the linked list each time), this is for performance reasons.  */
+typedef struct tcache_perthread_struct
+{
+  char counts[TCACHE_MAX_BINS];
+  tcache_entry *entries[TCACHE_MAX_BINS];
+} tcache_perthread_struct;
+
+static __thread tcache_perthread_struct *tcache = NULL;
+</code></pre>
+<p>在_int_free函数的开头会首先调用tcache_put函数尝试将chunk放进tcache bin(分配大小不能超过0x408)</p>
+<pre><code class="language-c">static void
+tcache_put (mchunkptr chunk, size_t tc_idx)
+{
+  tcache_entry *e = (tcache_entry *) chunk2mem (chunk);
+  assert (tc_idx &lt; TCACHE_MAX_BINS);
+  e-&gt;next = tcache-&gt;entries[tc_idx];
+  tcache-&gt;entries[tc_idx] = e;
+  ++(tcache-&gt;counts[tc_idx]);
+}
+</code></pre>
+<p>在__libc_malloc函数的开头会调用tcache_get函数尝试从tcache bin取出chunk</p>
+<pre><code class="language-c">static void *
+tcache_get (size_t tc_idx)
+{
+  tcache_entry *e = tcache-&gt;entries[tc_idx];
+  assert (tc_idx &lt; TCACHE_MAX_BINS);
+  assert (tcache-&gt;entries[tc_idx] &gt; 0);
+  tcache-&gt;entries[tc_idx] = e-&gt;next;
+  --(tcache-&gt;counts[tc_idx]);
+  return (void *) e;
+}
+</code></pre>
+<p>一个简单的判断</p>
+<pre><code class="language-c">#if USE_TCACHE
+  {
+    size_t tc_idx = csize2tidx (size);
+
+    if (tcache
+      &amp;&amp; tc_idx &lt; mp_.tcache_bins
+      &amp;&amp; tcache-&gt;counts[tc_idx] &lt; mp_.tcache_count)
+      {
+        tcache_put (p, tc_idx);
+        return;
+      }
+  }
+#endif
+
+</code></pre>
+<p>注：一个tcache bin中的最大数量<code>mp_.tcache_count</code>默认是7</p>
+<p>在内存分配的 malloc 函数中有多处，会将内存块移入 tcache 中。</p>
+<p>（1）首先，申请的内存块符合 fastbin 大小时并且在 fastbin 内找到可用的空闲块时，会把该 fastbin 链上的其他内存块放入 tcache 中。</p>
+<p>（2）其次，申请的内存块符合 smallbin 大小时并且在 smallbin 内找到可用的空闲块时，会把该 smallbin 链上的其他内存块放入 tcache 中。</p>
+<p>（3）当在 unsorted bin 链上循环处理时，当找到大小合适的链时，并不直接返回，而是先放到 tcache 中，继续处理。</p>
+<h2 id="top-chunk">·top chunk</h2>
+<p>​	程序第一次进行 malloc 的时候，heap 会被分为两块，一块给用户，剩下的那块就是 top chunk。其实，所谓的 top chunk 就是处于当前堆的物理地址最高的 chunk。这个 chunk 不属于任何一个 bin，它的作用在于当所有的 bin 都无法满足用户请求的大小时，如果其大小不小于指定的大小，就进行分配，并将剩下的部分作为新的 top chunk。否则，就对 heap 进行扩展后再进行分配。在 main arena 中通过 sbrk 扩展 heap，而在 thread arena 中通过 mmap 分配新的 heap。</p>
+<h2 id="last-reamainder">·last reamainder</h2>
+<p>​	在用户使用 malloc 请求分配内存时，ptmalloc2 找到的 chunk 可能并不和申请的内存大小一致，这时候就将分割之后的剩余部分称之为 last remainder chunk ，unsorted bin 也会存这一块。top chunk 分割剩下的部分不会作为 last remainder。</p>
+<h1 id="基础攻击手法">基础攻击手法</h1>
+<h2 id="堆溢出">堆溢出</h2>
+<p>堆溢出是一种特定的缓冲区溢出。但是堆上没有直接存程序返回地址之类的，没办法直接控制EIP，但是可以利用堆中的机制（如unlink）来实现任意地址写入或控制堆块中的内容等效果，从而控制程序的执行流程。</p>
+<h2 id="off-by-one">OFF BY ONE</h2>
+<p>利用思路：</p>
+<p>1.溢出字节为可控制任意字节：通过修改大小造成块结构之间出现重叠，从而泄露其他块数据，或是覆盖其他块数据。</p>
+<p>2.溢出字节为 NULL 字节：在 size 为 0x100 的时候，溢出 NULL 字节可以使得 <code>prev_in_use</code> 位被清，这样前块会被认为是 free 块。（1） 这时可以选择使用 unlink 方法（见 unlink 部分）进行处理。（2） 另外，这时 <code>prev_size</code> 域就会启用，就可以伪造 <code>prev_size</code> ，从而造成块之间发生重叠。此方法的关键在于 unlink 的时候没有检查按照 <code>prev_size</code> 找到的块的大小与<code>prev_size</code> 是否一致。（在2.28及之前版本没有此检查，之后已经有了）</p>
+<p>有一种常见的利用场景就是strlen()和strcpy()函数配合使用的情况，strlen()在检查长度的时候不会把'\x00'算进去，但是strcpy()会把'\x00'一起复制，所以有时可以用这个'\x00'覆盖到下一chunk的size位。</p>
+<h2 id="uaf">UAF</h2>
+<p>全称：use after free</p>
+<p>·ptr未清空 -&gt; Dangling pointer</p>
+<p>​	比如一个指针所指的区域已经被free掉了，但是指针依然指着那个位置</p>
+<p>·Object -&gt; 解析方式不同</p>
+<p>​	伪造vtable（c++）</p>
+<p>·function pointer -&gt; control rip</p>
+<p>假设有如下结构体：</p>
+<pre><code class="language-c">struct human{
+	long age;
+	void (*say)();
+	char name[0x10];
+};  //共需要8+8+0x10=0x20
+
+struct f__k{
+	char trash[0x20];
+};  //也是0x20b
+</code></pre>
+<p>一个简单的uaf:</p>
+<pre><code class="language-c">struct f__k *a = (struct f__k*) malloc (sizeof (struct f__k));
+
+strcpy(a-&gt;trash, &quot;aaaaaaaabbbbbbbbccccccccdddddddd&quot;);
+printf(&quot;name:%s\nage:%p\n&quot;, ((struct human*)a)-&gt;name, ((struct human*)a)-&gt;age);
+
+free(a);
+
+struct human *b = (struct human*) malloc (sizeof(struct human));
+
+printf(&quot;name:%s\nage:%p\n&quot;, b-&gt;name, b-&gt;age);
+
+b-&gt;say();
+</code></pre>
+<p>fastbin的空间也是FILO（first in last out）的，在链表头部插入，头部取出。</p>
+<p>相当于最近free掉了一个0x20的空间，我再申请一个0x20的空间，肯定就是用的最近free掉的那个。</p>
+<h2 id="double-free">double free</h2>
+<p>顾名思义就是对同一块内存free两次（大多数时候会被系统检测到，然后直接异常结束，但是如果存在漏洞的话还是可以bypass掉）</p>
+<p>比如说常见的一种fastbin的监测机制就是查看你现在free掉的是不是fastbin那个链表当前的某个头部，要绕过的话就很简单，只需要free(a), free(b)然后再free(a)就行。</p>
+<p>可以达到类似于uaf的效果，比如说先free掉a，再free掉b，然后再free掉a，这样一来，假如第一次拿到一个指针q指向a这块内存，但q不可控，然后后面再拿到一个指针p也指向a，但是p可控，目的就达成了。</p>
+<p>double free通常和uaf配合起来用。</p>
+<h2 id="unlink">unlink</h2>
+<p>利用unlink过程中的FD-&gt;fd = BK, BK-&gt;bk = FD，修改某个地方的指针值。</p>
+<p>最长用到的就是将heap数组某一位的值，*ptr变成ptr+0x18</p>
+<h2 id="fastbin-attack">fastbin attack</h2>
+<p>利用堆溢出，修改后续被free掉的fastbin的fd指针，指向一个目标地址附近的fakechunk，以此申请到目标chunk，由于fastbin没有使用unlink，所以只需要保证目标fakechunk的size能通过检查就行了（通常找0x7f比较简单，而且0x7f的prev_inuse位也是1）</p>
+<p>house of spirit:</p>
+<p>伪造一个堆块，将其free，然后申请到。</p>
+<h2 id="unsortedbin-attack">unsortedbin attack</h2>
+<p>前提：能够控制unsorted bin的bk指针</p>
+<p>效果：把任意地址值改写成一个较大的数值（比如说修改掉循环的次数，进行更多次循环，或者修改掉global_max_fast，让更大的chunk被视为fastbin，以此来进行fastbin attack）</p>
+<p>方法：将unsorted bin尾结点的bk改为目标addr-0x10</p>
+<p>（此方法在libc2.28+失效，改用tcache stashing unlink attack实现相同效果）</p>
+<h2 id="largebin-attack">largebin attack</h2>
+<p>largebin attack是未来更深入的利用，需要好好掌握。</p>
+<p>参照ctf-wiki给出的将large chunk放入bins的代码：</p>
+<pre><code class="language-c">else
+            {
+              victim_index = largebin_index (size);
+              bck = bin_at (av, victim_index);
+              fwd = bck-&gt;fd;
+
+              /* maintain large bins in sorted order */
+              if (fwd != bck)
+                {
+                  /* Or with inuse bit to speed comparisons */
+                  size |= PREV_INUSE;
+                  /* if smaller than smallest, bypass loop below */
+                  assert (chunk_main_arena (bck-&gt;bk));
+                  if ((unsigned long) (size)
+              &lt; (unsigned long) chunksize_nomask (bck-&gt;bk))
+                    {
+                      fwd = bck;
+                      bck = bck-&gt;bk;
+
+                      victim-&gt;fd_nextsize = fwd-&gt;fd;
+                      victim-&gt;bk_nextsize = fwd-&gt;fd-&gt;bk_nextsize;
+                      fwd-&gt;fd-&gt;bk_nextsize = victim-&gt;bk_nextsize-&gt;fd_nextsize = victim;
+                    }
+                  else
+                    {
+                      assert (chunk_main_arena (fwd));
+                      while ((unsigned long) size &lt; chunksize_nomask (fwd))
+                        {
+                          fwd = fwd-&gt;fd_nextsize;
+              assert (chunk_main_arena (fwd));
+                        }
+
+                      if ((unsigned long) size
+              == (unsigned long) chunksize_nomask (fwd))
+                        /* Always insert in the second position.  */
+                        fwd = fwd-&gt;fd;
+                      else
+                        {
+                          victim-&gt;fd_nextsize = fwd;
+                          victim-&gt;bk_nextsize = fwd-&gt;bk_nextsize;
+                          if (__glibc_unlikely (fwd-&gt;bk_nextsize-&gt;fd_nextsize != fwd))
+                            malloc_printerr (&quot;malloc(): largebin double linked list corrupted (nextsize)&quot;);
+                          fwd-&gt;bk_nextsize = victim;
+                          victim-&gt;bk_nextsize-&gt;fd_nextsize = victim;
+                        }
+                      bck = fwd-&gt;bk;
+                      if (bck-&gt;fd != fwd)
+                        malloc_printerr (&quot;malloc(): largebin double linked list corrupted (bk)&quot;);
+                    }
+                }
+</code></pre>
+<h2 id="tcache-attack">tcache attack</h2>
+<p>详细的tcache tricks可以看我后面更的这篇：https://kotoriseed.github.io/2022/04/11/tcache%20summary/</p>
+<h2 id="leak-libc">leak libc</h2>
+<p>管理主线程的heap的main_arena是libc的一个静态全局变量，而且像small bin这样的，有fd和bk指针维护的双链表必会有一个指针指向main_arena上的bins数组的某个位置，由此就能得到libc上的地址。</p>
+<h4 id="leak出main_arena的地址">leak出main_arena的地址</h4>
+<p>1.制造堆块overlap</p>
+<p>2.利用uaf</p>
+<p>3.利用<code>_IO_2_1_stdout_</code></p>
+<p>有时程序不含输出堆块内容这个功能的时候，可以劫持<code>_IO_2_1_stdout_</code>，修改_flags成员，绕过setbuf(stdout, 0)，让程序下一次调用输出函数的时候，将<code> _IO_write_base</code>和<code>_IO_write_ptr</code>之间的内容打印出来。然后再结合vmmap得到基址，利用<code>libc_base + libc.symbols['__malloc_hook'] + 0x10</code>得到。</p>
+<h4 id="算出基址">算出基址</h4>
+<p>1.通过vmmap直接算</p>
+<p>2.利用__malloc_trim()</p>
+<pre><code class="language-c">int __malloc_trim (size_t s)
+{
+  int result = 0;
+
+  if (__malloc_initialized &lt; 0)
+    ptmalloc_init ();
+
+  mstate ar_ptr = &amp;main_arena;  //&lt;=here!
+  do
+    {
+      __libc_lock_lock (ar_ptr-&gt;mutex);
+      result |= mtrim (ar_ptr, s);
+      __libc_lock_unlock (ar_ptr-&gt;mutex);
+
+      ar_ptr = ar_ptr-&gt;next;
+    }
+  while (ar_ptr != &amp;main_arena);
+
+  return result;
+}
+</code></pre>
+<p>这个函数用到了main_arena的地址，所以是可以直接在ida里分析的时候算的。</p>
+<p>3.利用<code>__malloc_hook</code>辅助定位</p>
+<p><code>__malloc_hook</code>和<code>main_arena</code>的偏移是0x10，所以可以很方便的算出来。</p>
+<h1 id="结语">结语</h1>
+<p>接下来的更高级的手法，或者更具体的利用，我将在其他文章里面结合实际例子更新。</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#basic">Basic</a></li>
+<li><a href="#malloc">malloc</a>
+<ul>
+<li><a href="#%E6%A6%82%E8%BF%B0">概述</a></li>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+</ul>
+</li>
+<li><a href="#heap-chunk">Heap chunk</a></li>
+<li><a href="#freed-chunkbins">freed chunk&amp;bins</a>
+<ul>
+<li><a href="#fastbin">·fastbin</a></li>
+<li><a href="#small-bin">·small bin</a></li>
+<li><a href="#large-bin">·large bin</a></li>
+<li><a href="#unsorted-bin">·unsorted bin</a></li>
+<li><a href="#tcache-bin">·tcache bin</a></li>
+<li><a href="#top-chunk">·top chunk</a></li>
+<li><a href="#last-reamainder">·last reamainder</a></li>
+</ul>
+</li>
+<li><a href="#%E5%9F%BA%E7%A1%80%E6%94%BB%E5%87%BB%E6%89%8B%E6%B3%95">基础攻击手法</a>
+<ul>
+<li><a href="#%E5%A0%86%E6%BA%A2%E5%87%BA">堆溢出</a></li>
+<li><a href="#off-by-one">OFF BY ONE</a></li>
+<li><a href="#uaf">UAF</a></li>
+<li><a href="#double-free">double free</a></li>
+<li><a href="#unlink">unlink</a></li>
+<li><a href="#fastbin-attack">fastbin attack</a></li>
+<li><a href="#unsortedbin-attack">unsortedbin attack</a></li>
+<li><a href="#largebin-attack">largebin attack</a></li>
+<li><a href="#tcache-attack">tcache attack</a></li>
+<li><a href="#leak-libc">leak libc</a><br>
+*
+<ul>
+<li><a href="#leak%E5%87%BAmain_arena%E7%9A%84%E5%9C%B0%E5%9D%80">leak出main_arena的地址</a></li>
+<li><a href="#%E7%AE%97%E5%87%BA%E5%9F%BA%E5%9D%80">算出基址</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#%E7%BB%93%E8%AF%AD">结语</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

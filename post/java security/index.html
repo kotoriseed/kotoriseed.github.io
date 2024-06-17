@@ -1,0 +1,328 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Java Security(I) Reflection | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Java Security(I) Reflection | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="
+Java安全可以从反序列化漏洞开始说起，反序列化漏洞⼜可以从反射开始说起。					——phith0n
+
+简介
+对于java安全而言，反射是一个很重要的基础知识。我们可以通过对对象的反射来获得某一个Class，也可以通过对Class的反射..." />
+    <meta name="keywords" content="java security" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Java Security(I) Reflection
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-08-30
+              </span>
+              <span>
+                5 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/x0MKGbY2s/" class="post-tag">
+                  # java security
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <blockquote>
+<p>Java安全可以从反序列化漏洞开始说起，反序列化漏洞⼜可以从反射开始说起。					——phith0n</p>
+</blockquote>
+<h1 id="简介">简介</h1>
+<p>对于java安全而言，反射是一个很重要的基础知识。我们可以通过对对象的反射来获得某一个Class，也可以通过对Class的反射获得他的所有方法（包括私有）。</p>
+<p>在一些只有难以利用的基本类型对象(String, Char, Integer, ...)的情况下，利用反射获取到某些可以加以利用的Class 往往是一个不错的利用手段。</p>
+<h1 id="exploitaion">Exploitaion</h1>
+<h2 id="反射中常用的方法">反射中常用的方法</h2>
+<ul>
+<li>
+<p><code>forName</code>获取类</p>
+<ul>
+<li>参数需要是目标Class的全名</li>
+</ul>
+</li>
+<li>
+<p><code>newInstance</code>实例化一个对应Class的对象</p>
+<ul>
+<li>在目标类拥有无参构造函数的时候不需要参数即可使用</li>
+</ul>
+</li>
+<li>
+<p><code>getMethod</code>获取对应Class的某个方法</p>
+</li>
+<li>
+<p><code>invoke</code>执行方法</p>
+<ul>
+<li>一般来说至少会有一个参数，是使用这个方法的对象，后续参数是对于方法需要的参数</li>
+</ul>
+</li>
+</ul>
+<h2 id="利用反射获取class">利用反射获取Class</h2>
+<ul>
+<li>如果上文存在对应Class的对象<code>obj</code>，那么直接使用<code>obj.getClass()</code>方法即可。</li>
+<li>通常来说不会存在对应的对象，所以需要用到<code>Class.forName(&quot;target-class-name&quot;)</code>来获取到目标类</li>
+</ul>
+<p>（其实如果已经加载了某个类，比如说<code>Test</code>，是可以直接使用<code>Test.class</code>来拿到这个类的，不过此方法不属于反射就是了。而且通过此方法来获取对某个类的引用的时候，是不会触发类加载器(<code>ClassLoader</code>)对他的初始化操作的，而通过<code>forName</code>来引用时则会默认触发，这事实上和<code>forName</code>方法的一个重载有关）</p>
+<p>只是说的话比较枯燥，下面来看几个demo理解一下吧：</p>
+<h3 id="demo1-使用objgetclass">demo1-使用obj.getClass()</h3>
+<p><code>reflection</code>类的内容如下（后续demo也会基于这个类来示范）:</p>
+<pre><code class="language-java">public class reflection {
+    public void hello(){
+        System.out.println(&quot;hello!&quot;);
+    }
+    private void secret(){
+        System.out.println(&quot;You find me!!&quot;);
+    }
+}
+</code></pre>
+<p>现在我们要用反射获取到他的类，并使用他的hello方法。</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        reflection a = new reflection();
+        a.hello();
+        Class ref = a.getClass();
+        ref.getMethod(&quot;hello&quot;).invoke(a);
+    }
+}
+</code></pre>
+<p>由于hello方法是公有的，所以这里使用了两种方法来调用它。</p>
+<h3 id="demo2-使用forname">demo2-使用forName()</h3>
+<p>在上下文没有<code>reflection</code>类的时候也能够调用他的方法。</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        Class ref = Class.forName(&quot;reflection&quot;);
+        ref.getMethod(&quot;hello&quot;).invoke(ref.newInstance());
+    }
+}
+</code></pre>
+<h3 id="demo3-对私有方法的反射">demo3-对私有方法的反射</h3>
+<p>在<code>reflection</code>类中还有一个私有方法<code>secret()</code>，我们无法使用<code>getMethod</code>来获取到他。</p>
+<p>此时就可以使用<code>getDeclaredMethod</code>方法强行获取，然后再用<code>setAccessible(true)</code>赋予执行权限。</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        Class ref = Class.forName(&quot;reflection&quot;);
+        Method secr = ref.getDeclaredMethod(&quot;secret&quot;);
+        secr.setAccessible(true);
+        secr.invoke(ref.newInstance());
+    }
+}
+</code></pre>
+<p>(我这里使用的是<code>jdk 8u341</code>，此方法在高版本可能并不适用)</p>
+<h2 id="浅谈利用反射的rce思路">浅谈利用反射的RCE思路</h2>
+<h3 id="使用forname反射javalangruntime类">使用forName反射java.lang.Runtime类</h3>
+<p>在<code>java.lang.Runtime</code>类中有<code>exec</code>方法，可以直接使用一些系统命令。</p>
+<p>不过要注意的是<code>java.lang.Runtime</code>类在设计上使用的是单例模式，我们想使用<code>invoke</code>的时候还需要传一个该类型的对象进去，此时<code>newInstance</code>方法是无法使用的。所以还需要先反射得到<code>getRuntime</code>这个方法来获取一个对象。</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        Class runtime = Class.forName(&quot;java.lang.Runtime&quot;);
+        Method getruntime = runtime.getMethod(&quot;getRuntime&quot;);
+        Object obj = getruntime.invoke(runtime);
+        runtime.getMethod(&quot;exec&quot;, String.class).invoke(obj, &quot;calc.exe&quot;);
+    }
+}
+</code></pre>
+<p>运行成功将弹出计算器。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/30/4f6e1f1152efd.png" alt="1661870901546.png" loading="lazy"></figure>
+<h3 id="无默认无参构造函数下的利用">无默认无参构造函数下的利用</h3>
+<p><code>java.lang.Runtime</code>类的情况也是无法使用<code>newInstance</code>的，此时我们可以用<code> getConstructor</code>来反射。</p>
+<p>和<code>getMethod</code>类似， <code>getConstructor </code>接收的参数是构造函数列表类型，因为构造函数也支持重载，<br>
+所以必须用参数列表类型才能唯一确定一个构造函数。</p>
+<p>此外，<code>java.lang.ProcessBuilder</code>也是一种常用于RCE的函数，这里用它做一个示范</p>
+<pre><code class="language-java">import java.lang.reflect.Method;
+
+public class test {
+    public static void main(String[] args) throws  Exception {
+        Class pb = Class.forName(&quot;java.lang.ProcessBuilder&quot;);
+        ((ProcessBuilder)pb.getConstructor(String[].class).newInstance(new String[][]{{&quot;calc.exe&quot;}})).start();
+    }
+}
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/30/1717f83abdb70.png" alt="1661871587238.png" loading="lazy"></figure>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E7%AE%80%E4%BB%8B">简介</a></li>
+<li><a href="#exploitaion">Exploitaion</a>
+<ul>
+<li><a href="#%E5%8F%8D%E5%B0%84%E4%B8%AD%E5%B8%B8%E7%94%A8%E7%9A%84%E6%96%B9%E6%B3%95">反射中常用的方法</a></li>
+<li><a href="#%E5%88%A9%E7%94%A8%E5%8F%8D%E5%B0%84%E8%8E%B7%E5%8F%96class">利用反射获取Class</a>
+<ul>
+<li><a href="#demo1-%E4%BD%BF%E7%94%A8objgetclass">demo1-使用obj.getClass()</a></li>
+<li><a href="#demo2-%E4%BD%BF%E7%94%A8forname">demo2-使用forName()</a></li>
+<li><a href="#demo3-%E5%AF%B9%E7%A7%81%E6%9C%89%E6%96%B9%E6%B3%95%E7%9A%84%E5%8F%8D%E5%B0%84">demo3-对私有方法的反射</a></li>
+</ul>
+</li>
+<li><a href="#%E6%B5%85%E8%B0%88%E5%88%A9%E7%94%A8%E5%8F%8D%E5%B0%84%E7%9A%84rce%E6%80%9D%E8%B7%AF">浅谈利用反射的RCE思路</a>
+<ul>
+<li><a href="#%E4%BD%BF%E7%94%A8forname%E5%8F%8D%E5%B0%84javalangruntime%E7%B1%BB">使用forName反射java.lang.Runtime类</a></li>
+<li><a href="#%E6%97%A0%E9%BB%98%E8%AE%A4%E6%97%A0%E5%8F%82%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0%E4%B8%8B%E7%9A%84%E5%88%A9%E7%94%A8">无默认无参构造函数下的利用</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/awdp-pwn-fix/">
+              <h3 class="post-title">
+                AWD/AWDP-PWN-FIX
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

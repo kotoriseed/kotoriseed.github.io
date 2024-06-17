@@ -1,0 +1,638 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>IO_FILE Summary | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="IO_FILE Summary | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="_IO_FILE与 vtable
+_IO_FILE
+FILE 在 Linux 系统的标准 IO 库中是用于描述文件的结构，称为文件流。 FILE 结构在程序执行 fopen 等函数时会进行创建，并分配在堆中（stdin, stdout, s..." />
+    <meta name="keywords" content="tricks" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              IO_FILE Summary
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-04-07
+              </span>
+              <span>
+                14 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/lEdq9BfNl/" class="post-tag">
+                  # tricks
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="_io_file与-vtable">_IO_FILE与 vtable</h1>
+<h2 id="_io_file">_IO_FILE</h2>
+<p>FILE 在 Linux 系统的标准 IO 库中是用于描述文件的结构，称为文件流。 FILE 结构在程序执行 fopen 等函数时会进行创建，并分配在堆中（stdin, stdout, stderr在libc.so的数据段里，并且会在程序开始时被创建）。我们常定义一个指向 FILE 结构的指针来接收这个返回值。</p>
+<p>FILE 结构定义在 libio.h 中，关键源码如下：</p>
+<pre><code class="language-c">struct _IO_FILE {
+  int _flags;       /* High-order word is _IO_MAGIC; rest is flags. */
+#define _IO_file_flags _flags
+
+  /* The following pointers correspond to the C++ streambuf protocol. */
+  /* Note:  Tk uses the _IO_read_ptr and _IO_read_end fields directly. */
+  char* _IO_read_ptr;   /* Current read pointer */
+  char* _IO_read_end;   /* End of get area. */
+  char* _IO_read_base;  /* Start of putback+get area. */
+  char* _IO_write_base; /* Start of put area. */
+  char* _IO_write_ptr;  /* Current put pointer. */
+  char* _IO_write_end;  /* End of put area. */
+  char* _IO_buf_base;   /* Start of reserve area. */
+  char* _IO_buf_end;    /* End of reserve area. */
+  /* The following fields are used to support backing up and undo. */
+  char *_IO_save_base; /* Pointer to start of non-current get area. */
+  char *_IO_backup_base;  /* Pointer to first valid character of backup area */
+  char *_IO_save_end; /* Pointer to end of non-current get area. */
+
+  struct _IO_marker *_markers;
+
+  struct _IO_FILE *_chain;
+
+  int _fileno;
+#if 0
+  int _blksize;
+#else
+  int _flags2;
+#endif
+  _IO_off_t _old_offset; /* This used to be _offset but it's too small.  */
+
+#define __HAVE_COLUMN /* temporary */
+  /* 1+column number of pbase(); 0 is unknown. */
+  unsigned short _cur_column;
+  signed char _vtable_offset;
+  char _shortbuf[1];
+
+  /*  char* _save_gptr;  char* _save_egptr; */
+
+  _IO_lock_t *_lock;
+#ifdef _IO_USE_OLD_IO_FILE
+};
+struct _IO_FILE_complete
+{
+  struct _IO_FILE _file;
+#endif
+#if defined _G_IO_IO_FILE_VERSION &amp;&amp; _G_IO_IO_FILE_VERSION == 0x20001
+  _IO_off64_t _offset;
+# if defined _LIBC || defined _GLIBCPP_USE_WCHAR_T
+  /* Wide character stream stuff.  */
+  struct _IO_codecvt *_codecvt;
+  struct _IO_wide_data *_wide_data;
+  struct _IO_FILE *_freeres_list;
+  void *_freeres_buf;
+# else
+  void *__pad1;
+  void *__pad2;
+  void *__pad3;
+  void *__pad4;
+
+  size_t __pad5;
+  int _mode;
+  /* Make sure we don't get into trouble again.  */
+  char _unused2[15 * sizeof (int) - 4 * sizeof (void *) - sizeof (size_t)];
+#endif
+};
+</code></pre>
+<p>在libc上的stdin, stdout, stderr的symbol分别如下:</p>
+<pre><code>_IO_2_1_stdin_
+_IO_2_1_stdout_
+_IO_2_1_stderr_
+</code></pre>
+<p>所有的<code>_IO_FILE</code>对象由 <code>_chain</code>彼此连接形成了一个单链表，表头指针是 <code>_IO_list_all</code>。</p>
+<p><code>_IO_list_all</code>初始状态是指向 <code>_IO_2_1_stderr_</code> 的。</p>
+<h2 id="vtable">vtable</h2>
+<p>常规文件流的vtable是一种<code>_IO_jump_t</code>类型的指针，在vtable中保存有许多IO函数会调用的函数指针。</p>
+<pre><code class="language-c">struct _IO_jump_t
+{
+    JUMP_FIELD(size_t, __dummy);
+    JUMP_FIELD(size_t, __dummy2);
+    JUMP_FIELD(_IO_finish_t, __finish);
+    JUMP_FIELD(_IO_overflow_t, __overflow);
+    JUMP_FIELD(_IO_underflow_t, __underflow);
+    JUMP_FIELD(_IO_underflow_t, __uflow);
+    JUMP_FIELD(_IO_pbackfail_t, __pbackfail);
+    /* showmany */
+    JUMP_FIELD(_IO_xsputn_t, __xsputn);
+    JUMP_FIELD(_IO_xsgetn_t, __xsgetn);
+    JUMP_FIELD(_IO_seekoff_t, __seekoff);
+    JUMP_FIELD(_IO_seekpos_t, __seekpos);
+    JUMP_FIELD(_IO_setbuf_t, __setbuf);
+    JUMP_FIELD(_IO_sync_t, __sync);
+    JUMP_FIELD(_IO_doallocate_t, __doallocate);
+    JUMP_FIELD(_IO_read_t, __read);
+    JUMP_FIELD(_IO_write_t, __write);
+    JUMP_FIELD(_IO_seek_t, __seek);
+    JUMP_FIELD(_IO_close_t, __close);
+    JUMP_FIELD(_IO_stat_t, __stat);
+    JUMP_FIELD(_IO_showmanyc_t, __showmanyc);
+    JUMP_FIELD(_IO_imbue_t, __imbue);
+#if 0
+    get_column;
+    set_column;
+#endif
+};
+
+</code></pre>
+<p>在libc中定义的vtable有<code>_IO_file_jumps</code>, <code>_IO_str_jumps</code>, <code>_IO_cookie_jumps</code>等。</p>
+<h2 id="_io_file_plus">_IO_FILE_plus</h2>
+<p>_IO_FILE_plus是对 _IO_FILE和vtable的整合</p>
+<pre><code class="language-c">struct _IO_FILE_plus
+{
+    _IO_FILE    file;
+    IO_jump_t   *vtable;
+}
+</code></pre>
+<p>在x86中，file和vtable的偏移是0x94，在x64中的偏移一般是0xd8</p>
+<p>(x64下_IO_FILE_plus结构体内的偏移：)</p>
+<pre><code class="language-c">0x0   _flags
+0x8   _IO_read_ptr
+0x10  _IO_read_end
+0x18  _IO_read_base
+0x20  _IO_write_base
+0x28  _IO_write_ptr
+0x30  _IO_write_end
+0x38  _IO_buf_base
+0x40  _IO_buf_end
+0x48  _IO_save_base
+0x50  _IO_backup_base
+0x58  _IO_save_end
+0x60  _markers
+0x68  _chain
+0x70  _fileno
+0x74  _flags2
+0x78  _old_offset
+0x80  _cur_column
+0x82  _vtable_offset
+0x83  _shortbuf
+0x88  _lock
+0x90  _offset
+0x98  _codecvt
+0xa0  _wide_data
+0xa8  _freeres_list
+0xb0  _freeres_buf
+0xb8  __pad5
+0xc0  _mode
+0xc4  _unused2
+0xd8  vtable
+</code></pre>
+<h1 id="io函数的调用链">IO函数的调用链</h1>
+<h2 id="分析">分析</h2>
+<p>这里先用fread和fwrite为例来分析一下</p>
+<h3 id="fread">fread</h3>
+<p>fread的函数原型：</p>
+<p><code>size_t fread(void *buffer, size_t size, size_t count, FILE *stream)</code></p>
+<p>buffer：存数据的缓冲区</p>
+<p>size：指定每次读的数据项长度</p>
+<p>count：数据项的个数</p>
+<p>stream：目标文件流</p>
+<p>返回值：成功读取到缓冲区的数据项个数</p>
+<p>fread指向的函数名为_IO_fread，它会调用 _IO_sgetn</p>
+<pre><code class="language-c">bytes_read = _IO_sgetn (fp, (char *) buf, bytes_requested);
+</code></pre>
+<p>而_IO_sgetn会调用 _IO_XSGETN</p>
+<pre><code class="language-c">_IO_size_t
+_IO_sgetn (fp, data, n)
+     _IO_FILE *fp;
+     void *data;
+     _IO_size_t n;
+{
+  return _IO_XSGETN (fp, data, n);
+}
+</code></pre>
+<p>他实际上就是vtable中的函数指针，默认指向_IO_file_xsgetn。</p>
+<p>检查如下：</p>
+<pre><code class="language-c">  if (fp-&gt;_IO_buf_base
+          &amp;&amp; want &lt; (size_t) (fp-&gt;_IO_buf_end - fp-&gt;_IO_buf_base))
+        {
+          if (__underflow (fp) == EOF)
+        break;
+
+          continue;
+        }
+</code></pre>
+<h3 id="fwrite">fwrite</h3>
+<p>fwrite的函数原型：</p>
+<p><code>size_t fwrite(const void* buffer, size_t size, size_t count, FILE* stream)</code></p>
+<p>buffer：要写入的地址</p>
+<p>size：要写入的每个数据项大小</p>
+<p>count：写入多少个数据项</p>
+<p>返回值：成功写入的数据项个数</p>
+<p>fwrite指向的函数名为_IO_fwrite，它会调用 _IO_sputn</p>
+<pre><code class="language-c">written = _IO_sputn (fp, (const char *) buf, request);
+</code></pre>
+<p>_IO_sputn会调用 _IO_XSPUTN，指向 _IO_new_file_xsputn，同时也会调用vtable中的 _IO_OVERFLOW。</p>
+<pre><code class="language-c"> /* Next flush the (full) buffer. */
+      if (_IO_OVERFLOW (f, EOF) == EOF)
+</code></pre>
+<p>_IO_OVERFLOW默认指向 _IO_new_file_overflow</p>
+<pre><code class="language-c">if (ch == EOF)
+    return _IO_do_write (f, f-&gt;_IO_write_base,
+             f-&gt;_IO_write_ptr - f-&gt;_IO_write_base);
+  if (f-&gt;_IO_write_ptr == f-&gt;_IO_buf_end ) /* Buffer is really full */
+    if (_IO_do_flush (f) == EOF)
+      return EOF;
+</code></pre>
+<p>在_IO_new_file_overflow中进一步调用系统函数write</p>
+<h2 id="常见的调用链">常见的调用链</h2>
+<ul>
+<li>
+<p>printf/puts -&gt; _IO_file_xsputn</p>
+</li>
+<li>
+<p>scanf/gets -&gt; _IO_file_xsgetn</p>
+</li>
+<li>
+<p>fwrite -&gt; _IO_new_file_xputn</p>
+</li>
+<li>
+<p>fread -&gt; _IO_file_xgetn</p>
+</li>
+<li>
+<p>fclose -&gt; _IO_FILE_FINISH</p>
+</li>
+</ul>
+<p>还有经常用于攻击的一个调用链：</p>
+<ul>
+<li>exit -&gt; _IO_flush_all_lockp -&gt; _IO_overflow</li>
+</ul>
+<h1 id="攻击手段">攻击手段</h1>
+<h2 id="伪造vtable">伪造vtable</h2>
+<h3 id="libc-223">libc-2.23</h3>
+<p>程序使用fopen打开的文件流是会存在堆上的，位于libc.so数据段的vtable不可写，但是我们可以在可控内存（比如堆）上伪造一个vtable，然后让fp+0xd8指向那个伪造的vtable，在vtable上布置好相应会调用的函数指针从而劫持程序流程。</p>
+<p>一个比较典型的例题是HCTF2018 the_end，可以参考我这篇博客的分析</p>
+<p><a href="https://kotoriseed.github.io/post/HCTF2018the_end(exit%20hook)/">https://kotoriseed.github.io/post/HCTF2018the_end(exit%20hook)/</a></p>
+<p>原题环境下是libc-2.23，漏洞是任意修改5个byte，由于可写入的内容有限，所以直接在<code>_IO_2_1_stdin_ </code>（或者另外两个也行）附近来伪造vtable就好了（因为这样可以直接改低地址几位，将就现有的值），</p>
+<p>2个byte用来修改<code>_IO_2_1_stdin_-&gt;vtable</code>，3个byte用来修改 _setbuf指针，使其指向one_gadget的地址。</p>
+<h3 id="libc-224">libc-2.24</h3>
+<p>很不幸的是，在libc-2.24中，加入了对vtable劫持的检测，会在调用之前检查vtable地址的合法性</p>
+<pre><code class="language-c"> uintptr_t section_length = __stop___libc_IO_vtables - __start___libc_IO_vtables;
+ uintptr_t ptr = (uintptr_t) vtable;
+ uintptr_t offset = ptr - (uintptr_t) __start___libc_IO_vtables;
+ if (__glibc_unlikely (offset &gt;= section_length))
+    /* The vtable pointer is not in the expected section.  Use the
+       slow path, which will terminate the process if necessary.  */
+    _IO_vtable_check ();
+</code></pre>
+<p>即，vtable需要在 <code>__start__libc_IO_vtables</code>与<code>__stop__libc_IO_vtables</code>之间，不然就会调用 <code>_IO_vtable_check()</code>进行进一步的检查。</p>
+<p>所以之前伪造vtable的手段很难实现。</p>
+<p>但是<code>_IO_str_jumps</code>这个vtable是可以通过检查的，我们可以利用它的<code>__IO_str_finish</code>或者<code>__IO_str_overflow</code>来达到攻击的目的。</p>
+<p>但是老版本的libc中并没有_IO_str_jumps这个symbol，没办法直接定位，我们就需要用到一些相关函数，例如__IO_str_underflow来辅助了，</p>
+<pre><code class="language-python">def get_IO_str_jumps:
+	IO_file_jumps = libcbase + libc.symbols['_IO_file_jumps']
+	IO_str_underflow_offset = libc.symbols['_IO_str_underflow']
+	for temp in libc.search(p64(IO_str_underflow_offset)):
+        IO_str_jumps = libcbase + (temp - 0x20) #_IO_str_underflow-0x20就是_IO_str_jumps
+        if IO_str_jumps &gt; IO_file_jumps:
+            return IO_str_jumps
+</code></pre>
+<p>有了__IO_str_jumps之后，就可以选择以下方式来getshell了</p>
+<h4 id="_io_str_jumps-_io_str_finish">_IO_str_jumps -&gt; _IO_str_finish</h4>
+<pre><code class="language-c">void _IO_str_finish (FILE *fp, int dummy)
+{
+  if (fp-&gt;_IO_buf_base &amp;&amp; !(fp-&gt;_flags &amp; 1))
+    ((void (*)(void))fp + 0xE8 ) (fp-&gt;_IO_buf_base); // call qword ptr [fp+E8h]
+  fp-&gt;_IO_buf_base = NULL;
+  _IO_default_finish (fp, 0);
+}
+</code></pre>
+<p>可以看到，_IO_str_finish以<code>fp-&gt;_IO_buf_base</code>为参数调用了<code>fp+0xE8</code>处的函数</p>
+<p>需要满足:</p>
+<ol>
+<li>fp-&gt;_IO_buf_base != 0</li>
+<li>fp-&gt;_flags为偶数</li>
+</ol>
+<p>这条链是exit来触发的，所以还需要满足_IO_flush_all_lockp的检查：</p>
+<pre><code>1. fp-&gt;_IO_write_ptr &gt; fp-&gt; _IO_write_base
+2. fp-&gt; _mode &lt;= 0
+</code></pre>
+<p>所以我们构造起来就非常简单:</p>
+<pre><code>1. fp-&gt;_flag = 0
+2. fp-&gt;_IO_write_base = 0
+3. fp-&gt;_IO_write_ptr = 1
+4. fp-&gt;_IO_buf_base = str_binsh_addr
+5. fp-&gt;_mode = 0
+6. fp+0xE8 = system_addr
+</code></pre>
+<p>然后将目标文件流的vtable指向_IO_str_jumps-0x8来调用 _IO_str_finish（因为原本要调用的是 _IO_str_overflow，减去0x8即可指向 _IO_str_finish）</p>
+<h4 id="_io_str_jumps-_io_str_overflow">_IO_str_jumps -&gt; _IO_str_overflow</h4>
+<pre><code class="language-c">v2 = fp-&gt;_flags;
+if ( fp-&gt;_flags &amp; 8 )
+  return (unsigned int)-(a2 != -1);
+if ( (fp-&gt;_flags &amp; 0xC00) == 0x400 )
+{
+  v4 = fp-&gt;_IO_read_ptr;
+  v11 = fp-&gt;_IO_read_end;
+  BYTE1(v2) |= 8u;
+  LODWORD(fp-&gt;_flags) = v2;
+  fp-&gt;_IO_write_ptr = v4;
+  fp-&gt;_IO_read_ptr = v11;
+}
+else
+{
+  v4 = fp-&gt;_IO_write_ptr;
+}
+v6 = (char *)fp-&gt;_IO_buf_end - (char *)fp-&gt;_IO_buf_base
+if ( (char *)v4 - (char *)fp-&gt;_IO_write_base &gt;= v6 + (a2 == -1) )
+{
+  if ( v2 &amp; 1 )
+    return 0xFFFFFFFFLL;
+  v7 = 2 * v6 + 100;
+  if ( v6 &gt; v7 )
+    return 0xFFFFFFFFLL;
+  v8 = ((__int64 (__fastcall *)(unsigned __int64)) fp + 0xE0)(2 * v6 + 100); // call
+  v9 = v8;
+  .........
+}
+</code></pre>
+<p>这一条链子就比finish那条分析起来稍微麻烦了一点，他最终是以</p>
+<p><code>2 * (fp-&gt;_IO_buf_end - fp-&gt;_IO_buf_base) + 100</code>为参数调用<code>fp+0xE0</code>处的函数。</p>
+<p>绕过条件需要满足：</p>
+<pre><code>1). fp-&gt;_flags &amp; 8 == 0, (fp-&gt; _flags &amp; 0xC00) == 0x400, fp-&gt; _flags &amp; 1 = 0
+2). fp-&gt;_IO_write_ptr - fp-&gt;_IO_write_base &gt; fp-&gt;_IO_buf_end - fp-&gt;_IO_buf_base
+</code></pre>
+<p>所以我们需要构造</p>
+<pre><code>_flags = 0
+_IO_write_base = 0
+_IO_write_ptr = (binsh_in_libc_addr -100) / 2 +1
+_IO_buf_base = 0
+_IO_buf_end = (binsh_in_libc_addr -100) / 2 
+
+_mode = -1
+
+vtable = _IO_str_jumps - 0x18
+</code></pre>
+<h2 id="fsop">FSOP</h2>
+<p>主要利用的就是前面提到过的 __IO_flush_all_lockp -&gt; _IO_overflow这个调用链。</p>
+<p>因为__IO_flush_all_lockp不需要我们手动调用，在以下情况</p>
+<ol>
+<li>
+<p>当 libc 执行 abort 流程时</p>
+</li>
+<li>
+<p>当执行 exit 函数时</p>
+</li>
+<li>
+<p>当执行流从 main 函数返回时</p>
+</li>
+</ol>
+<p>会自动调用<code>_IO_list_all</code>中的每一个文件流的<code>_IO_overflow</code></p>
+<pre><code class="language-c">int
+_IO_flush_all_lockp (int do_lock)
+{
+  ...
+  fp = (_IO_FILE *) _IO_list_all;
+  while (fp != NULL)
+  {
+       ...
+       if (((fp-&gt;_mode &lt;= 0 &amp;&amp; fp-&gt;_IO_write_ptr &gt; fp-&gt;_IO_write_base))
+               &amp;&amp; _IO_OVERFLOW (fp, EOF) == EOF)
+           {
+               result = EOF;
+          }
+        ...
+  }
+}
+</code></pre>
+<p>需要满足的条件也很简单：</p>
+<pre><code>1. fp-&gt;_mode &lt;= 0
+2. fp-&gt;_IO_write_ptr &gt; fp-&gt;_IO_write_base
+</code></pre>
+<p>我们一般是将伪造的vtable中的_IO_overflow指向one_gadget或者system。</p>
+<p>指向system的时候，因为默认是传自己的fp作为参数，所以需要将fp的_flag那个位置改为'/bin/sh\x00'，要注意的是，有些对 _flag有要求的函数就不能这么改。</p>
+<p>（若没法使用fsop触发利用链，可以参考<code>house of kiwi</code>，走<code>__malloc_assert</code>）</p>
+<p>经典例题就是<code>house of orange</code>，</p>
+<p>参考例题：<a href="https://kotoriseed.github.io/post/%E5%AE%89%E6%B4%B5%E6%9D%AF2021/#2-ezheap">2021安洵杯-ezheap</a></p>
+<h2 id="fsop的高版本技巧">FSOP的高版本技巧</h2>
+<p>限于篇幅原因，这里只粗略介绍</p>
+<h3 id="libc-231">libc-2.31</h3>
+<h4 id="house-of-pig">house of pig</h4>
+<p>适用于存在calloc的题目，用<code>largebin attack</code>配合<code>tcache stashing unlink attack</code>将某个hook放入tcache bin的头部，再<code>largebin attack</code>打<code>_IO_list_all</code>在堆上伪造好一个<code>_IO_file_plus</code>，vtable换为<code>_IO_str_jumps</code>，依赖<code>_IO_str_overflow</code>中的<code>malloc</code>和<code>memcpy</code>劫持hook并getshell。如果开了沙箱，就劫持malloc hook到<code>setcontext+61</code>，走orw。</p>
+<h4 id="house-of-kiwi">house of kiwi</h4>
+<p>有些题目没有直接调用exit之类的函数，导致fsop不容易触发。house of kiwi利用的是<code>__malloc_assert</code>中的<code>fflush(stderr)</code>，他能够稳定调用stderr的虚表(<code>_IO_file_jumps</code>)的sync。并且在执行sync之前，rdx的值稳定指向<code>_IO_helper_jumps</code>。所以劫持sync到<code>setcontext+61</code>，然后改<code>_IO_helper_jumps+0xA0</code>为orw的rop的地址（劫持rsp），<code>_IO_helper_jumps+0xA8</code>为一个ret的地址(劫持rcx)，即可完成栈迁移orw。</p>
+<p>至于<code>__malloc_assert</code>的触发，通常可以改top chunk为一个较小值(注意<code>prev_inuse bit置0</code>)，然后malloc一个超过top chunk大小的值即可。</p>
+<h3 id="libc-234">libc-2.34</h3>
+<h4 id="house-of-emma">house of emma</h4>
+<p>由于高版本libc的诸多限制，新的堆利用思路将倾向于向某个可控地址写入某些值而getshell，而非利用任意地址申请的方式getshell。house of emma的思路是用一次largebin attack打libc上的stderr指针(当存在<code>puts</code>等函数时，也可以劫持<code>stdout</code>的vtable，那样调的就是<code>_IO_file_xputn</code>的偏移)，伪造好一个<code>_IO_cookie_file</code>结构体，vtable布置为<code>_IO_cookie_jumps</code>的某个偏移量（sync的），然后利用<code>__malloc_assert</code>的<code>fflush(stderr)</code>来触发<code>_IO_cookie_read</code>（也可以是<code>_IO_cookie_write</code>，<code>_IO_cookie_seek</code>，<code>_IO_cookie_close</code>），由于<code>_IO_cookie_read</code>用到了一个函数指针，这个指针在<code>_IO_cookie_file</code>中可以伪造，所以可以很方便的去控制流程orw或者直接getshell。不过有个<code> PTR_DEMANGLE (read_cb)</code>的加密，用到了TLS结构体的<code>__pointer_chk_guard</code>，所以还需要一次largebin attack来把这个值改为已知堆地址。不过也正是这个原因，无法走exit的流程来fsop，因为exit在调用到我们布置好的fsop之前，还有一个地方要用到<code>PTR_DEMANGLE</code>这个宏来加密，这个时候就会出问题。</p>
+<h3 id="libc-235">libc-2.35</h3>
+<h4 id="house-of-apple">house of apple</h4>
+<p>在只有一次任意写堆地址的情况下，house of apple是非常灵活的攻击手法。但是由于依赖<code>_IO_flush_all_lockp</code>对所有文件流调用<code>_IO_overflow</code>，所以前提是程序显式调用了exit函数，或能从main函数返回<code>__libc_start_main</code>。流程如下：</p>
+<p>第一次largebin attack打<code>_IO_list_all</code>，伪造的_IO_FILE的vtable选<code>_IO_wstrn_jumps</code>，劫持<code>_wide_data</code>字段到需要任意写已知值的地方。调用<code>_IO_wstrn_overflow</code>的时候，首先会将该IO_FILE转化为<code>_wstrnfile</code>，然后将他的<code>overflow_buf</code>（或附近距离它一定偏移的值）赋值给之前劫持的<code>_wide_data</code>的<code>_IO_read_base</code>, <code>_IO_read_ptr</code>, <code>_IO_read_end</code>, <code>_IO_write_base</code>（其实就是目标地址前0x20的值）。<code>overflow_buf</code>相对于<code>_IO_FILE</code>结构体的偏移为0xf0。（需要注意的是，在调用<code>_IO_wstrn_overflow</code>时，会调用<code>_IO_wsetb</code>，它可能会free掉原IO_FILE的<code>_wide_data-&gt;_IO_buf_base</code>，如果这个值不为0，就会出现异常。但是这个free是可以通过将IO_FILE的<code>_flags2</code>字段设置为<code>8</code>来绕过的）。</p>
+<p>如此一来，就相当于在只有一次largebin attack的前提下，劫持了<code>_IO_list_all</code>并额外达到了一次任意地址写已知值，还能利用第一个IO_FILE的<code>_chains</code>字段去利用其它布置好的IO_FILE来getshell或走orw。</p>
+<p>参考例题：<a href="https://kotoriseed.github.io/post/%E5%BC%BA%E7%BD%91%E6%9D%AF2022/#house-of-cat">2022强网杯-house of cat</a></p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#_io_file%E4%B8%8E-vtable">_IO_FILE与 vtable</a>
+<ul>
+<li><a href="#_io_file">_IO_FILE</a></li>
+<li><a href="#vtable">vtable</a></li>
+<li><a href="#_io_file_plus">_IO_FILE_plus</a></li>
+</ul>
+</li>
+<li><a href="#io%E5%87%BD%E6%95%B0%E7%9A%84%E8%B0%83%E7%94%A8%E9%93%BE">IO函数的调用链</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a>
+<ul>
+<li><a href="#fread">fread</a></li>
+<li><a href="#fwrite">fwrite</a></li>
+</ul>
+</li>
+<li><a href="#%E5%B8%B8%E8%A7%81%E7%9A%84%E8%B0%83%E7%94%A8%E9%93%BE">常见的调用链</a></li>
+</ul>
+</li>
+<li><a href="#%E6%94%BB%E5%87%BB%E6%89%8B%E6%AE%B5">攻击手段</a>
+<ul>
+<li><a href="#%E4%BC%AA%E9%80%A0vtable">伪造vtable</a>
+<ul>
+<li><a href="#libc-223">libc-2.23</a></li>
+<li><a href="#libc-224">libc-2.24</a>
+<ul>
+<li><a href="#_io_str_jumps-_io_str_finish">_IO_str_jumps -&gt; _IO_str_finish</a></li>
+<li><a href="#_io_str_jumps-_io_str_overflow">_IO_str_jumps -&gt; _IO_str_overflow</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#fsop">FSOP</a></li>
+<li><a href="#fsop%E7%9A%84%E9%AB%98%E7%89%88%E6%9C%AC%E6%8A%80%E5%B7%A7">FSOP的高版本技巧</a>
+<ul>
+<li><a href="#libc-231">libc-2.31</a>
+<ul>
+<li><a href="#house-of-pig">house of pig</a></li>
+<li><a href="#house-of-kiwi">house of kiwi</a></li>
+</ul>
+</li>
+<li><a href="#libc-234">libc-2.34</a>
+<ul>
+<li><a href="#house-of-emma">house of emma</a></li>
+</ul>
+</li>
+<li><a href="#libc-235">libc-2.35</a>
+<ul>
+<li><a href="#house-of-apple">house of apple</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/BCTF2018_baby_arena/">
+              <h3 class="post-title">
+                BCTF2018_baby_arena(House of Corrosion)
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

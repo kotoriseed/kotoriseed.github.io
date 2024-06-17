@@ -1,0 +1,279 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AWD/AWDP-PWN-FIX | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="AWD/AWDP-PWN-FIX | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="SafeParse
+fix
+
+main函数的跳表没法正常识别，把这个jmp rax给改成jmp eax过后再f5就正常了。
+
+可以看出程序主逻辑是对一些特殊符号进行解释，然后对unk_4098这个地址的数据进行一系列的变换操作。
+看到exi..." />
+    <meta name="keywords" content="tricks" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              AWD/AWDP-PWN-FIX
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-08-25
+              </span>
+              <span>
+                3 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/lEdq9BfNl/" class="post-tag">
+                  # tricks
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="safeparse">SafeParse</h1>
+<h2 id="fix">fix</h2>
+<figure data-type="image" tabindex="1"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/7c997a636151c.png" alt="1661246926024.png" loading="lazy"></figure>
+<p>main函数的跳表没法正常识别，把这个<code>jmp rax</code>给改成<code>jmp eax</code>过后再f5就正常了。</p>
+<figure data-type="image" tabindex="2"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/e5d85e1db270c.png" alt="1661246997355.png" loading="lazy"></figure>
+<p>可以看出程序主逻辑是对一些特殊符号进行解释，然后对<code>unk_4098</code>这个地址的数据进行一系列的变换操作。</p>
+<p>看到exit(0)，以及libc是2.31，当时是盲猜了一手会去打ld上的<code>rtld_global</code>，在<code>_run_exit_hand</code>中劫持<code>exit hook</code>指针。所以就把exit给nop掉（以防万一，也把free给nop了）</p>
+<figure data-type="image" tabindex="3"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/e58a19807e562.png" alt="1661247261632.png" loading="lazy"></figure>
+<p>（赛后问了出题人，打法是类似于今年qwb的qwarmup那题的，先丢这儿，过段时间看吧）</p>
+<h1 id="oldvm">oldvm</h1>
+<h2 id="fix-2">fix</h2>
+<p>类似于上一题，这道题也需要在main函数中简单修复一下switch跳表，</p>
+<figure data-type="image" tabindex="4"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/b21e911b021a5.png" alt="1661247437875.png" loading="lazy"></figure>
+<p>然后这个附件是一个vm，进过初步分析发现，在函数<code>sub_1DD0</code>, <code>sub_1E80</code>, <code>sub_1F30</code>中，都有对传入的参数<code>a1</code>, <code>a2</code>, <code>a3</code>范围的检测。</p>
+<figure data-type="image" tabindex="5"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/20c622d87fe67.png" alt="1661247593083.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="6"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/6cd4d4ce2757a.png" alt="1661247624087.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="7"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/944e104951a1c.png" alt="1661247653548.png" loading="lazy"></figure>
+<p>可是在<code>sub_1F30</code>中，缺少了对<code>a2</code>&lt;0这种情况的判断，会造成对<code>*(_DWORD *)(4LL * a2 + *(_QWORD *)(qword_5050 + 24))</code>地址非预期的访问。</p>
+<p>为了方便，我这里直接将判断<code>a3</code>&lt;0的分支改为了判断<code>a2</code>&lt;0，只修改1byte即可。</p>
+<figure data-type="image" tabindex="8"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/4146620f12715.png" alt="1661247808960.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="9"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/23/d2e7c258e41d8.png" alt="1661247829169.png" loading="lazy"></figure>
+<h1 id="mvvm">mvvm</h1>
+<h2 id="fix-3">fix</h2>
+<p>一个vm解释程序</p>
+<figure data-type="image" tabindex="10"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/24/2b7230c3ac82d.png" alt="1661316287432.png" loading="lazy"></figure>
+<p>在readn的时候感觉是存在溢出的，因为size是0x100，里面是和0x1000判断的，但是由于溢出点在堆上，且后续并没有什么好触发的堆漏洞的函数，所以就没管了（前面交过一发nop free+修复堆溢出的，exp还是通过了）</p>
+<p>然后思路就断了，不过看到<code>init_io</code>中存在alarm函数，且时间设置的非常长。</p>
+<figure data-type="image" tabindex="11"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/24/f9699d9b27bd0.png" alt="1661316628819.png" loading="lazy"></figure>
+<p>这里尝试着把参数改成了<code>0x5</code>，然后就fix通过了。</p>
+<p>猜测原因是功能check用时较短，且exp通过vm的运行时间较长，所以非预期fix了。</p>
+<p>(预期解的话是在<code>vm_exec</code>中，暂时还没有分析。这题还有一种非预期是上通防，这里给出一个较好用的通防脚本：https://github.com/TTY-flag/evilPatcher)</p>
+<h1 id="fmpfs">fmpfs</h1>
+<h2 id="fix-4">fix</h2>
+<p>该题实现了一个简单的文件系统，并且有一定的基本功能。</p>
+<figure data-type="image" tabindex="12"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/24/8a64802773894.png" alt="1661316800085.png" loading="lazy"></figure>
+<p>发现在对文件加密和解密的过程中，调用了<code>sub_4032A5</code>这个函数，发现它存在逻辑漏洞</p>
+<figure data-type="image" tabindex="13"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/24/c1fabf2965045.png" alt="1661317030891.png" loading="lazy"></figure>
+<p>当<code>v2</code>刚好等于128时，v5会是一个未被赋值的悬挂指针，然后再下一次使用<code>password</code>认证，就能劫持到该指针，造成任意内存写。</p>
+<figure data-type="image" tabindex="14"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/08/24/fe6b5ce24460e.png" alt="1661317248584.png" loading="lazy"></figure>
+<p>直接将<code>v2</code>&gt;128这个判断给nop掉即可fix成功。</p>
+<h1 id="ezcgi">ezcgi</h1>
+<h2 id="fix-5">fix</h2>
+<figure data-type="image" tabindex="15"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/b745ef41bd1c1.png" alt="1662096776496.png" loading="lazy"></figure>
+<p>一个路由器的cgi程序，由于代码量比较大，所以直接从敏感函数入手了。</p>
+<p>在函数<code>sub_461E</code>中有两个<code>mmap</code>语句</p>
+<figure data-type="image" tabindex="16"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/087b1bdb7533b.png" alt="1662097776848.png" loading="lazy"></figure>
+<p>其中有一个权限给到了7，可能存在问题</p>
+<figure data-type="image" tabindex="17"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/cc0209dccf18c.png" alt="1662097869538.png" loading="lazy"></figure>
+<p>这样就能通过fix检测了。</p>
+<h1 id="stream">stream</h1>
+<h2 id="fix-6">fix</h2>
+<p>在<code>do_write</code>函数中有一个size检测的逻辑漏洞</p>
+<figure data-type="image" tabindex="18"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/498aaebce562a.png" alt="1662098314921.png" loading="lazy"></figure>
+<p>这里只检查了相应的指针是否存在，然后<code>nbytes</code>是否小于0x200。但是这个<code>nbytes</code>并没有和对应的stream当时open的大小进行比较，所以是存在溢出风险的。</p>
+<p>在<code>do_open</code>中最大能申请到的stream就是0x200，</p>
+<figure data-type="image" tabindex="19"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/cb34dd226f26e.png" alt="1662098021871.png" loading="lazy"></figure>
+<p>这里我们可以直接给他patch为固定申请0x200。这样就能避免后面可能存在的溢出风险了。</p>
+<figure data-type="image" tabindex="20"><img src="https://le1a-1308465514.cos.ap-shanghai.myqcloud.com/2022/09/02/f3f583de7269a.png" alt="1662098699143.png" loading="lazy"></figure>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#safeparse">SafeParse</a>
+<ul>
+<li><a href="#fix">fix</a></li>
+</ul>
+</li>
+<li><a href="#oldvm">oldvm</a>
+<ul>
+<li><a href="#fix-2">fix</a></li>
+</ul>
+</li>
+<li><a href="#mvvm">mvvm</a>
+<ul>
+<li><a href="#fix-3">fix</a></li>
+</ul>
+</li>
+<li><a href="#fmpfs">fmpfs</a>
+<ul>
+<li><a href="#fix-4">fix</a></li>
+</ul>
+</li>
+<li><a href="#ezcgi">ezcgi</a>
+<ul>
+<li><a href="#fix-5">fix</a></li>
+</ul>
+</li>
+<li><a href="#stream">stream</a>
+<ul>
+<li><a href="#fix-6">fix</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/强网杯2022/">
+              <h3 class="post-title">
+                2022强网杯-PWN-WP
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1321 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>从CTF题目中学习IDAPython编写 | kotori的菜园</title>
+<link rel="shortcut icon" href="https://kotoriseed.github.io//favicon.ico?v=1718591155332">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://kotoriseed.github.io//styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="从CTF题目中学习IDAPython编写 | kotori的菜园 - Atom Feed" href="https://kotoriseed.github.io//atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-PJDEM99E9P"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-PJDEM99E9P');
+</script>
+
+
+    <meta name="description" content="笔者的逆向水平太低，一直都想找时间练习一下搓脚本，故找了一些最近的比赛题来上手练习。可能有地方因为理解太浅而说的不对，还望海涵。
+DubheCTF2024 - Destination
+反调试
+在__scrt_common_main_seh中..." />
+    <meta name="keywords" content="逆向" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://kotoriseed.github.io/">
+  <img class="avatar" src="https://kotoriseed.github.io//images/avatar.png?v=1718591155332" alt="">
+  </a>
+  <h1 class="site-title">
+    kotori的菜园
+  </h1>
+  <p class="site-description">
+    挑战者贵为永恒黄金
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/friends" class="menu">
+          友链
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              从CTF题目中学习IDAPython编写
+            </h2>
+            <div class="post-info">
+              <span>
+                2024-05-17
+              </span>
+              <span>
+                40 min read
+              </span>
+              
+                <a href="https://kotoriseed.github.io/tag/EhITNGS5Q/" class="post-tag">
+                  # 逆向
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <p>笔者的逆向水平太低，一直都想找时间练习一下搓脚本，故找了一些最近的比赛题来上手练习。可能有地方因为理解太浅而说的不对，还望海涵。</p>
+<h1 id="dubhectf2024-destination">DubheCTF2024 - Destination</h1>
+<h2 id="反调试">反调试</h2>
+<p>在<code>__scrt_common_main_seh</code>中可以看到以下部分的初始化</p>
+<pre><code class="language-c">else
+{
+  dword_423900 = 1;
+  if ( j__initterm_e((_PIFV *)&amp;First, (_PIFV *)&amp;Last) )
+    return 255;
+  j__initterm((_PVFV *)&amp;dword_41E000, (_PVFV *)&amp;dword_41E318);
+  dword_423900 = 2;
+}
+</code></pre>
+<p><code>dword_41E000</code>到<code>dword_41E318</code>这段地址中有三个函数指针会被调用</p>
+<p>跟踪其中一个函数进入到以下部分</p>
+<pre><code class="language-c">void *__thiscall sub_413750(void *this)
+{
+  HANDLE CurrentThread; // eax
+  FARPROC ProcAddress; // [esp+D0h] [ebp-2Ch]
+  HMODULE hModule; // [esp+DCh] [ebp-20h]
+  int i; // [esp+E8h] [ebp-14h]
+  int j; // [esp+E8h] [ebp-14h]
+  int k; // [esp+E8h] [ebp-14h]
+
+  __CheckForDebuggerJustMyCode(&amp;byte_4250E0);
+  for ( i = 0; i &lt; 5; ++i )
+    ModuleName[i] = (ModuleName[i] - 100) ^ 0x55;// ntdll
+  for ( j = 0; j &lt; 22; ++j )
+    aS[j] = (aS[j] - 100) ^ 0x55;               // ZwSetInformationThread
+  for ( k = 0; k &lt; 18; ++k )
+    byte_423020[k] = (byte_423020[k] - 100) ^ 0x55;// ZwTerminateProcess
+  hModule = GetModuleHandleA(ModuleName);
+  ProcAddress = GetProcAddress(hModule, aS);
+  CurrentThread = GetCurrentThread();
+  ((void (__stdcall *)(HANDLE, int, _DWORD, _DWORD))ProcAddress)(CurrentThread, 17, 0, 0);// 17 - ThreadHideFromDebugger
+  return this;
+}
+</code></pre>
+<p>可以看到是利用了<code>ZwSetInformationThread(GetCurrentThread(), ThreadHideFromDebugger, 0, 0)</code>来剥离被调试器附加的线程。</p>
+<p>patch掉这几个函数指针即可过掉反调试。</p>
+<h2 id="去混淆">去混淆</h2>
+<p>到了main函数中查看汇编会发现getchar()输入flag之后注册了一个seh handler</p>
+<pre><code>.text:004179BA 11C 68 D7 40 41 00                push    offset sub_4140D7
+.text:004179BF 120 64 FF 35 00 00 00 00          push    large dword ptr fs:0
+.text:004179C6 124 64 89 25 00 00 00 00          mov     large fs:0, esp
+.text:004179CD 124 CC                            int     3
+</code></pre>
+<p>然后<code>int 3</code>进入异常处理流程去跑<code>sub_4140D7</code></p>
+<p>这个函数加入了大量这三种形式的花指令</p>
+<pre><code>.text:00414B00 E8 00 00 00 00                call    $+5
+.text:00414B00
+.text:00414B05 83 04 24 05                   add     [esp+8+var_8], 5
+.text:00414B09 C3                            retn
+</code></pre>
+<p>对于这种，直接把10bytes全部nop掉即可。</p>
+<pre><code>.text:00416184 0F 84 57 04 00 00             jz      near ptr unk_4165E1
+.text:00416184
+.text:0041618A 0F 85 51 04 00 00             jnz     near ptr unk_4165E1
+.text:0041618A
+</code></pre>
+<pre><code>.text:00415C72 74 5D                         jz      short loc_415CD1
+.text:00415C72
+.text:00415C74 75 5B                         jnz     short loc_415CD1
+</code></pre>
+<p>对于后面这两种，其实都是jz和jnz跳去了相同的地方，直接把前面的jz给patch成jmp就行（<code>0F 84</code>这种后面接四字节的换成<code>90 e9</code>， <code>74</code>这种后面接一字节的换成<code>eb</code>）</p>
+<p>整体的patch思路借鉴了<a href="https://clovershrub.github.io/2024/03/19/DubheCTF-Destination&amp;Moon/">出题人的写法</a>，模拟eip的执行流程去边判断边patch。</p>
+<p>唯一需要做的就是判断跳转究竟是正常的还是花指令，e8很好识别，如果是正常的e8，后面不会是4个0bytes，这个时候直接继续向后遍历就行，毕竟call完eip还会回来。而遇到jmp类的就需要我们手动抠出来offset然后让eip过去（注意处理负数跳转）。对于jz类型的花，我们直接先抠出来跳转后的位置，然后在跳转过去之后回过来把他直接patch成jmp。还有一个需要注意的就是连续跳转，编译器正常生成的机器码应该是不会存在一次跳转过后马上接着跳转的情况的，所以遇到花指令的跳转之后立马又跳转的情况多半是正常的跳转，这个时候不去做patch。</p>
+<p>去花的idapython脚本如下</p>
+<pre><code class="language-python">start_addr = 0x4140d7
+eip = start_addr
+pre_eip = 0
+just_jump = 0
+max_eip = 0
+
+def gb(a):
+    return idc.get_wide_byte(a)
+
+while gb(eip) != 0xc3:
+    if eip &gt; max_eip:
+        max_eip = eip
+    if gb(eip) == 0xe8:
+        if gb(eip+1) == 0 and gb(eip+2) == 0 and gb(eip+3) == 0 and gb(eip+4) == 0:
+            ida_bytes.patch_qword(eip, 0x9090909090909090)
+            ida_bytes.patch_byte(eip+8, 0x90)
+            ida_bytes.patch_byte(eip+9, 0x90)
+            eip += 10
+            continue
+    elif gb(eip) == 0xe9 and just_jump == 0:
+        offset = gb(eip+4)
+        offset = offset * 0x100 + gb(eip+3)
+        offset = offset * 0x100 + gb(eip+2)
+        offset = offset * 0x100 + gb(eip+1)
+        eip += offset
+        eip += 5
+        eip = eip &amp; 0xffffffff
+        print('e9 jump:', end='')
+        print(hex(eip))
+        just_jump = 1
+        continue
+    elif gb(eip) == 0xeb and just_jump == 0:
+        offset = gb(eip+1)
+        eip += offset
+        eip += 2
+        eip = eip &amp; 0xffffffff
+        print('eb jump:', end='')
+        print(hex(eip))
+        just_jump = 1
+        continue
+    elif gb(eip) == 0x74 and just_jump == 0:
+        offset = gb(eip+1)
+        last_eip = eip
+        eip = eip + offset
+        eip += 2
+        print('74 jump:', end='')
+        print(hex(eip))
+        ida_bytes.patch_byte(last_eip, 0xeb)
+        just_jump = 1
+        continue
+    elif gb(eip) == 0x0f and gb(eip+1) == 0x84 and just_jump == 0:
+        last_eip = eip
+        offset = gb(eip+5)
+        offset = offset * 0x100 + gb(eip+4)
+        offset = offset * 0x100 + gb(eip+3)
+        offset = offset * 0x100 + gb(eip+2)
+        eip += offset
+        eip += 6
+        eip = eip &amp; 0xffffffff
+        ida_bytes.patch_byte(last_eip, 0x90)
+        ida_bytes.patch_byte(last_eip+1, 0xe9)
+        print('0f84 jmp:', end='')
+        print(hex(eip))
+        just_jump = 1
+        continue
+    eip += 1
+    print('ite:', end='')
+    print(hex(eip))
+    just_jump = 0
+    
+print(hex(max_eip))
+</code></pre>
+<p>patch完成后，直接在ida F5还是不行，会提示<code>stack frame is too big</code>，按网上的方法修改了配置文件后还是无果。</p>
+<p>但ghidra对于这种恢复出来结构比较乱的函数的支持还是很好的，可以直接看到反编译结果</p>
+<pre><code class="language-c">undefined4 FUN_004140c0(void)
+{
+  uint uVar1;
+  uint uVar2;
+  int iVar3;
+  undefined4 *puVar4;
+  uint local_118;
+  uint local_10c;
+  uint local_e8;
+  int local_dc;
+  
+  puVar4 = (undefined4 *)&amp;stack0xfffffffc;
+  for (iVar3 = 0; iVar3 != 0; iVar3 = iVar3 + -1) {
+    *puVar4 = 0xcccccccc;
+    puVar4 = puVar4 + 1;
+  }
+  local_dc = 0x32;
+  local_118 = 0;
+  local_10c = DAT_004234d4;
+  do {
+    local_118 = local_118 + 0xa4b46062;
+    uVar2 = local_118 &gt;&gt; 2 &amp; 3;
+    DAT_004234d4 = local_10c;
+    for (local_e8 = 0; local_e8 &lt; 0xb; local_e8 = local_e8 + 1) {
+      uVar1 = (&amp;DAT_004234ac)[local_e8];
+      local_10c = (&amp;DAT_004234a8)[local_e8] +
+                  ((local_10c &gt;&gt; 5 ^ uVar1 &lt;&lt; 2) + (uVar1 &gt;&gt; 3 ^ local_10c &lt;&lt; 4) ^
+                  (local_118 ^ uVar1) +
+                  (*(uint *)(&amp;DAT_0042309c + (local_e8 &amp; 3 ^ uVar2) * 4) ^ local_10c));
+      (&amp;DAT_004234a8)[local_e8] = local_10c;
+    }
+    local_10c = DAT_004234d4 +
+                ((local_10c &gt;&gt; 5 ^ DAT_004234a8 &lt;&lt; 2) + (DAT_004234a8 &gt;&gt; 3 ^ local_10c &lt;&lt; 4) ^
+                (local_118 ^ DAT_004234a8) +
+                (*(uint *)(&amp;DAT_0042309c + (local_e8 &amp; 3 ^ uVar2) * 4) ^ local_10c));
+    DAT_004234d4 = local_10c;
+    local_dc = local_dc + -1;
+  } while (local_dc != 0);
+  return 1;
+}
+</code></pre>
+<p>可以看出来是一个的xxtea的样子。</p>
+<p>抛开加密不说，作为一个seh handler函数，他最后返回了1，也就是<code>ExceptionContinueSearch</code>，这会导致异常处理流程被后续的handler处理，而为了保证前面的所有异常处理函数做完上下文的清理工作，程序会再次遍历seh链表并重新调用这些没有处理异常的函数以进行unwind，换句话说，<strong>该函数会被调用两次</strong>。</p>
+<p>我们实际动调在<code>sub_4140D7</code>下断发现确实断下了两次。</p>
+<h2 id="天堂之门">天堂之门</h2>
+<p>在<code>sub_4140D7</code>中进行了两次xxtea加密之后，程序流回到__except块中，</p>
+<pre><code>;   __except(loc_4179E3) // owned by 4179AC
+.text:004179E9 8B 65 E8                      mov     esp, [ebp+ms_exc.old_esp]
+.text:004179EC EA 77 3F 41 00 33 00          jmp     far ptr loc_4142A7
+</code></pre>
+<p>这里有一句<code>jmp far ptr loc_4142A7</code>，可以看作<code>jmp far 0033:00413F77</code></p>
+<p>将cs寄存器切换为了0x33，windows就会将接下来的指令判断为64位的，这也是人们常说的天堂之门技术。</p>
+<p>有32位变64位，相应的也有64位回到32位</p>
+<pre><code>seg000:000000000000004B 6A 23                         push    23h ; '#'
+seg000:000000000000004D 68 F3 79 41 00                push    4179F3h
+seg000:0000000000000052 48 CB                         retfq
+</code></pre>
+<p>通过retfq将cs切换回了0x23，程序回到32位模式运行</p>
+<p>用以下脚本将x64指令dump下来</p>
+<pre><code class="language-python">addr = 0x413f77
+with open('D:\\sc', 'wb') as f:
+    while idc.get_wide_byte(addr) != 0xcb:
+        f.write(idc.get_wide_byte(addr).to_bytes(1, 'big'))
+        addr += 1
+    f.write(b'\xcb')
+    f.close()
+</code></pre>
+<p>放到ida64反编译结果如下</p>
+<pre><code class="language-c">void sub_0()
+{
+  __int64 v0; // rdi
+  unsigned __int64 v1; // rsi
+  __int64 i; // r14
+
+  v0 = 0i64;
+  while ( 1 )
+  {
+    v1 = *(unsigned int *)(4 * v0 + 0x4234A8);
+    for ( i = 0i64; i != 32; ++i )
+    {
+      if ( v1 &gt;&gt; 31 == 1 )
+        v1 = (2 * (_DWORD)v1) ^ 0x84A6972F;
+      else
+        v1 = (unsigned int)(2 * v1);
+    }
+    *(_DWORD *)(4 * v0++ + 0x4234A8) = v1;
+    if ( v0 == 12 )
+      __asm { retfq }
+  }
+}
+</code></pre>
+<p><code>0x4234A8</code>是存我们输入数据的数组首地址，相当于这里又对数据进行了一次处理。</p>
+<p>对于最高位是1的就先乘以2再异或0x84A6972F，最高位为0的就直接乘以2。</p>
+<p>这里做逆操作的时候就直接判断奇偶区分两种操作的数据，因为偶数异或0x84A6972F一定是奇数。不过需要注意的是逆操作时需要恢复一下符号位。</p>
+<h2 id="solve">solve</h2>
+<pre><code class="language-c">#define WIN32_LEAN_AND_MEAN
+#include &lt;iostream&gt;
+#include &lt;cstdio&gt;
+#include &lt;string&gt;
+#include &lt;windows.h&gt;
+
+#define MX (((z&gt;&gt;5^y&lt;&lt;2) + (y&gt;&gt;3^z&lt;&lt;4)) ^ ((sum^y) + (key[(p&amp;3)^e] ^ z)))
+
+unsigned char flag[] =
+{
+  0xD6, 0xFA, 0x90, 0xA7, 0x77, 0xA2, 0xC8, 0xE8, 0xFA, 0x84,
+  0x03, 0xCF, 0xD7, 0x7F, 0x6C, 0x2E, 0x8B, 0x96, 0x33, 0x6D,
+  0x27, 0xC2, 0x57, 0x5B, 0x5E, 0xA6, 0x3C, 0x65, 0xFC, 0xF1,
+  0xC6, 0x85, 0x77, 0x25, 0xF3, 0xE1, 0x76, 0xAE, 0xD7, 0xD4,
+  0xC4, 0x6D, 0xAF, 0x3F, 0x8C, 0x9D, 0x59, 0x0D, 0x00, 0x00
+};
+
+void sub_0()
+{
+    __int64 v0; // rdi
+    unsigned __int64 v1; // rsi
+    __int64 i; // r14
+
+    v0 = 0i64;
+    while (1)
+    {
+        v1 = *(unsigned int*)(4 * v0 + flag);
+        for (i = 0i64; i != 32; ++i)
+        {
+            if (v1 &amp; 1) {
+                v1 = (((DWORD)v1) ^ 0x84A6972F) &gt;&gt; 1;
+                v1 |= 0x80000000;
+            }
+            else
+                v1 = (unsigned int)(v1 &gt;&gt; 1);
+        }
+        *(DWORD*)(4 * v0++ + flag) = v1;
+        if (v0 == 12)
+            return;
+    }
+}
+
+void xxtea_dec()
+{
+    DWORD key[] = {0x6B0E7A6B, 0x0D13011EE, 0x0A7E12C6D, 0x0C199ACA6};
+    DWORD rounds = 0x32, y, e, z, p;
+    DWORD sum = rounds * 0xa4b46062;
+    y = ((unsigned int*)flag)[0];
+    do
+    {
+        e = (sum &gt;&gt; 2) &amp; 3;
+        for (p = 0xb; p &gt; 0; --p) {
+            z = ((unsigned int*)flag)[p - 1];
+            y = ((unsigned int*)flag)[p] -= MX;
+        }
+        z = ((unsigned int*)flag)[11];
+        y = ((unsigned int*)flag)[0] -= MX;
+        sum -= 0xa4b46062;
+    } while (--rounds);
+}
+
+int main()
+{
+    sub_0();
+
+    xxtea_dec();
+    xxtea_dec();
+
+    for (int i = 0; i &lt; 45; ++i) {
+        putchar(flag[i]);
+    }
+
+	return 0;
+}
+</code></pre>
+<h1 id="d3ctf2024-randomvm">D^3CTF2024 - RandomVM</h1>
+<h2 id="分析">分析</h2>
+<p>srand设定了静态的seed，随即进到<code>sub_717F</code>的逻辑</p>
+<pre><code class="language-c">__int64 __fastcall main(int a1, char **a2, char **a3)
+{
+  srand(0xD33B470u);
+  sub_717F(0xD33B470LL, a2);
+  if ( !memcmp(&amp;unk_B041, &amp;unk_B010, 0xCuLL) )
+    puts(&quot;Yes! flag: d3ctf{your_input}&quot;);
+  else
+    puts(&quot;No. Try again.&quot;);
+  return 0LL;
+}
+</code></pre>
+<p>总体的混淆形式都形如这样，在开头做真实运算，后面生成类似于跳表的多条路径通过rand()分发。不过开头srand设置的种子如上文所说，是一个静态值，故函数执行流其实是确定的。</p>
+<pre><code class="language-c">__int64 sub_717F()
+{
+  int v0; // eax
+  __int64 v2[11]; // [rsp+0h] [rbp-60h]
+
+  byte_B080[byte_B0B2] = 0;
+  v2[0] = 0xFFFFFFFFF385CF88LL;
+  v2[1] = 0xFFFFFFFFF385F74ALL;
+  v2[2] = 0xFFFFFFFFF3858259LL;
+  v2[3] = 0xFFFFFFFFF38589F5LL;
+  v2[4] = 0xFFFFFFFFF385C575LL;
+  v2[5] = 0xFFFFFFFFF385E865LL;
+  v2[6] = 0xFFFFFFFFF38590B8LL;
+  v2[7] = 0xFFFFFFFFF3859962LL;
+  v2[8] = 0xFFFFFFFFF3858BC4LL;
+  v2[9] = 0xFFFFFFFFF38589F5LL;
+  v0 = rand();
+  return ((__int64 (*)())((char *)sub_717F + (v2[v0 % 10] ^ 0xC7A35C1)))();
+}
+</code></pre>
+<p>经过一番大致查看，混淆函数对输入进行处理的命令大致可以分为以下几种：</p>
+<ul>
+<li><code>byte_B080[byte_B0B2] = 0;</code></li>
+<li><code>--/++byte_B0B2;</code></li>
+<li><code>--/++byte_B080[byte_B0B2];</code></li>
+<li><code>--/++byte_B072;</code></li>
+<li><code>*((_BYTE *)&amp;unk_B040 + (unsigned __int8)byte_B072) ^= byte_B080[byte_B0B2];</code></li>
+<li><code>*((_BYTE *)&amp;unk_B040 + (unsigned __int8)byte_B072) = byte_B080[byte_B0B2];</code></li>
+<li><code>byte_B080[byte_B0B2] = *((_BYTE *)&amp;unk_B040 + (unsigned __int8)byte_B072);</code></li>
+<li><code>*((_BYTE *)&amp;unk_B040 + (unsigned __int8)byte_B072) = ((int)*((unsigned __int8 *)&amp;unk_B040 + (unsigned __int8)byte_B072) &gt;&gt; byte_B080[byte_B0B2]) | (*((_BYTE *)&amp;unk_B040 + (unsigned __int8)byte_B072) &lt;&lt; (8 - byte_B080[byte_B0B2]));</code></li>
+</ul>
+<p>一共涉及到的4个变量即为该题的虚拟机实现。<code>unk_B040</code>为存放加密后flag的位置，<code>byte_B080</code>是一个用于操作的数组，<code>byte_B072</code>与<code>byte_B0B2</code>是两个用于索引的寄存器。</p>
+<p>中途还会遇到一种分支情况，这样改变执行流。</p>
+<pre><code class="language-c">if ( (char)byte_B080[byte_B0B2] &lt; 0 )
+    rand();
+</code></pre>
+<p>只看与加密相关的操作可以发现涉及到的运算并不复杂，且没有起到扩散效果。因此这里理论上是可以直接开始逐字节爆破对比密文的，而且总共也就12位。不过爆破有违笔者写该文章的初衷，故不采用。</p>
+<p>在这个过程中发现程序有两处调用了syscall，</p>
+<pre><code class="language-c">byte_B080[byte_B0B2] = syscall(
+                           (char)byte_B080[byte_B0B2],
+                           (unsigned int)(char)byte_B080[byte_B0B2 + 1],
+                           &amp;byte_B080[byte_B0B2 + 2],
+                           (unsigned int)(char)byte_B080[byte_B0B2 + 3]);
+</code></pre>
+<p>动调发现一次是SYS_read获取用户输入，另一次是SYS_ptrace来做反调。</p>
+<p>（后续为了方便分析，把这些数组和变量全部重命名了）</p>
+<h2 id="恢复程序逻辑">恢复程序逻辑</h2>
+<h3 id="建立跳表">建立跳表</h3>
+<p>由于路径是确定的，本来想一步到位，直接在idapython脚本中边抠跳表边跑rand解析路径。rand虽然在windows没法用ctypes去加载libc.so，但我们可以直接去linux把rand的结果给预处理出来。但代码中存在分支跳过rand的情况，且判断条件是动态的，实在不好模拟，故只好放弃。</p>
+<p>这里还是选择老老实实先把所有跳表抠出来。</p>
+<p>动调找到VM结束的地址</p>
+<pre><code>───────────────────────────────────[ DISASM ]───────────────────────────────────
+ ► 0x55555555641a    endbr64 
+   0x55555555641e    push   rbp
+   0x55555555641f    mov    rbp, rsp
+   0x555555556422    nop    
+   0x555555556423    pop    rbp
+   0x555555556424    ret    
+    ↓
+   0x55555555b9d5    lea    rax, [rip + 0x3665]
+   0x55555555b9dc    mov    edx, 0xc
+   0x55555555b9e1    lea    rsi, [rip + 0x3628]
+   0x55555555b9e8    mov    rdi, rax
+   0x55555555b9eb    call   memcmp@plt                &lt;memcmp@plt&gt;
+</code></pre>
+<p>在ida中对应<code>sub_241A</code>。</p>
+<p>脚本如下</p>
+<pre><code class="language-python">log = 0
+
+start_addr = 0x717f
+end_addr = 0x241A
+
+vis = {}
+switch_tbl = {}
+
+def bfs(addr):
+    vis[addr] = 1
+    if addr == end_addr:
+        return
+    ea = addr
+    v2 = {}
+    vtable = []
+    xor_val = 0
+    while True:
+        ins = idc.generate_disasm_line(ea, 0)
+        if ins.startswith('xor') and len(v2) &gt; 10:
+            op0 = idc.print_operand(ea, 0)
+            op1 = idc.print_operand(ea, 1)
+            if op0[0] in &quot;er&quot;:
+                op0 = op0[1:]
+            if op1[0] in &quot;er&quot;:
+                op1 = op1[1:]
+            if op1[-1] != 'h':
+                xor_val = int(v2[op0][:-1], 16)
+            else:
+                xor_val = int(op1[:-1], 16)
+            break
+        if ins.startswith('mov'):
+            op0 = idc.print_operand(ea, 0)
+            op1 = idc.print_operand(ea, 1)
+            if op0[0] in &quot;er&quot;:
+                op0 = op0[1:]
+            if op1[0] in &quot;er&quot;:
+                op1 = op1[1:]
+            if log == 1:
+                print(str(hex(ea)), end=': mov ')
+                print(op0, end=', ')
+                print(op1)
+            v2[op0] = op1
+            if '[rbp+var_' in op0:
+                if op1[-1] != 'h':
+                    v2[op0] = v2[op1]
+        ea += idc.get_item_size(ea)
+        # print(hex(ea))
+    off_list = [60, 58, 50, 48, 40, 38, 30, 28, 20, 18]
+    for offset in off_list:
+        target = int(v2['[rbp+var_{}]'.format(offset)][:-1], 16)
+        target = (target ^ xor_val) + addr
+        target = target &amp; 0xffffffff
+        vtable.append(target)
+    nexts = []
+    for e in vtable:
+        nexts.append(e)
+        # print(hex(e), end=', ')
+    code = str(idaapi.decompile(addr)).split('\n')
+    if 'if' in code[5]:
+        code[5] += code[6]
+    if 'syscall' in code[5]:
+        code[5] = code[5] + code[6] + code[7] + code[8] + code[9]
+        code[5] = code[5].replace(' ', '')
+    switch_tbl[addr] = (nexts, code[5])
+    for next in nexts:
+        if next in vis:
+            continue
+        bfs(next)
+    
+bfs(start_addr)
+
+for e in switch_tbl:
+    print(hex(e), end=': [')
+    tbl = switch_tbl[e][0]
+    for i in tbl:
+        print(hex(i), end=',')
+    print(']')
+</code></pre>
+<p>最终建立的跳表如下：</p>
+<pre><code>0x717f: [0x6bc8,0x340a,0x2917,0x2db3,0x6233,0x4f23,0x16f8,0x1e22,0x2f84,0x2db3,]
+0x6bc8: [0x55a9,0x604e,0x3725,0x2917,0x1fb5,0x2425,0x6d19,0x7095,0x16f8,0x26a4,]
+0x55a9: [0x5c94,0x62f3,0x3d82,0x3d82,0x40cb,0x3959,0x5676,0x40cb,0x3f0e,0x6154,]
+0x5c94: [0x1cd0,0x3308,0x1a4c,0x1e22,0x1cd0,0x16f8,0x16f8,0x1a4c,0x1a4c,0x44aa,]
+0x1cd0: [0x3f0e,0x41aa,0x66a4,0x3a4b,0x481b,0x7375,0x7375,0x2cd4,0x51ff,0x5f5c,]
+0x3f0e: [0x2917,0x2917,0x3bf0,0x5676,0x55a9,0x5676,0x3bf0,0x3f0e,0x3959,0x3f0e,]
+0x2917: [0x340a,0x43c2,0x3e48,0x24db,0x24db,0x1ee8,0x55a9,0x5002,0x2425,0x2771,]
+0x340a: [0x3f0e,0x25b1,0x42fc,0x51ff,0x3f0e,0x5676,0x64d3,0x3058,0x3f0e,0x3959,]
+0x25b1: [0x24db,0x7809,0x42fc,0x5baf,0x1ee8,0x26a4,0x4570,0x5baf,0x284a,0x340a,]
+0x24db: [0x5754,0x2f84,0x3f0e,0x42fc,0x3d82,0x7462,0x3b11,0x4f23,0x2db3,0x7375,]
+0x5754: [0x3876,0x7809,0x2261,0x2261,0x51ff,0x6bc8,0x340a,0x51ff,0x2261,0x51ff,]
+0x3876: [0x2cd4,0x196d,0x6ed7,0x3876,0x5002,0x7462,0x196d,0x7462,0x6ed7,0x4a13,]
+0x2cd4: [0x63d2,0x3725,0x6154,0x63d2,0x3058,0x196d,0x209a,0x2182,0x2cd4,0x6154,]
+0x63d2: [0x1b12,0x5c94,0x63d2,0x472e,0x1bf1,0x43c2,0x679b,0x196d,0x63d2,0x7462,]
+0x1b12: [0x6154,0x7462,0x1b12,0x6ed7,0x2f84,0x2e92,0x3137,0x4a13,0x4a13,0x1bf1,]
+0x6154: [0x6ed7,0x65c5,0x4a13,0x6ed7,0x5aa9,0x5aa9,0x43c2,0x63d2,0x679b,0x3137,]
+0x6ed7: [0x209a,0x2337,0x209a,0x6ed7,0x3fd4,0x6a77,0x68a6,0x209a,0x3876,0x6ed7,]
+0x209a: [0x5002,0x3b11,0x3058,0x3216,0x5103,0x209a,0x1b12,0x4570,0x5002,0x5aa9,]
+0x5002: [0x5f5c,0x604e,0x209a,0x3058,0x6154,0x2182,0x196d,0x4570,0x4570,0x3876,]
+0x5f5c: [0x7462,0x2182,0x5e5b,0x5e5b,0x1bf1,0x2182,0x2cd4,0x6a77,0x7541,0x5f5c,]
+0x7462: [0x4570,0x188f,0x5e5b,0x4f23,0x5002,0x7462,0x196d,0x2cd4,0x3876,0x4570,]
+0x4570: [0x65c5,0x52ed,0x5002,0x4570,0x3876,0x209a,0x604e,0x16f8,0x1a4c,0x5f5c,]
+0x65c5: [0x2337,0x52ed,0x5002,0x6ed7,0x5e5b,0x2337,0x7462,0x5c94,0x52ed,0x196d,]
+0x2337: [0x2337,0x4f23,0x196d,0x5f5c,0x196d,0x3725,0x1a4c,0x604e,0x4f23,0x5f5c,]
+0x4f23: [0x16f8,0x2db3,0x3058,0x62f3,0x3b11,0x3b11,0x65c5,0x62f3,0x188f,0x604e,]
+0x16f8: [0x6fb6,0x6fb6,0x340a,0x1a4c,0x5c94,0x6233,0x5c94,0x1cd0,0x5c94,0x6a77,]
+0x6fb6: [0x4f23,0x40cb,0x5e5b,0x66a4,0x604e,0x2db3,0x2db3,0x6fb6,0x6df8,0x66a4,]
+0x40cb: [0x3725,0x3725,0x6233,0x40cb,0x464f,0x6d19,0x7375,0x66a4,0x464f,0x40cb,]
+0x3725: [0x55a9,0x2917,0x5e5b,0x48fe,0x2425,0x2b07,0x136e,0x2337,0x724c,0x66a4,]
+0x5e5b: [0x5002,0x5f5c,0x63d2,0x2337,0x5f5c,0x196d,0x1b12,0x2182,0x1bf1,0x5e5b,]
+0x196d: [0x5f5c,0x604e,0x2cd4,0x63d2,0x3876,0x3876,0x5e5b,0x6154,0x65c5,0x5e5b,]
+0x604e: [0x2182,0x66a4,0x3876,0x52ed,0x188f,0x62f3,0x62f3,0x4f23,0x2337,0x4570,]
+0x2182: [0x65c5,0x52ed,0x3876,0x2182,0x2337,0x65c5,0x2182,0x5927,0x3725,0x5e5b,]
+0x52ed: [0x3b11,0x52ed,0x2182,0x188f,0x6fb6,0x52ed,0x65c5,0x3b11,0x188f,0x52ed,]
+0x3b11: [0x2337,0x6d19,0x7462,0x188f,0x62f3,0x3b11,0x62f3,0x6fb6,0x66a4,0x7462,]
+0x6d19: [0x6df8,0x6df8,0x188f,0x66a4,0x6fb6,0x40cb,0x66a4,0x2db3,0x464f,0x2db3,]
+0x6df8: [0x464f,0x40cb,0x6d19,0x6fb6,0x6df8,0x464f,0x6fb6,0x66a4,0x6233,0x464f,]
+0x464f: [0x40cb,0x40cb,0x6d19,0x5927,0x6df8,0x464f,0x188f,0x6d19,0x6bc8,0x6233,]
+0x5927: [0x55a9,0x1cd0,0x16f8,0x2b07,0x64d3,0x6a77,0x3a4b,0x41aa,0x2261,0x3e48,]
+0x2b07: [0x3d82,0x7809,0x5e5b,0x5676,0x3a4b,0x3e48,0x5676,0x3959,0x6df8,0x17be,]
+0x3d82: [0x2b07,0x3f0e,0x3959,0x3d82,0x7375,0x3308,0x48fe,0x55a9,0x5676,0x3bf0,]
+0x3959: [0x53cc,0x153a,0x284a,0x2917,0x3bf0,0x136e,0x2b07,0x2f84,0x26a4,0x55a9,]
+0x53cc: [0x472e,0x2bdd,0x2771,0x4e18,0x3137,0x2182,0x5baf,0x7462,0x43c2,0x3959,]
+0x472e: [0x4e18,0x6154,0x5aa9,0x63d2,0x7541,0x65c5,0x3725,0x43c2,0x4e18,0x66a4,]
+0x4e18: [0x679b,0x5002,0x472e,0x2a19,0x153a,0x63d2,0x2182,0x2cd4,0x3137,0x42fc,]
+0x679b: [0x4e18,0x1bf1,0x3137,0x679b,0x7375,0x3cbc,0x62f3,0x6ed7,0x43c2,0x55a9,]
+0x1bf1: [0x3137,0x65c5,0x1bf1,0x209a,0x3058,0x63d2,0x5aa9,0x5f5c,0x4e18,0x3058,]
+0x3137: [0x1610,0x3a4b,0x3137,0x3216,0x3959,0x4a13,0x1b12,0x1bf1,0x68a6,0x3876,]
+0x1610: [0x3725,0x2e92,0x340a,0x6233,0x481b,0x44aa,0x4d52,0x2f84,0x7375,0x16f8,]
+0x2e92: [0x188f,0x43c2,0x6233,0x3876,0x65c5,0x464f,0x196d,0x679b,0x4b0f,0x7375,]
+0x188f: [0x62f3,0x6df8,0x6bc8,0x52ed,0x6fb6,0x6fb6,0x188f,0x2182,0x6d19,0x52ed,]
+0x62f3: [0x604e,0x6d19,0x604e,0x66a4,0x4f23,0x4570,0x4f23,0x2337,0x3b11,0x6fb6,]
+0x66a4: [0x6fb6,0x2db3,0x3b11,0x188f,0x4f23,0x464f,0x2db3,0x66a4,0x6d19,0x2db3,]
+0x2db3: [0x3b11,0x6df8,0x604e,0x464f,0x62f3,0x6d19,0x62f3,0x2db3,0x6df8,0x6d19,]
+0x43c2: [0x3137,0x5002,0x1b12,0x4a13,0x1b12,0x1bf1,0x7809,0x7809,0x4a13,0x679b,]
+0x4a13: [0x63d2,0x65c5,0x1b12,0x3058,0x68a6,0x3058,0x472e,0x3876,0x2cd4,0x4a13,]
+0x3058: [0x2cd4,0x5f5c,0x1bf1,0x472e,0x5aa9,0x6154,0x43c2,0x209a,0x2cd4,0x4e18,]
+0x5aa9: [0x1bf1,0x2cd4,0x6154,0x43c2,0x6df8,0x3216,0x2e92,0x6154,0x54ca,0x5676,]
+0x3216: [0x7375,0x3058,0x5aa9,0x5c94,0x12a8,0x78f1,0x65c5,0x11c9,0x5103,0x78f1,]
+0x7375: [0x26a4,0x153a,0x7095,0x64d3,0x7375,0x3959,0x284a,0x7095,0x78f1,0x3bf0,]
+0x26a4: [0x5002,0x3725,0x2f84,0x5676,0x604e,0x62f3,0x2f84,0x5754,0x2bdd,0x3876,]
+0x2f84: [0x136e,0x1ee8,0x48fe,0x3959,0x5833,0x3565,0x3bf0,0x2f84,0x3959,0x724c,]
+0x136e: [0x2a19,0x5f5c,0x17be,0x42fc,0x3959,0x78f1,0x3e48,0x3bf0,0x2771,0x3725,]
+0x2a19: [0x3bf0,0x209a,0x65c5,0x3bf0,0x3bf0,0x24db,0x7095,0x78f1,0x17be,0x7095,]
+0x3bf0: [0x5754,0x3d82,0x3d82,0x40cb,0x464f,0x3959,0x6df8,0x3d82,0x5754,0x481b,]
+0x481b: [0x48fe,0x340a,0x5676,0x5754,0x6ed7,0x5d6d,0x153a,0x3cbc,0x6df8,0x2f84,]
+0x48fe: [0x1fb5,0x2771,0x241a,0x44aa,0x1fb5,0x12a8,0x5d6d,0x5d6d,0x5d6d,0x5baf,]
+0x1fb5: [0x65c5,0x2425,0x69b1,0x6d19,0x464f,0x241a,0x5676,0x153a,0x2425,0x3e48,]
+0x2425: [0x2cd4,0x2f84,0x3308,0x3308,0x48fe,0x2a19,0x48fe,0x2a19,0x3308,0x2a19,]
+0x3308: [0x62f3,0x724c,0x5d6d,0x5676,0x3e48,0x3e48,0x5d6d,0x6154,0x1fb5,0x5d6d,]
+0x724c: [0x16f8,0x64d3,0x2425,0x7717,0x2bdd,0x3959,0x4d52,0x78f1,0x2425,0x2b07,]
+0x64d3: [0x3308,0x5d6d,0x3d82,0x26a4,0x724c,0x209a,0x51ff,0x5002,0x5676,0x724c,]
+0x5d6d: [0x2425,0x3e48,0x3e48,0x55a9,0x5676,0x3e48,0x2a19,0x3e48,0x2425,0x3e48,]
+0x3e48: [0x25b1,0x2a19,0x48fe,0x48fe,0x48fe,0x2a19,0x48fe,0x2a19,0x3308,0x48fe,]
+0x5676: [0x2b07,0x1ee8,0x24db,0x3d82,0x7095,0x5833,0x24db,0x7095,0x7375,0x3308,]
+0x1ee8: [0x2337,0x6a77,0x7375,0x196d,0x3a4b,0x65c5,0x679b,0x63d2,0x7717,0x7462,]
+0x6a77: [0x24db,0x5aa9,0x51ff,0x284a,0x5927,0x481b,0x241a,0x5baf,0x6154,0x40cb,]
+0x51ff: [0x26a4,0x55a9,0x53cc,0x5e5b,0x51ff,0x24db,0x26a4,0x4e18,0x5d6d,0x2b07,]
+0x284a: [0x5676,0x5e5b,0x7375,0x464f,0x4570,0x69b1,0x7717,0x1b12,0x3f0e,0x2337,]
+0x69b1: [0x78f1,0x153a,0x3d82,0x6ed7,0x42fc,0x44aa,0x7809,0x2cd4,0x51ff,0x44aa,]
+0x78f1: [0x7638,0x5002,0x41aa,0x3876,0x1a4c,0x51ff,0x3cbc,0x7717,0x2f84,0x26a4,]
+0x7638: [0x5aa9,0x44aa,0x464f,0x3876,0x2a19,0x3137,0x3d82,0x2337,0x2261,0x48fe,]
+0x44aa: [0x44aa,0x44aa,0x44aa,0x5c94,0x69b1,0x5d6d,0x44aa,0x69b1,0x44aa,0x44aa,]
+0x2261: [0x7095,0x17be,0x7095,0x26a4,0x284a,0x3bf0,0x24db,0x55a9,0x6bc8,0x24db,]
+0x7095: [0x4570,0x7717,0x7375,0x7717,0x63d2,0x4f23,0x65c5,0x5754,0x7717,0x3959,]
+0x7717: [0x17be,0x1cd0,0x3565,0x2261,0x3565,0x5c94,0x43c2,0x2261,0x2261,0x3565,]
+0x17be: [0x7717,0x2425,0x64d3,0x284a,0x2db3,0x5002,0x1ee8,0x6df8,0x6ed7,0x2db3,]
+0x3565: [0x55a9,0x16f8,0x6df8,0x48fe,0x62f3,0x6bc8,0x55a9,0x2f84,0x17be,0x363b,]
+0x363b: [0x2771,0x209a,0x2917,0x3565,0x1b12,0x1b12,0x5676,0x6fb6,0x5754,0x41aa,]
+0x2771: [0x4f23,0x24db,0x6a77,0x25b1,0x40cb,0x25b1,0x2a19,0x2db3,0x679b,0x12a8,]
+0x12a8: [0x1cd0,0x3725,0x65c5,0x17be,0x7375,0x2db3,0x2a19,0x604e,0x1b12,0x2425,]
+0x41aa: [0x1cd0,0x3565,0x6d19,0x2f84,0x3137,0x2261,0x1cd0,0x481b,0x66a4,0x3137,]
+0x1a4c: [0x1e22,0x41aa,0x6233,0x1e22,0x340a,0x16f8,0x1a4c,0x6233,0x6233,0x16f8,]
+0x1e22: [0x1a4c,0x4a13,0x24db,0x24db,0x1cd0,0x1a4c,0x340a,0x340a,0x5c94,0x42fc,]
+0x42fc: [0x3058,0x7717,0x7095,0x7095,0x6a77,0x1cd0,0x3e48,0x5927,0x63d2,0x64d3,]
+0x6233: [0x340a,0x1cd0,0x6233,0x340a,0x6233,0x6233,0x1a4c,0x340a,0x340a,0x1a4c,]
+0x3cbc: [0x7375,0x5754,0x464f,0x3bf0,0x1a4c,0x3cbc,0x241a,0x4a13,0x1470,0x55a9,]
+0x1470: [0x5e5b,0x340a,0x3725,0x40cb,0x41aa,0x2771,0x3959,0x1a4c,0x5e5b,0x188f,]
+0x153a: [0x3a4b,0x2f84,0x1b12,0x2337,0x52ed,0x209a,0x4d52,0x41aa,0x43c2,0x2182,]
+0x3a4b: [0x4c8c,0x6bc8,0x284a,0x26a4,0x24db,0x26a4,0x3f0e,0x4d52,0x6a77,0x2f84,]
+0x4c8c: [0x340a,0x3f0e,0x1ee8,0x1ee8,0x3a4b,0x4a13,0x2bdd,0x42fc,0x7541,0x41aa,]
+0x2bdd: [0x78f1,0x63d2,0x2a19,0x136e,0x284a,0x724c,0x5676,0x2261,0x2261,0x3058,]
+0x7541: [0x16f8,0x62f3,0x2b07,0x2a19,0x6154,0x44aa,0x42fc,0x2cd4,0x16f8,0x51ff,]
+0x4d52: [0x7375,0x7095,0x51ff,0x2f84,0x5f5c,0x604e,0x25b1,0x64d3,0x3b11,0x7375,]
+0x7809: [0x5002,0x3959,0x4d52,0x241a,0x1e22,0x3cbc,0x1e22,0x7809,0x7809,0x5d6d,]
+0x5baf: [0x3058,0x66a4,0x5754,0x604e,0x40cb,0x241a,0x196d,0x3959,0x5833,0x2425,]
+0x5833: [0x5c94,0x43c2,0x7717,0x51ff,0x4f23,0x5f5c,0x2771,0x42fc,0x3959,0x7375,]
+0x11c9: [0x62f3,0x5aa9,0x2182,0x2cd4,0x6154,0x5f5c,0x4a13,0x241a,0x3d82,0x1fb5,]
+0x5103: [0x1a4c,0x1b12,0x5927,0x64d3,0x25b1,0x2771,0x5f5c,0x4a13,0x6233,0x5f5c,]
+0x54ca: [0x209a,0x1b12,0x724c,0x5baf,0x209a,0x5f5c,0x2bdd,0x3058,0x3058,0x3bf0,]
+0x68a6: [0x3565,0x209a,0x3308,0x42fc,0x6fb6,0x42fc,0x3725,0x3058,0x5aa9,0x1bf1,]
+0x4b0f: [0x2917,0x48fe,0x3137,0x5baf,0x2bdd,0x2425,0x62f3,0x2771,0x136e,0x5754,]
+0x3fd4: [0x3bf0,0x4a13,0x209a,0x6a77,0x17be,0x1cd0,0x63d2,0x5002,0x63d2,0x64d3,]
+</code></pre>
+<p>有了跳表过后，我们就可以利用伪随机数开始恢复真实指令了。</p>
+<h3 id="恢复真实指令">恢复真实指令</h3>
+<p>如果没有if分支跳过rand的情况，那么直接使用以下脚本就能把指令全部恢复了</p>
+<pre><code class="language-python"># ......
+
+ea = start_addr
+while ea != end_addr:
+    print(switch_tbl[ea][1])
+    ea = switch_tbl[ea][0][get_rand()%10]
+</code></pre>
+<p>首先利用这个脚本把最初一次rand都不跳过的版本跑出来，找到第一个if的位置，会发现</p>
+<pre><code class="language-c">arr[r1] = 0;
+--arr[r1];
+if ( (char)arr[r1] &lt; 0 )    rand();
+</code></pre>
+<p>这样的结构一眼丁真需要跳过一次rand。</p>
+<p>有两次比较特殊的跳过rand是这样的</p>
+<pre><code class="language-c">arr[r1] = syscall((char)arr[r1], (unsigned int)(char)arr[r1 + 1], &amp;arr[r1 + 2], (unsigned int)(char)arr[r1 + 3]);
+if ( (char)arr[r1] &lt; 0 )    rand();
+</code></pre>
+<p>此时arr[r1] = 101，调用了ptrace，在此前已经调用过一次ptrace了，故这里无论如何都会返回-1。即这一次rand也应当跳过。</p>
+<p>这里就需要手动去干预一下rand的计数器，然后一次次重跑分支来修复if判定了。</p>
+<p>完整恢复脚本：</p>
+<pre><code class="language-python">rand_list = [
+	996325778, 297035351, 2058103174, 528816830, 393923372, 2017156296, 1558277575, 1170605215, 
+	683020448, 1055576694, 581943533, 88837977, 64727140, 1998452778, 494131313, 61447808, 
+	1568310386, 1416484419, 1955750152, 12801309, 619997278, 1729578889, 198422376, 948965562, 
+	1131021300, 1331872782, 991045446, 901577048, 1523104240, 1391915815, 1702344872, 371946370, 
+	1688951166, 1612964398, 900763200, 2082874538, 1482637046, 311557127, 1105996106, 18173846, 
+	1367133822, 1687939639, 107011824, 1431860962, 1538908769, 601143137, 1493308770, 959735508, 
+	2017627556, 1301575274, 972536817, 490141186, 883670515, 1170959194, 1439106748, 2014691815, 
+	355348328, 282668547, 768785216, 1878452568, 1674584362, 323646440, 102915290, 1216051880, 
+	1936610838, 1003678490, 1151442771, 1271764237, 1315235618, 109955229, 1289938083, 534885792, 
+	1797894868, 1396949907, 1966746754, 1189319990, 1998093044, 1312571876, 1571850, 1868236952, 
+	466663503, 974108667, 210894491, 1350334018, 2145067861, 1650001239, 1217542186, 352932542, 
+	1932669786, 1986327402, 83901462, 1459770500, 162490194, 186816753, 528338733, 2099101032, 
+	1190495243, 1679781504, 1223381621, 358247213, 1789736733, 365836057, 893133005, 1440147953, 
+	1762785964, 712396111, 481984295, 1613395361, 2024967988, 483556145, 1334148665, 344147843, 
+	1457664813, 1545043156, 1694481861, 1455249026, 1047560748, 764540399, 1808181568, 832746886, 
+	603384153, 1892083031, 145033739, 765874347, 2078899784, 673372472, 717491732, 1121911379, 
+	205670328, 1940873353, 1480158593, 1995407061, 159225762, 225807950, 1288071366, 1922011727, 
+	938204062, 1770055662, 1387923440, 815688402, 106128159, 574588457, 1159836245, 1563792972, 
+	2119631614, 706834458, 871558351, 1019708714, 1471374858, 532256271, 1852455600, 2074759011, 
+	276855654, 1997489339, 693149711, 208271790, 523378163, 1410641443, 1330183170, 729048491, 
+	1204031148, 662858115, 576971904, 1363256911, 888666065, 1865043271, 1137784990, 1826870127, 
+	1487615285, 378224782, 495074881, 1593743444, 952813239, 1654911126, 1010052769, 924961205, 
+	214261937, 1881611120, 1944669919, 1685636795, 266383743, 1649641872, 1612912158, 543239398, 
+	1499647563, 158578221, 751511188, 2023025727, 1569219664, 2081694358, 604590570, 625767165, 
+	597068825, 1181562475, 1989024076, 1485734891, 899122098, 979325418, 1165121370, 239253735, 
+	1357550200, 1660196252, 1832997179, 162879791, 1167623730, 695566300, 1087840997, 1381885667, 
+	429693772, 885027268, 920038814, 696077516, 387185492, 385467325, 1239316914, 1886833056, 
+	544045546, 1990828102, 1762375135, 2113265211, 1925038813, 219482057, 591548728, 374623990, 
+	1401044532, 433089156, 1860358881, 152682982, 1412414574, 877996604, 391936717, 622481126, 
+	390709208, 77450249, 785360917, 1558332938, 773016549, 1873201914, 792734958, 1202710322, 
+	610745535, 1712773772, 1898787838, 997931027, 2098241097, 990621104, 737280435, 494802996, 
+	833965558, 352171922, 460584559, 611520723, 571653980, 1052133287, 986144714, 1972698512, 
+	1485222443, 699019947, 2125381495, 750153369, 1577016551, 369834564, 1372634495, 1967725759, 
+	447284813, 10511764, 1378575050, 1220301363, 1883713679, 23826360, 275528037, 346975566, 
+	1736600132, 26832227, 1344906593, 1687357582, 1017453331, 2082187029, 34676930, 1851418889, 
+	286875303, 495261489, 315455965, 858529283, 1547394776, 1301600679, 683744148, 885133571, 
+	2000620626, 661641995, 1635286940, 1430153530, 1031476559, 860437787, 1250395641, 1478761373, 
+	870949551, 481487043, 551579088, 607179582, 505313403, 827107125, 954155148, 94429888, 
+	853939352, 151578094, 1781787470, 1871392683, 86281475, 1816464400, 1575327924, 373156778, 
+	164242241, 1890783889, 1231686062, 1711637017, 1044900920, 1915430210, 449286940, 898037899, 
+	429588557, 2084573880, 180707781, 1461065116, 797528019, 1431103422, 792342841, 1668477570, 
+	1912590466, 1343921929, 128173505, 270420221, 23545406, 1082328653, 364850109, 877484758, 
+	1233906747, 2146637579, 601393793, 1320188222, 1815618331, 29238070, 1693345001, 1979860572, 
+	1920021959, 777547415, 1544013941, 817439232, 545493977, 1993300881, 1715477131, 975082534, 
+	1930391113, 1896184912, 288664002, 580435484, 1179804686, 1081006844, 101429407, 944911504, 
+	277445125, 229602912, 1215331726, 300990532, 1311931565, 1580181835, 1178475290, 398354665, 
+	1579335767, 1779869084, 1718542887, 1247470450, 1809107154, 1264404240, 1079847375, 1581645465, 
+	2041951655, 476377668, 251601049, 439961984, 322194902, 1967078180, 1415044518, 105102367, 
+	1715779444, 1703708521, 685537852, 748100483, 637231717, 786967259, 1693011987, 914676842, 
+	1016570171, 760860065, 1215667374, 181018088, 193558253, 246659017, 579372753, 1772894020, 
+	2026528101, 150431993, 872880822, 1688151607, 1414836233, 1952728197, 1122313424, 1309304241, 
+	281622218, 1373914474, 1749266225, 603817120, 1193509006, 1016827096, 708919487, 761804803, 
+	573051969, 1394457339, 1509905286, 1210283686, 33940950, 1055433625, 2124960528, 1050511121, 
+	1816293691, 1193144255, 1231529210, 2009851944, 1439803272, 1810901963, 1635262316, 1318847725, 
+	1961333956, 360659490, 859515684, 1228686542, 165904040, 1981829108, 390507135, 447526258, 
+	1208259934, 2139773360, 1051343378, 254285293, 1009116808, 1760262865, 1016090096, 1582168777, 
+	1007236557, 378511734, 644968815, 1041177507, 1433945359, 622445696, 2091688629, 1102755402, 
+	1815589951, 1175734191, 965123698, 1107909575, 839152506, 452902366, 279273652, 653002815, 
+	813561857, 1138789336, 1881689357, 979465897, 973134796, 124712844, 1426992155, 33911083, 
+	117002556, 330851885, 288196376, 1126119365, 2091114750, 1304286472, 560804494, 950867659, 
+	1682798206, 1205773310, 1992045167, 969259917, 1828219006, 1936250148, 2072015320, 1496325309, 
+	964500691, 889655370, 456751236, 1803653197, 1342557737, 736024888, 309172364, 8635946, 
+	1874814224, 43378073, 988101843, 700465372, 168090917, 267610350, 734376455, 285093474, 
+	598462235, 1022572831, 1411212839, 542093337, 179375655, 1972017333, 1492960997, 1862173861, 
+	1030306995, 1337522516, 683950131, 711042353, 1126289016, 608481803, 59884014, 2090789707, 
+	1498137173, 516635250, 1746959256, 693211262, 1252660138, 2056131621, 701847208, 979990714, 
+	2099509694, 1689949051, 1680456087, 120116964, 1957559401, 267348894, 405210438, 408537988, 
+	1289921726, 1816423277, 950631326, 1469297381, 1640956962, 296108675, 1183987595, 523780310, 
+	1633631191, 1867937726, 1234822663, 612436559, 328935881, 1294706678, 555742618, 1827073054, 
+	1811341928, 155218226, 372800669, 916518419, 63866199, 1074647877, 1896509133, 15892246, 
+	617113281, 1429481572, 136009210, 427189034, 1696830467, 541219648, 835727023, 839268545, 
+	210159277, 1786358349, 161082278, 1851116239, 2082467024, 1345069873, 227412901, 1568614567, 
+	1065523951, 1462235565, 33567478, 1394459832, 609458595, 589310096, 1074049239, 273316875, 
+	744528322, 1446849908, 1189835294, 808394522, 374014137, 938860780, 824286768, 991127418, 
+	220858704, 960295978, 1418316453, 1917689171, 1501515626, 106559828, 609474068, 1711674903, 
+	1892918177, 770556347, 1415307494, 1827901553, 2115626220, 1642720396, 1249032472, 1033666524, 
+	957472313, 1282599950, 280642708, 1566930908, 1871910046, 1354691947, 1840247783, 468954720, 
+	654058207, 882599430, 1277349242, 1028072345, 1821460210, 2101636010, 2019199763, 2042318914, 
+	914448340, 1290032568, 1812524438, 268480318, 1396592396, 274514858, 1980155221, 1142026925, 
+	1045071205, 1247979068, 822444830, 1013213778, 743215816, 2071477302, 2046880302, 1700688129, 
+	1206593604, 180039362, 1120135389, 931020002, 1534731310, 812899524, 1399974723, 41305869, 
+	1695498954, 529840317, 1069378214, 1369475516, 483992680, 941094330, 1264310783, 1398441020, 
+	83643250, 929351573, 1666921339, 1480235647, 1203866431, 1499592912, 474778924, 101453989, 
+	600088332, 1297223755, 1114667767, 1343304148, 1221217409, 1014064421, 896508629, 280327366, 
+	1194103783, 2016644018, 1211347368, 581351445, 682059895, 463838443, 622657315, 230075201, 
+	993678761, 1692035529, 1599550718, 1477671441, 485646211, 716377853, 728628813, 569289462, 
+	1645729426, 248066504, 2049525109, 702112209, 1747659417, 376820385, 803566198, 200264101, 
+	1674044140, 1918233965, 1543568250, 747777902, 784814738, 292593231, 1028105268, 1978918522, 
+	161753602, 91968988, 412786319, 843813497, 555807432, 1035443634, 1073888698, 1549486193, 
+	579995516, 525955768, 879673986, 1065641727, 1242333621, 1608302799, 1634931189, 740579399, 
+	1856369304, 1536972650, 1442691609, 1456545073, 1913793036, 98774159, 1656809174, 1440353528, 
+	2017008125, 1052893776, 40647782, 654339215, 1345487008, 1068753050, 485774089, 1507240610, 
+	1160722039, 898560409, 203570459, 1716529471, 1934004043, 1277459157, 1118532016, 366515911, 
+	1803414926, 1998206002, 1432157639, 898264899, 1459025153, 919605180, 1638844299, 1167910809, 
+	309094183, 934052260, 476972234, 75403571, 1032826419, 2133781409, 1515757099, 902350896, 
+	1039191537, 1556404882, 1556690112, 237194897, 477674284, 2042464201, 1744435507, 1638396323, 
+	793540962, 1948005966, 1207442146, 580061358, 1077981476, 178490514, 946577269, 733912754, 
+	29212868, 231251260, 1632177653, 1488238022, 1150856441, 1123538304, 508665183, 1459950624, 
+	2057590564, 985637418, 1535354195, 942933336, 971935179, 903627646, 1845284232, 2011126716, 
+	312548880, 1254490696, 100837966, 790223165, 1149471250, 1845273473, 281135840, 1943012212, 
+	1645795792, 1488577987, 375589922, 576293620, 1667068501, 1322167192, 1310206374, 1696281370, 
+	1553418452, 794900379, 1037035744, 556791245, 1918438684, 1545700927, 2016741869, 1828545600, 
+	383854697, 1404612416, 623995288, 1355789876, 160756415, 321795873, 1219432945, 473305295, 
+	1576286569, 1320270911, 1263528460, 578274171, 1018060736, 1544664301, 373802736, 516372880, 
+	885758640, 749392658, 1092666500, 405343493, 2071559850, 255389226, 2101624863, 1477494655, 
+	1050289606, 991176959, 2034285900, 821244642, 389394239, 1903544122, 502306594, 773248936, 
+	1160672890, 1126301883, 2129038813, 1321429305, 1448097756, 1200988110, 1794734601, 876900677, 
+	373775373, 910779413, 1455174849, 1391836109, 307960066, 1828977585, 1908208990, 1193718706, 
+	430886595, 853391842, 1599062200, 354962798, 1108781069, 1553203415, 1832457453, 11587027, 
+	396896727, 1719259705, 832831669, 786290966, 1475320179, 1335138263, 1559539902, 488509422, 
+	313956498, 1541095067, 1809938727, 1762054254, 594599529, 1457189680, 491471284, 968374902, 
+	220485446, 1946646133, 212727364, 528445512, 1628140070, 2120936354, 1722164219, 2059026665, 
+	826844548, 1173742771, 266505815, 1935625617, 579462538, 2098963268, 1947212644, 976359265, 
+	1670739326, 632560665, 1762650231, 998575857, 1967698929, 1174706486, 1487085279, 134171779, 
+	568317905, 1149540359, 1896226034, 1162917435, 459246391, 240213670, 2131292337, 679731837, 
+	39376155, 196536053, 1208177350, 1667516225, 169988759, 782857921, 1579059242, 996833308, 
+	1956600692, 1845565058, 784975277, 388579582, 1797044678, 584704274, 1364938848, 1320300356, 
+	1217264939, 980105431, 171392566, 1037480220, 7328269, 1658477845, 1171652000, 575646175, 
+	660534556, 920394386, 1738563610, 1119780948, 1160608056, 1722372299, 1799512785, 1199984211, 
+	1918908353, 860206487, 720016788, 2088897112, 1643064408, 151592382, 938246772, 1452181452, 
+	1997157440, 1723222050, 1840761035, 1646718471, 160442676, 1058216235, 819535179, 1377707615, 
+	2038321666, 990927745, 267704188, 2045649936, 501921943, 1439356188, 473812463, 1162456499, 
+	212266926, 64892425, 134753799, 1372874982, 1787264724, 1934266585, 425375545, 1558689429, 
+	646989424, 1145392333, 1500102894, 142570185, 1296984715, 290866018, 1594751637, 1146658508, 
+	2014088068, 1288029024, 645893331, 27047096, 198761611, 1465428510, 1404754712, 89599630, 
+	308872608, 1672458900, 2135249566, 810794551, 964331440, 461578381, 1973251050, 1176598366, 
+	526470806, 2108004850, 401989700, 166251882, 1894787787, 827365245, 1724941312, 394293563, 
+	1972757578, 1077560558, 536863748, 1122258645, 1368426576, 2131615386, 121433505, 1235030997
+]
+
+rand_ite = -1;
+
+def get_rand():
+    global rand_ite
+    rand_ite += 1
+    return rand_list[rand_ite]
+
+log = 0
+
+start_addr = 0x717f
+end_addr = 0x241A
+
+vis = {}
+switch_tbl = {}
+
+def bfs(addr):
+    vis[addr] = 1
+    if addr == end_addr:
+        return
+    ea = addr
+    v2 = {}
+    vtable = []
+    xor_val = 0
+    while True:
+        ins = idc.generate_disasm_line(ea, 0)
+        if ins.startswith('xor') and len(v2) &gt; 10:
+            op0 = idc.print_operand(ea, 0)
+            op1 = idc.print_operand(ea, 1)
+            if op0[0] in &quot;er&quot;:
+                op0 = op0[1:]
+            if op1[0] in &quot;er&quot;:
+                op1 = op1[1:]
+            if op1[-1] != 'h':
+                xor_val = int(v2[op0][:-1], 16)
+            else:
+                xor_val = int(op1[:-1], 16)
+            break
+        if ins.startswith('mov'):
+            op0 = idc.print_operand(ea, 0)
+            op1 = idc.print_operand(ea, 1)
+            if op0[0] in &quot;er&quot;:
+                op0 = op0[1:]
+            if op1[0] in &quot;er&quot;:
+                op1 = op1[1:]
+            if log == 1:
+                print(str(hex(ea)), end=': mov ')
+                print(op0, end=', ')
+                print(op1)
+            v2[op0] = op1
+            if '[rbp+var_' in op0:
+                if op1[-1] != 'h':
+                    v2[op0] = v2[op1]
+        ea += idc.get_item_size(ea)
+        # print(hex(ea))
+    off_list = [60, 58, 50, 48, 40, 38, 30, 28, 20, 18]
+    for offset in off_list:
+        target = int(v2['[rbp+var_{}]'.format(offset)][:-1], 16)
+        target = (target ^ xor_val) + addr
+        target = target &amp; 0xffffffff
+        vtable.append(target)
+    nexts = []
+    for e in vtable:
+        nexts.append(e)
+        # print(hex(e), end=', ')
+    code = str(idaapi.decompile(addr)).split('\n')
+    if 'if' in code[5]:
+        code[5] += code[6]
+    switch_tbl[addr] = (nexts, code[5])
+    for next in nexts:
+        if next in vis:
+            continue
+        bfs(next)
+    
+bfs(start_addr)
+
+'''
+for e in switch_tbl:
+    print(hex(e), end=': [')
+    tbl = switch_tbl[e][0]
+    for i in tbl:
+        print(hex(i), end=',')      
+    print('] op =', end='')
+    print(switch_tbl[e][1])
+'''
+
+cnt = 0
+skips = [18, 21, 46, 165, 168, 307, 334, 363, 389, 440, 468, 584, 587, 610, 613, 660]
+
+ea = start_addr
+while ea != end_addr:
+    # print(cnt, end=': ')
+    print(switch_tbl[ea][1])
+    if cnt in skips:
+        get_rand()
+    ea = switch_tbl[ea][0][get_rand()%10]
+    cnt += 1
+</code></pre>
+<p>最终恢复结果如下（太长了，贴个链接）</p>
+<p><a href="https://paste.ubuntu.com/p/JHQBNjN52W/">代码链接</a></p>
+<p>gcc O1编译简化一下（其实这一步也可以直接丢给gpt来让他帮忙推导常数）：</p>
+<pre><code class="language-c">  arr[r1] = 0;
+  arr[1] = 0;
+  arr[3] = 1;
+  r1 = 0;
+  arr[0] = syscall(arr[0], 0LL, &amp;arr[2], 1LL);  // arr[2] = getchar()
+  v3 = arr[2];
+  flag[(unsigned __int8)r2] ^= arr[2];
+  r2 = 1;
+  flag[1] = ((v3 &gt;&gt; 3) | (32 * v3)) ^ 3;
+  arr[2] = 0;
+  arr[3] = 0;
+  arr[5] = 1;
+  r1 = 2;
+  arr[2] = syscall(0LL, 0LL, &amp;arr[4], 1LL);  // arr[4] = getchar()
+  v4 = arr[4];
+  flag[(unsigned __int8)r2] ^= arr[4];
+  r2 = 2;
+  flag[2] = v4;
+  arr[4] = 101;
+  arr[5] = 0;
+  arr[6] = 0;
+  arr[7] = 0;
+  arr[8] = 0;
+  r1 = 4;
+  syscall(101LL, 0LL, &amp;arr[6], 0LL);
+  flag[(unsigned __int8)r2] = (flag[(unsigned __int8)r2] &gt;&gt; 5) | (8 * flag[(unsigned __int8)r2]);
+  arr[r1] = 0;
+  arr[5] = 0;
+  arr[7] = 1;
+  r1 = 4;
+  arr[4] = syscall(arr[4], 0LL, &amp;arr[6], 1LL);  // arr[6] = getchar()
+  v5 = arr[6];
+  flag[(unsigned __int8)r2] ^= arr[6];
+  r2 = 3;
+  flag[3] = v5;
+  arr[6] = 101;
+  arr[7] = 0;
+  arr[8] = 0;
+  arr[9] = 0;
+  arr[10] = 0;
+  r1 = 6;
+  syscall(101LL, 0LL, &amp;arr[8], 0LL);
+  flag[(unsigned __int8)r2] = (flag[(unsigned __int8)r2] &gt;&gt; 6) | (4 * flag[(unsigned __int8)r2]);
+  arr[r1] = 0;
+  arr[7] = 0;
+  arr[9] = 1;
+  r1 = 6;
+  arr[6] = syscall(arr[6], 0LL, &amp;arr[8], 1LL);  // arr[8] = getchar()
+  v6 = arr[8];
+  flag[(unsigned __int8)r2] ^= arr[8];
+  r2 = 4;
+  flag[4] = ((v6 &gt;&gt; 7) | (2 * v6)) ^ 7;
+  arr[8] = 0;
+  arr[9] = 0;
+  arr[11] = 1;
+  r1 = 8;
+  arr[8] = syscall(0LL, 0LL, &amp;arr[10], 1LL);  // arr[10] = getchar()
+  v7 = r2;
+  v8 = arr[10];
+  flag[(unsigned __int8)r2] ^= arr[10];
+  r2 = v7 + 1;
+  flag[(unsigned __int8)(v7 + 1)] = ((v8 &gt;&gt; 4) | (16 * v8)) ^ 4;
+  arr[10] = 0;
+  arr[11] = 0;
+  arr[13] = 1;
+  r1 = 10;
+  v9 = syscall(0LL, 0LL, &amp;arr[12], 1LL);  // arr[12] = getchar()
+  v10 = r1;
+  arr[r1] = v9;
+  v11 = r2;
+  v12 = v10 + 2;
+  v13 = arr[v12];
+  flag[(unsigned __int8)r2] ^= v13;
+  r2 = v11 + 1;
+  flag[(unsigned __int8)(v11 + 1)] = (v13 &gt;&gt; 4) | (16 * v13);
+  arr[v12] = 0;
+  v14 = v10 + 3;
+  arr[v14] = 0;
+  arr[v10 + 5] = 1;
+  r1 = v10 + 2;
+  v15 = syscall(arr[v12], (unsigned int)arr[v14], &amp;arr[v10 + 4], 1LL);  // arr[14] = getchar()
+  v16 = r1;
+  arr[r1] = v15;
+  v17 = r2;
+  v18 = arr[v16 + 2];
+  flag[(unsigned __int8)r2] ^= v18;
+  r2 = v17 + 1;
+  flag[(unsigned __int8)(v17 + 1)] = ((v18 &gt;&gt; 7) | (2 * v18)) ^ 7;
+  arr[v16 + 2] = 0;
+  v19 = v16 + 3;
+  arr[v19] = 0;
+  arr[v16 + 5] = 1;
+  r1 = v16 + 2;
+  v20 = syscall(arr[v16 + 2], (unsigned int)arr[v19], &amp;arr[v16 + 4], 1LL);  // arr[16] = getchar()
+  v21 = r1;
+  arr[r1] = v20;
+  v22 = r2;
+  v23 = v21 + 2;
+  v24 = arr[v23];
+  flag[(unsigned __int8)r2] ^= v24;
+  r2 = v22 + 1;
+  flag[(unsigned __int8)(v22 + 1)] = (v24 &gt;&gt; 7) | (2 * v24);
+  arr[v23] = 0;
+  v25 = v21 + 3;
+  arr[v25] = 0;
+  arr[v21 + 5] = 1;
+  r1 = v21 + 2;
+  v26 = syscall(arr[v23], (unsigned int)arr[v25], &amp;arr[v21 + 4], 1LL);  // arr[18] = getchar()
+  v27 = r1;
+  arr[r1] = v26;
+  v28 = r2;
+  v29 = arr[v27 + 2];
+  flag[(unsigned __int8)r2] ^= v29;
+  r2 = v28 + 1;
+  flag[(unsigned __int8)(v28 + 1)] = v29;
+  arr[v27 + 2] = 101;
+  v30 = v27 + 3;
+  arr[v30] = 0;
+  v31 = v27 + 4;
+  arr[v31] = 0;
+  v32 = v27 + 5;
+  arr[v32] = 0;
+  arr[v27 + 6] = 0;
+  r1 = v27 + 2;
+  syscall(arr[v27 + 2], (unsigned int)arr[v30], &amp;arr[v31], (unsigned int)arr[v32]);
+  v33 = r1;
+  flag[(unsigned __int8)r2] = (flag[(unsigned __int8)r2] &gt;&gt; 2) | (flag[(unsigned __int8)r2] &lt;&lt; 6);
+  arr[v33] = 0;
+  v34 = v33 + 1;
+  arr[v34] = 0;
+  arr[v33 + 3] = 1;
+  v35 = syscall(arr[v33], (unsigned int)arr[v34], &amp;arr[v33 + 2], 1LL);
+  v36 = r1;
+  arr[r1] = v35;
+  v37 = r2;
+  v38 = v36 + 2;
+  v39 = arr[v38];
+  flag[(unsigned __int8)r2] ^= v39;
+  r2 = v37 + 1;
+  flag[(unsigned __int8)(v37 + 1)] = (v39 &gt;&gt; 4) | (16 * v39);
+  arr[v38] = 0;
+  v40 = v36 + 3;
+  arr[v40] = 0;
+  arr[v36 + 5] = 1;
+  r1 = v36 + 2;
+  v41 = syscall(arr[v38], (unsigned int)arr[v40], &amp;arr[v36 + 4], 1LL);
+  v42 = r1;
+  arr[r1] = v41;
+  v43 = r2;
+  v44 = v42 + 2;
+  v45 = arr[v44];
+  flag[(unsigned __int8)r2] ^= v45;
+  r2 = v43 + 1;
+  flag[(unsigned __int8)(v43 + 1)] = (v45 &gt;&gt; 4) | (16 * v45);
+  arr[v44] = 0;
+  v46 = v42 + 3;
+  arr[v46] = 0;
+  arr[v42 + 5] = 1;
+  r1 = v42 + 2;
+  v47 = syscall(arr[v44], (unsigned int)arr[v46], &amp;arr[v42 + 4], 1LL);
+  v48 = r1;
+  arr[r1] = v47;
+  r1 = v48 + 2;
+  v49 = r2;
+  v50 = v48 + 2;
+  v51 = arr[v50];
+  v52 = (unsigned __int8)r2;
+  flag[(unsigned __int8)r2] ^= v51;
+  v53 = v49 + 1;
+  v54 = (unsigned __int8)(v49 + 1);
+  flag[v54] = ((v51 &gt;&gt; 7) | (2 * v51)) ^ 7;
+  v55 = (unsigned __int8)(v49 - 9);
+  v56 = flag[v55] ^ flag[(unsigned __int8)(v49 - 10)];
+  flag[v55] = v56;
+  v57 = (unsigned __int8)(v49 - 8);
+  v58 = flag[v57] ^ v56;
+  flag[v57] = v58;
+  v59 = (unsigned __int8)(v49 - 7);
+  v60 = flag[v59] ^ v58;
+  flag[v59] = v60;
+  v61 = (unsigned __int8)(v49 - 6);
+  v62 = flag[v61] ^ v60;
+  flag[v61] = v62;
+  v63 = (unsigned __int8)(v49 - 5);
+  v64 = flag[v63] ^ v62;
+  flag[v63] = v64;
+  v65 = (unsigned __int8)(v49 - 4);
+  v66 = flag[v65] ^ v64;
+  flag[v65] = v66;
+  v67 = (unsigned __int8)(v49 - 3);
+  v68 = flag[v67] ^ v66;
+  flag[v67] = v68;
+  v69 = (unsigned __int8)(v49 - 2);
+  v70 = flag[v69] ^ v68;
+  flag[v69] = v70;
+  v71 = (unsigned __int8)(v49 - 1);
+  v72 = flag[v71] ^ v70;
+  flag[v71] = v72;
+  v73 = flag[v52] ^ v72;
+  flag[v52] = v73;
+  arr[v50] = v73;
+  r2 = v53;
+  flag[v54] ^= v73;
+</code></pre>
+<p>这样一来，逆向脚本就能搓了。</p>
+<p>（其实加密算法恢复到这里也能看出，之前所说的爆破思路确实是可行的）</p>
+<h2 id="solve-2">solve</h2>
+<pre><code class="language-c">#define LOCAL
+#define WIN32_LEAN_AND_MEAN
+// #pragma gcc optimize(2)
+#include &lt;iostream&gt;
+#include &lt;cstdio&gt;
+typedef long long ll;
+typedef unsigned long long ull;
+
+unsigned char flag[] =
+{
+  0, 0x9D, 0x6B, 0xA1, 0x02, 0xD7, 0xED, 0x40, 0xF6, 0x0E, 0xAE, 
+  0x84, 0x19
+};
+
+int main()
+{
+    for (int i = 12; i &gt; 0; --i)
+        flag[i] ^= flag[i-1];
+
+    flag[12] ^= 7;
+    flag[12] = (flag[12] &lt;&lt; 7) | (flag[12] &gt;&gt; 1);
+
+    flag[11] ^= flag[12];
+    flag[11] = (flag[11] &lt;&lt; 4) | (flag[11] &gt;&gt; 4);
+
+    flag[10] ^= flag[11];
+    flag[10] = (flag[10] &lt;&lt; 4) | (flag[10] &gt;&gt; 4);
+
+    flag[9] ^= flag[10];
+    flag[9] = (flag[9] &lt;&lt; 2) | (flag[9] &gt;&gt; 6);
+
+    flag[8] ^= flag[9];
+    flag[8] = (flag[8] &lt;&lt; 7) | (flag[8] &gt;&gt; 1);
+
+    flag[7] ^= flag[8];
+    flag[7] ^= 7;
+    flag[7] = (flag[7] &lt;&lt; 7) | (flag[7] &gt;&gt; 1);
+
+    flag[6] ^= flag[7];
+    flag[6] = (flag[6] &lt;&lt; 4) | (flag[6] &gt;&gt; 4);
+
+    flag[5] ^= flag[6];
+    flag[5] ^= 4;
+    flag[5] = (flag[5] &lt;&lt; 4) | (flag[5] &gt;&gt; 4);
+
+    flag[4] ^= flag[5];
+    flag[4] ^= 7;
+    flag[4] = (flag[4] &lt;&lt; 7) | (flag[4] &gt;&gt; 1);
+
+    flag[3] ^= flag[4];
+    flag[3] = (flag[3] &lt;&lt; 6) | (flag[3] &gt;&gt; 2);
+
+    flag[2] ^= flag[3];
+    flag[2] = (flag[2] &lt;&lt; 5) | (flag[2] &gt;&gt; 3);
+
+    flag[1] ^= flag[2];
+    flag[1] ^= 3;
+    flag[1] = (flag[1] &lt;&lt; 3) | (flag[1] &gt;&gt; 5);
+    
+    for (int i = 0; i &lt; 12; ++i)
+        putchar(flag[i]);
+
+    return 0;
+}
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#dubhectf2024-destination">DubheCTF2024 - Destination</a>
+<ul>
+<li><a href="#%E5%8F%8D%E8%B0%83%E8%AF%95">反调试</a></li>
+<li><a href="#%E5%8E%BB%E6%B7%B7%E6%B7%86">去混淆</a></li>
+<li><a href="#%E5%A4%A9%E5%A0%82%E4%B9%8B%E9%97%A8">天堂之门</a></li>
+<li><a href="#solve">solve</a></li>
+</ul>
+</li>
+<li><a href="#d3ctf2024-randomvm">D^3CTF2024 - RandomVM</a>
+<ul>
+<li><a href="#%E5%88%86%E6%9E%90">分析</a></li>
+<li><a href="#%E6%81%A2%E5%A4%8D%E7%A8%8B%E5%BA%8F%E9%80%BB%E8%BE%91">恢复程序逻辑</a>
+<ul>
+<li><a href="#%E5%BB%BA%E7%AB%8B%E8%B7%B3%E8%A1%A8">建立跳表</a></li>
+<li><a href="#%E6%81%A2%E5%A4%8D%E7%9C%9F%E5%AE%9E%E6%8C%87%E4%BB%A4">恢复真实指令</a></li>
+</ul>
+</li>
+<li><a href="#solve-2">solve</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://kotoriseed.github.io/post/cve-2024-21762/">
+              <h3 class="post-title">
+                CVE-2024-21762 FortiGate SSLVPN off-by-2
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  
+  <a class="rss" href="https://kotoriseed.github.io//atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>
